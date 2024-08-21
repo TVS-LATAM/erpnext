@@ -66,6 +66,12 @@ frappe.ui.form.on("Project", {
 			]
 			return { filters }
 		})
+
+		frappe.realtime.on('docinfo_update', (data) => {
+			if (data.key === "attachment_logs") {
+				insertCarousel(frm)
+			}
+		})
 	},
 
 	refresh: async function (frm) {
@@ -100,6 +106,7 @@ frappe.ui.form.on("Project", {
 			document.querySelector('#chat-container').remove()
 		}
 		installChat(frm);
+		insertCarousel(frm)
 	},
 	after_save: function(frm){
 		localStorage.removeItem("autosave")
@@ -245,5 +252,93 @@ function open_form(frm, doctype, child_doctype, parentfield) {
 		frappe.ui.form.make_quick_entry(doctype, null, null, new_doc);
 	});
 
+}
+
+let touchTimeout;
+async function insertCarousel(frm) {
+	frappe.require('glider.bundle.js', () => {
+		setTimeout(() => {
+			frappe.db.get_list("File", {
+				filters: [
+					['attached_to_name', 'in', frm.doc.name],
+					['attached_to_doctype', '=', "Project"]
+				],
+				fields: ["file_url"],
+				limit: 10
+			}).then((attachments) => {
+				const tracker = document.querySelector('.glider-track')
+				const container = document.querySelector('.glider-contain')
+				const gliderEl = document.querySelector('.glider')
+
+				const glider = new Glider(gliderEl, {
+					slidesToShow: 1,
+					draggable: true,
+					dots: '.dots',
+					arrows: {
+						prev: '.glider-prev',
+						next: '.glider-next'
+					},
+					responsive: [
+						{
+							breakpoint: 600,
+							settings: {
+								slidesToShow: 2,
+								slidesToScroll: 2,
+								duration: 0.25
+							}
+						}, {
+							breakpoint: 1024,
+							settings: {
+								slidesToShow: 5,
+								slidesToScroll: 5,
+								duration: 0.25
+							}
+						}
+					]
+				})
+
+				//remove all items
+				if (tracker && glider) {
+					for (let index = 0; index < tracker.childElementCount; index++) {
+						glider.removeItem(index)
+					}
+				}
+
+				if (attachments && attachments.length > 0 && glider) {
+					container.style = 'height: auto;'
+
+					for (const attachment of attachments) {
+						const img = document.createElement('img')
+						img.setAttribute('src', attachment.file_url)
+						img.addEventListener('touchstart', (e) => handleTouchStart(e, attachment.file_url))
+						img.addEventListener('touchend', handleTouchEnd)
+						glider.addItem(img)
+					}
+
+				} else {
+					container.style = 'height: 0;'
+					console.log('No attachments found for this project.');
+				}
+			})
+		}, 2000)// if this time is less than 2 sec it'll be render a wrong carousel
+	})
+}
+
+function handleTouchStart(e, url) {
+	touchTimeout = setTimeout(() => {
+		const imageContainer = document.querySelector('#selected-attachment')
+		const img = imageContainer.querySelector('img')
+		img.setAttribute('src', url)
+		img.addEventListener('touchend', handleTouchEnd)
+		imageContainer.removeAttribute('hidden')
+	}, 1000)
+}
+
+function handleTouchEnd(e) {
+	clearTimeout(touchTimeout)
+	const imageContainer = document.querySelector('#selected-attachment')
+	if (imageContainer) {
+		imageContainer.setAttribute('hidden', "true")
+	}
 }
 

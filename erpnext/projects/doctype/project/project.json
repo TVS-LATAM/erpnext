@@ -106,6 +106,8 @@
   "gross_margin",
   "column_break_37",
   "per_gross_margin",
+  "attachments",
+  "html_hckl",
   "monitor_progress",
   "collect_progress",
   "holiday_list",
@@ -177,18 +179,18 @@
    "label": "Project Description"
   },
   {
-    "fieldname": "language",
-    "fieldtype": "Data",
-    "in_list_view": 1,
-    "label": "Language"
-   },
-   {
-    "fieldname": "has_dongle",
-    "default": "0",
-    "fieldtype": "Check",
-    "in_list_view": 1,
-    "label": "Has dongle"
-   },
+   "fieldname": "language",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Language"
+  },
+  {
+   "default": "0",
+   "fieldname": "has_dongle",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Has dongle"
+  },
   {
    "fieldname": "clutch",
    "fieldtype": "Data",
@@ -602,8 +604,7 @@
   {
    "fieldname": "diagnose_result",
    "fieldtype": "Text Editor",
-   "label": "Diagnose result",
-   "default":"<p>[Naam] op [datum]:</p><p>Kilomerstand:</p><p>Foutcodes:</p><ul><li>Motor:</li><li>DSG:</li><li>ABS:</li></ul><p>Opgemerkte klachten:</p><ul><li></li><li></li><li></li></ul><p>Diagnose data bijzonderheden:</p><ul><li></li><li></li><li></li></ul><p>Reparatie advies:</p><ul><li></li><li></li><li></li></ul>"
+   "label": "Diagnose result"
   },
   {
    "collapsible": 1,
@@ -879,6 +880,15 @@
    "hidden": 1,
    "in_list_view": 1,
    "label": "status_modified"
+  },
+  {
+   "fieldname": "attachments",
+   "fieldtype": "Section Break",
+   "label": "Attachments"
+  },
+  {
+   "fieldname": "html_hckl",
+   "fieldtype": "HTML"
   }
  ],
  "icon": "fa fa-puzzle-piece",
@@ -886,7 +896,7 @@
  "index_web_pages_for_search": 1,
  "links": [],
  "max_attachments": 4,
- "modified": "2024-07-31 22:37:12.530819",
+ "modified": "2024-08-16 21:41:02.590704",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Project",

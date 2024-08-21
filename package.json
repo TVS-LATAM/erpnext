@@ -14,6 +14,7 @@
   "dependencies": {
     "@tvsgroup/erp-calendar": "0.3.0",
     "@tvsgroup/erp-quotation-items": "^0.0.13",
+    "glider-js": "^1.7.9",
     "onscan.js": "^1.5.2"
   }
 }
