@@ -324,7 +324,7 @@
    "in_list_view": 1,
    "in_preview": 1,
    "label": "R.D Time",
-   "options": "\n14:00-15:00\n16:00-17:00"
+   "options": "\n14:00-15:00\n16:00-17:00\n15:30-16:15\n16:15-17:00"
   },
   {
    "fieldname": "priority",
