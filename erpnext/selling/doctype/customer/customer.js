@@ -2,6 +2,125 @@
 // License: GNU General Public License v3. See license.txt
 
 frappe.ui.form.on("Customer", {
+	vat_validation: async function(frm) {
+    if (!frm.doc.tax_id) {
+        frappe.msgprint(__("Please enter a Tax ID before validating."));
+        return;
+    }
+
+    frappe.dom.freeze(__("Validating VAT ID..."));
+
+		const trimmedTaxId = frm.doc.tax_id.trim();
+		if (trimmedTaxId !== frm.doc.tax_id) {
+				frm.set_value("tax_id", trimmedTaxId);
+		}
+		const { aws_url } = await frappe.db.get_doc('Rest Config')
+    // Make API call to validate VAT ID
+    $.ajax({
+        url: `${aws_url}vat-validation?vatId=${encodeURIComponent(trimmedTaxId)}`,
+        type: 'GET',
+        success: function(response) {
+            frappe.dom.unfreeze();
+
+            // Create dialog to display validation results
+            const dialog = new frappe.ui.Dialog({
+                title: __('VAT Validation Results'),
+                fields: [
+                    {
+                        fieldtype: 'Section Break',
+                        label: __('Validation Status')
+                    },
+                    {
+                        fieldtype: 'HTML',
+                        fieldname: 'status_html'
+                    },
+                    {
+                        fieldtype: 'Section Break',
+                        label: __('Company Details')
+                    },
+                    {
+                        fieldtype: 'HTML',
+                        fieldname: 'company_details'
+                    }
+                ],
+                primary_action_label: __('Update Customer Group'),
+                primary_action: function() {
+                    // Update customer information if validation is successful
+                    if (response.isValid) {
+                        frm.set_value("customer_group", "Commercial")
+												frm.save();
+                    }
+
+                    dialog.hide();
+                }
+            });
+
+            // Set the status HTML based on validation result
+            let status_html = '';
+            if (response.isValid) {
+                status_html = `
+                    <div class="alert alert-success">
+                        <strong>${__('Valid VAT ID')}</strong>
+                        <p>${__('The provided VAT ID is valid.')}</p>
+                    </div>
+                `;
+            } else {
+                status_html = `
+                    <div class="alert alert-danger">
+                        <strong>${__('Invalid VAT ID')}</strong>
+                        <p>${__('Error: ')} ${response.userError || __('Validation failed')}</p>
+                    </div>
+                `;
+            }
+            dialog.fields_dict.status_html.$wrapper.html(status_html);
+
+            // Set company details HTML
+            let company_details = '';
+            if (response.isValid) {
+                company_details = `
+                    <div class="row">
+                        <div class="col-xs-12">
+                            <div class="row">
+                                <div class="col-xs-4"><strong>${__('Company Name')}:</strong></div>
+                                <div class="col-xs-8">${response.name || '-'}</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-xs-4"><strong>${__('Address')}:</strong></div>
+                                <div class="col-xs-8">${response.address || '-'}</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-xs-4"><strong>${__('VAT Number')}:</strong></div>
+                                <div class="col-xs-8">${response.vatNumber || '-'}</div>
+                            </div>
+                            <div class="row">
+                                <div class="col-xs-4"><strong>${__('Request Date')}:</strong></div>
+                                <div class="col-xs-8">${frappe.datetime.str_to_user(response.requestDate) || '-'}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                company_details = `
+                    <div class="alert alert-warning">
+                        <p>${__('No company details available for invalid VAT ID.')}</p>
+                    </div>
+                `;
+            }
+
+            dialog.fields_dict.company_details.$wrapper.html(company_details);
+            dialog.show();
+        },
+        error: function(xhr, status, error) {
+            frappe.dom.unfreeze();
+            frappe.msgprint({
+                title: __('VAT Validation Error'),
+                indicator: 'red',
+                message: __(xhr.responseJSON.error)
+            });
+            console.error("VAT validation error:", error);
+        }
+    });
+},
 	setup: function(frm) {
 
 		frm.make_methods = {
