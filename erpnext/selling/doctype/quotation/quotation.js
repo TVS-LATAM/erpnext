@@ -80,6 +80,47 @@ frappe.ui.form.on('Quotation', {
 	set_label: function (frm) {
 		frm.fields_dict.customer_address.set_label(__(frm.doc.quotation_to + " Address"));
 	},
+
+	validate: function(frm) {
+    // Collect all promises for stock checks per item
+    // Only check stock items (items that have is_stock_item set to 1)
+    const promises = frm.doc.items
+      .filter(item => item.is_stock_item === 1)
+      .map(item => {
+        return frappe.call({
+          method: "frappe.client.get_value",
+          args: {
+            doctype: "Bin",
+            filters: {
+              item_code: item.item_code,
+              warehouse: item.warehouse
+            },
+            fieldname: ["actual_qty", "reserved_qty"]
+          }
+        }).then(res => {
+          const stock = res.message || {};
+
+          // Calculate available stock (actual - reserved)
+          const available_qty = (stock.actual_qty || 0) - (stock.reserved_qty || 0);
+
+          // If requested qty is more than available, block submission
+          if (item.qty > available_qty) {
+            frappe.msgprint(
+              `Not enough stock for item ${item.item_code} in ${item.warehouse}. 
+              Available: ${available_qty}, Requested: ${item.qty}`
+            );
+            // Throw error to block the save/submit
+            throw new Error("Insufficient stock for one or more items.");
+          }
+        });
+      });
+
+    // If no stock items to check, return immediately
+    if (promises.length === 0) return;
+
+    // Return a Promise that ensures all checks are complete before submit
+    return Promise.all(promises);
+  }
 });
 
 erpnext.selling.QuotationController = class QuotationController extends erpnext.selling.SellingController {

@@ -28,11 +28,13 @@ frappe.listview_settings['Quotation'] = {
 		} else if (doc.status==="Partially Ordered") {
 			return [__("Partially Ordered"), "yellow", "status,=,Partially Ordered"];
 		} else if(doc.status==="Ordered") {
-			return [__("Ordered"), "green", "status,=,Ordered"];
+			return [__("Ordered"), "blue", "status,=,Ordered"];
 		} else if(doc.status==="Lost") {
 			return [__("Lost"), "gray", "status,=,Lost"];
 		} else if(doc.status==="Expired") {
 			return [__("Expired"), "gray", "status,=,Expired"];
+		} else if(doc.status==="Paid") {
+			return [__("Paid"), "green", "status,=,Paid"];
 		}
 	}
 };
