@@ -627,6 +627,7 @@ frappe.ui.form.on('Sales Invoice', {
 			};
 			
 			frm.doc.payment_id = generateCompactID();
+			frm.doc.payment_gateway = "Auto"
 		}
 	},
 	setup: function (frm) {
