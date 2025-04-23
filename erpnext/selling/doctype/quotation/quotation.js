@@ -82,44 +82,125 @@ frappe.ui.form.on('Quotation', {
 	},
 
 	validate: function(frm) {
-    // Collect all promises for stock checks per item
-    // Only check stock items (items that have is_stock_item set to 1)
-    const promises = frm.doc.items
-      .filter(item => item.is_stock_item === 1)
-      .map(item => {
-        return frappe.call({
-          method: "frappe.client.get_value",
-          args: {
-            doctype: "Bin",
-            filters: {
-              item_code: item.item_code,
-              warehouse: item.warehouse
-            },
-            fieldname: ["actual_qty", "reserved_qty"]
-          }
-        }).then(res => {
-          const stock = res.message || {};
-
-          // Calculate available stock (actual - reserved)
-          const available_qty = (stock.actual_qty || 0) - (stock.reserved_qty || 0);
-
-          // If requested qty is more than available, block submission
+    // First, get all items that need stock validation
+    const itemsToCheck = frm.doc.items.filter(item => 
+      // Only check if:
+      // 1. Item is marked as stock item
+      // 2. Has a warehouse specified
+      // 3. Has a positive quantity
+      item.is_stock_item === 1 && 
+      item.warehouse && 
+      item.qty > 0
+    );
+    
+    // Skip validation if no items need checking
+    if (!itemsToCheck.length) return;
+    
+    // Group items by warehouse for more efficient querying
+    const itemsByWarehouse = {};
+    itemsToCheck.forEach(item => {
+      if (!itemsByWarehouse[item.warehouse]) {
+        itemsByWarehouse[item.warehouse] = [];
+      }
+      itemsByWarehouse[item.warehouse].push(item);
+    });
+    
+    // Create an array to track all insufficient items
+    const insufficientItems = [];
+    
+    // Create a promise for each warehouse (reduces number of server calls)
+    const warehousePromises = Object.entries(itemsByWarehouse).map(([warehouse, items]) => {
+      // Get all item codes for this warehouse
+      const itemCodes = items.map(item => item.item_code);
+      
+      // Get stock data for all items in this warehouse in one call
+      return frappe.call({
+        method: "frappe.client.get_list",
+        args: {
+          doctype: "Bin",
+          filters: {
+            item_code: ["in", itemCodes],
+            warehouse: warehouse
+          },
+          fields: ["item_code", "actual_qty", "reserved_qty", "projected_qty"]
+        }
+      }).then(response => {
+        const binData = response.message || [];
+        
+        // Create a lookup map for quick access
+        const stockMap = {};
+        binData.forEach(bin => {
+          stockMap[bin.item_code] = bin;
+        });
+        
+        // Check each item in this warehouse
+        items.forEach(item => {
+          const stock = stockMap[item.item_code] || {
+            actual_qty: 0,
+            reserved_qty: 0,
+            projected_qty: 0
+          };
+          
+          const available_qty = stock.actual_qty - stock.reserved_qty;
+          
+          // If requested quantity exceeds available, add to insufficient items
           if (item.qty > available_qty) {
-            frappe.msgprint(
-              `Not enough stock for item ${item.item_code} in ${item.warehouse}. 
-              Available: ${available_qty}, Requested: ${item.qty}`
-            );
-            // Throw error to block the save/submit
-            throw new Error("Insufficient stock for one or more items.");
+            insufficientItems.push({
+              item_code: item.item_code,
+              item_name: item.item_name || item.item_code,
+              warehouse: warehouse,
+              available: available_qty,
+              requested: item.qty
+            });
           }
         });
       });
-
-    // If no stock items to check, return immediately
-    if (promises.length === 0) return;
-
-    // Return a Promise that ensures all checks are complete before submit
-    return Promise.all(promises);
+    });
+    
+    // Wait for all warehouse checks to complete
+    return Promise.all(warehousePromises).then(() => {
+      // If any items have insufficient stock, show a consolidated message
+      if (insufficientItems.length) {
+        // Create a formatted message with all insufficient items
+        let message = __("The following items don't have sufficient stock:") + "<br><br>";
+        message += "<table class='table table-bordered'>";
+        message += "<tr><th>" + __("Item") + "</th>";
+        message += "<th>" + __("Warehouse") + "</th>";
+        message += "<th>" + __("Available Qty") + "</th>";
+        message += "<th>" + __("Requested Qty") + "</th></tr>";
+        
+        insufficientItems.forEach(item => {
+          message += `<tr>
+            <td>${item.item_name}</td>
+            <td>${item.warehouse}</td>
+            <td>${item.available}</td>
+            <td>${item.requested}</td>
+          </tr>`;
+        });
+        
+        message += "</table>";
+        
+        // Show the message to the user
+        frappe.msgprint({
+          title: __("Insufficient Stock"),
+          indicator: "orange",
+          message: message
+        });
+        
+        // Prevent form submission
+        frappe.validated = false;
+        return false;
+      }
+    }).catch(error => {
+      console.error("Stock validation error:", error);
+      frappe.msgprint({
+        title: __("Error"),
+        indicator: "red",
+        message: __("An error occurred while validating stock. Please try again.")
+      });
+      frappe.validated = false;
+      return false;
+    });
   }
 });
 
