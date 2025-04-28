@@ -114,12 +114,7 @@ class ReceivablePayableReport:
 		self.build_data()
 
 	def build_voucher_dict(self, ple):
-		voucher_type = ple.against_voucher_type
-		voucher_no = ple.against_voucher_no
-		if ple.against_voucher_type == "Exchange Rate Revaluation":
-			voucher_type = ple.voucher_type
-			voucher_no = ple.voucher_no
-
+		voucher_type, voucher_no = self.get_voucher_type_and_name_for_ple(ple)
 		return frappe._dict(
 			voucher_type=voucher_type,
 			voucher_no=voucher_no,
@@ -138,11 +133,21 @@ class ReceivablePayableReport:
 			outstanding_in_account_currency=0.0,
 		)
 
+	def get_voucher_type_and_name_for_ple(self, ple):
+		voucher_type = ple.against_voucher_type
+		voucher_no = ple.against_voucher_no
+
+		if ple.against_voucher_type in ["Exchange Rate Revaluation", "Sales Order", "Purchase Order"]:
+			voucher_type = ple.voucher_type
+			voucher_no = ple.voucher_no
+		return voucher_type, voucher_no
+
 	def init_voucher_balance(self, ple):
+		voucher_type, voucher_no = self.get_voucher_type_and_name_for_ple(ple)
 		if self.filters.get("ignore_accounts"):
-			key = (ple.against_voucher_type, ple.against_voucher_no, ple.party)
+			key = (voucher_type, voucher_no, ple.party)
 		else:
-			key = (ple.account, ple.against_voucher_type, ple.against_voucher_no, ple.party)
+			key = (ple.account, voucher_type, voucher_no, ple.party)
 
 		if key not in self.voucher_balance:
 			self.voucher_balance[key] = self.build_voucher_dict(ple)
