@@ -134,8 +134,15 @@ frappe.query_reports["VAT Declaration"] = {
 								const formattedToDate = frappe.datetime.str_to_user(toDate);
 								const periode = `${formattedFromDate} – ${formattedToDate}`;
 								
-								// Replace placeholder with actual period if it exists in the letterhead
+								// Calculate Uiterste inzenddatum (submission deadline)
+								// Typically this is the last day of the month following the end of the quarter
+								// For Dutch VAT declarations, it's typically +30 days after the end date
+								const submissionDeadline = frappe.datetime.add_days(toDate, 30);
+								const formattedDeadline = frappe.datetime.str_to_user(submissionDeadline);
+								
+								// Replace placeholders with actual values if they exist in the letterhead
 								letterhead_html = letterhead_html.replace('${{periode}}', periode);
+								letterhead_html = letterhead_html.replace('${{uiterste_inzenddatum}}', formattedDeadline);
 							}
 						}
 					}
