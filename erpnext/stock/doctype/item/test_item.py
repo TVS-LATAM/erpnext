@@ -32,7 +32,7 @@ test_ignore = ["BOM"]
 test_dependencies = ["Warehouse", "Item Group", "Item Tax Template", "Brand", "Item Attribute"]
 
 
-def make_item(item_code=None, properties=None, uoms=None):
+def make_item(item_code=None, properties=None, uoms=None, barcode=None):
 	if not item_code:
 		item_code = frappe.generate_hash(length=16)
 
@@ -60,6 +60,14 @@ def make_item(item_code=None, properties=None, uoms=None):
 	if uoms:
 		for uom in uoms:
 			item.append("uoms", uom)
+
+	if barcode:
+		item.append(
+			"barcodes",
+			{
+				"barcode": barcode,
+			},
+		)
 
 	item.insert()
 
@@ -315,7 +323,6 @@ class TestItem(FrappeTestCase):
 			self.assertEqual(value, purchase_item_details.get(key))
 
 	def test_item_default_validations(self):
-
 		with self.assertRaises(frappe.ValidationError) as ve:
 			make_item(
 				"Bad Item defaults",
@@ -469,9 +476,7 @@ class TestItem(FrappeTestCase):
 
 		self.assertFalse(frappe.db.exists("Item", old))
 
-		self.assertTrue(
-			frappe.db.get_value("Bin", {"item_code": new, "warehouse": "_Test Warehouse - _TC"})
-		)
+		self.assertTrue(frappe.db.get_value("Bin", {"item_code": new, "warehouse": "_Test Warehouse - _TC"}))
 		self.assertTrue(
 			frappe.db.get_value("Bin", {"item_code": new, "warehouse": "_Test Warehouse 1 - _TC"})
 		)
@@ -522,39 +527,25 @@ class TestItem(FrappeTestCase):
 		self.assertEqual(factor, 1.0)
 
 	def test_item_variant_by_manufacturer(self):
-		fields = [{"field_name": "description"}, {"field_name": "variant_based_on"}]
-		set_item_variant_settings(fields)
+		template = make_item(
+			"_Test Item Variant By Manufacturer", {"has_variants": 1, "variant_based_on": "Manufacturer"}
+		).name
 
-		if frappe.db.exists("Item", "_Test Variant Mfg"):
-			frappe.delete_doc("Item", "_Test Variant Mfg")
-		if frappe.db.exists("Item", "_Test Variant Mfg-1"):
-			frappe.delete_doc("Item", "_Test Variant Mfg-1")
-		if frappe.db.exists("Manufacturer", "MSG1"):
-			frappe.delete_doc("Manufacturer", "MSG1")
+		for manufacturer in ["DFSS", "DASA", "ASAAS"]:
+			if not frappe.db.exists("Manufacturer", manufacturer):
+				m_doc = frappe.new_doc("Manufacturer")
+				m_doc.short_name = manufacturer
+				m_doc.insert()
 
-		template = frappe.get_doc(
-			dict(
-				doctype="Item",
-				item_code="_Test Variant Mfg",
-				has_variant=1,
-				item_group="Products",
-				variant_based_on="Manufacturer",
-			)
-		).insert()
+		self.assertFalse(frappe.db.exists("Item Manufacturer", {"manufacturer": "DFSS"}))
+		variant = get_variant(template, manufacturer="DFSS", manufacturer_part_no="DFSS-123")
 
-		manufacturer = frappe.get_doc(dict(doctype="Manufacturer", short_name="MSG1")).insert()
+		item_manufacturer = frappe.db.exists(
+			"Item Manufacturer", {"manufacturer": "DFSS", "item_code": variant.name}
+		)
+		self.assertTrue(item_manufacturer)
 
-		variant = get_variant(template.name, manufacturer=manufacturer.name)
-		self.assertEqual(variant.item_code, "_Test Variant Mfg-1")
-		self.assertEqual(variant.description, "_Test Variant Mfg")
-		self.assertEqual(variant.manufacturer, "MSG1")
-		variant.insert()
-
-		variant = get_variant(template.name, manufacturer=manufacturer.name, manufacturer_part_no="007")
-		self.assertEqual(variant.item_code, "_Test Variant Mfg-2")
-		self.assertEqual(variant.description, "_Test Variant Mfg")
-		self.assertEqual(variant.manufacturer, "MSG1")
-		self.assertEqual(variant.manufacturer_part_no, "007")
+		frappe.delete_doc("Item Manufacturer", item_manufacturer)
 
 	def test_stock_exists_against_template_item(self):
 		stock_item = frappe.get_all("Stock Ledger Entry", fields=["item_code"], limit=1)
@@ -743,9 +734,7 @@ class TestItem(FrappeTestCase):
 
 	@change_settings("Stock Settings", {"sample_retention_warehouse": "_Test Warehouse - _TC"})
 	def test_retain_sample(self):
-		item = make_item(
-			"_TestRetainSample", {"has_batch_no": 1, "retain_sample": 1, "sample_quantity": 1}
-		)
+		item = make_item("_TestRetainSample", {"has_batch_no": 1, "retain_sample": 1, "sample_quantity": 1})
 
 		self.assertEqual(item.has_batch_no, 1)
 		self.assertEqual(item.retain_sample, 1)
@@ -818,7 +807,7 @@ class TestItem(FrappeTestCase):
 	def test_customer_codes_length(self):
 		"""Check if item code with special characters are allowed."""
 		item = make_item(properties={"item_code": "Test Item Code With Special Characters"})
-		for row in range(3):
+		for _row in range(3):
 			item.append("customer_items", {"ref_code": frappe.generate_hash("", 120)})
 		item.save()
 		self.assertTrue(len(item.customer_code) > 140)
@@ -859,9 +848,7 @@ class TestItem(FrappeTestCase):
 		make_property_setter("Item", None, "search_fields", "item_name", "Data", for_doctype="Doctype")
 
 		item = make_item(properties={"item_name": "Test Item", "description": "Test Description"})
-		data = item_query(
-			"Item", "Test Item", "", 0, 20, filters={"item_name": "Test Item"}, as_dict=True
-		)
+		data = item_query("Item", "Test Item", "", 0, 20, filters={"item_name": "Test Item"}, as_dict=True)
 		self.assertEqual(data[0].name, item.name)
 		self.assertEqual(data[0].item_name, item.item_name)
 		self.assertTrue("description" not in data[0])
@@ -869,13 +856,32 @@ class TestItem(FrappeTestCase):
 		make_property_setter(
 			"Item", None, "search_fields", "item_name, description", "Data", for_doctype="Doctype"
 		)
-		data = item_query(
-			"Item", "Test Item", "", 0, 20, filters={"item_name": "Test Item"}, as_dict=True
-		)
+		data = item_query("Item", "Test Item", "", 0, 20, filters={"item_name": "Test Item"}, as_dict=True)
 		self.assertEqual(data[0].name, item.name)
 		self.assertEqual(data[0].item_name, item.item_name)
 		self.assertEqual(data[0].description, item.description)
 		self.assertTrue("description" in data[0])
+
+	def test_group_warehouse_for_reorder_item(self):
+		from erpnext.stock.doctype.warehouse.test_warehouse import create_warehouse
+
+		item_doc = make_item("_Test Group Warehouse For Reorder Item", {"is_stock_item": 1})
+		warehouse = create_warehouse("_Test Warehouse - _TC")
+		warehouse_doc = frappe.get_doc("Warehouse", warehouse)
+		warehouse_doc.db_set("parent_warehouse", "")
+
+		item_doc.append(
+			"reorder_levels",
+			{
+				"warehouse": warehouse,
+				"warehouse_reorder_level": 10,
+				"warehouse_reorder_qty": 100,
+				"material_request_type": "Purchase",
+				"warehouse_group": "_Test Warehouse Group - _TC",
+			},
+		)
+
+		self.assertRaises(frappe.ValidationError, item_doc.save)
 
 
 def set_item_variant_settings(fields):

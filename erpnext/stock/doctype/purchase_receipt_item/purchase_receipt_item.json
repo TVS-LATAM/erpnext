@@ -48,6 +48,7 @@
   "column_break_37",
   "discount_percentage",
   "discount_amount",
+  "distributed_discount_amount",
   "base_rate_with_margin",
   "sec_break1",
   "rate",
@@ -58,6 +59,7 @@
   "pricing_rules",
   "stock_uom_rate",
   "is_free_item",
+  "apply_tds",
   "section_break_29",
   "net_rate",
   "net_amount",
@@ -66,10 +68,11 @@
   "base_net_rate",
   "base_net_amount",
   "valuation_rate",
+  "sales_incoming_rate",
   "item_tax_amount",
   "rm_supp_cost",
   "landed_cost_voucher_amount",
-  "rate_difference_with_purchase_invoice",
+  "amount_difference_with_purchase_invoice",
   "billed_amt",
   "warehouse_and_reference",
   "warehouse",
@@ -80,6 +83,7 @@
   "purchase_invoice",
   "column_break_40",
   "allow_zero_valuation_rate",
+  "return_qty_from_rejected_warehouse",
   "is_fixed_asset",
   "asset_location",
   "asset_category",
@@ -94,6 +98,7 @@
   "section_break_45",
   "add_serial_batch_bundle",
   "serial_and_batch_bundle",
+  "use_serial_batch_fields",
   "col_break5",
   "add_serial_batch_for_rejected_qty",
   "rejected_serial_and_batch_bundle",
@@ -127,7 +132,8 @@
   "section_break_80",
   "page_break",
   "sales_order",
-  "sales_order_item"
+  "sales_order_item",
+  "subcontracting_receipt_item"
  ],
  "fields": [
   {
@@ -192,6 +198,7 @@
    "width": "300px"
   },
   {
+   "fetch_from": "item_code.image",
    "fieldname": "image",
    "fieldtype": "Attach",
    "hidden": 1,
@@ -905,7 +912,7 @@
   },
   {
    "collapsible": 1,
-   "collapsible_depends_on": "eval: doc.margin_type || doc.discount_amount",
+   "collapsible_depends_on": "eval: doc.margin_type || doc.discount_amount || doc.distributed_discount_amount",
    "fieldname": "discount_and_margin_section",
    "fieldtype": "Section Break",
    "label": "Discount and Margin"
@@ -993,14 +1000,7 @@
    "read_only": 1
   },
   {
-   "fieldname": "rate_difference_with_purchase_invoice",
-   "fieldtype": "Currency",
-   "label": "Rate Difference with Purchase Invoice",
-   "no_copy": 1,
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
+   "depends_on": "eval:doc.use_serial_batch_fields === 0 || doc.docstatus === 1",
    "fieldname": "serial_and_batch_bundle",
    "fieldtype": "Link",
    "label": "Serial and Batch Bundle",
@@ -1018,24 +1018,22 @@
   {
    "fieldname": "serial_no",
    "fieldtype": "Text",
-   "label": "Serial No",
-   "read_only": 1
+   "label": "Serial No"
   },
   {
    "fieldname": "rejected_serial_no",
    "fieldtype": "Text",
-   "label": "Rejected Serial No",
-   "read_only": 1
+   "label": "Rejected Serial No"
   },
   {
    "fieldname": "batch_no",
    "fieldtype": "Link",
    "label": "Batch No",
    "options": "Batch",
-   "read_only": 1,
    "search_index": 1
   },
   {
+   "depends_on": "eval:doc.use_serial_batch_fields === 0 || doc.docstatus === 1",
    "fieldname": "rejected_serial_and_batch_bundle",
    "fieldtype": "Link",
    "label": "Rejected Serial and Batch Bundle",
@@ -1043,11 +1041,13 @@
    "options": "Serial and Batch Bundle"
   },
   {
+   "depends_on": "eval:doc.use_serial_batch_fields === 0",
    "fieldname": "add_serial_batch_for_rejected_qty",
    "fieldtype": "Button",
    "label": "Add Serial / Batch No (Rejected Qty)"
   },
   {
+   "depends_on": "eval:doc.use_serial_batch_fields === 1",
    "fieldname": "section_break_3vxt",
    "fieldtype": "Section Break"
   },
@@ -1056,6 +1056,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval:doc.use_serial_batch_fields === 0",
    "fieldname": "add_serial_batch_bundle",
    "fieldtype": "Button",
    "label": "Add Serial / Batch No"
@@ -1085,12 +1086,68 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "subcontracting_receipt_item",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Subcontracting Receipt Item",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1,
+   "report_hide": 1,
+   "search_index": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "use_serial_batch_fields",
+   "fieldtype": "Check",
+   "label": "Use Serial No / Batch Fields"
+  },
+  {
+   "default": "1",
+   "fieldname": "apply_tds",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Apply TDS",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "return_qty_from_rejected_warehouse",
+   "fieldtype": "Check",
+   "label": "Return Qty from Rejected Warehouse",
+   "read_only": 1
+  },
+  {
+   "description": "Valuation rate for the item as per Sales Invoice (Only for Internal Transfers)",
+   "fieldname": "sales_incoming_rate",
+   "fieldtype": "Currency",
+   "hidden": 1,
+   "label": "Sales Incoming Rate",
+   "no_copy": 1,
+   "options": "Company:company:default_currency",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "distributed_discount_amount",
+   "fieldtype": "Currency",
+   "label": "Distributed Discount Amount",
+   "options": "currency"
+  },
+  {
+   "fieldname": "amount_difference_with_purchase_invoice",
+   "fieldtype": "Currency",
+   "label": "Amount Difference with Purchase Invoice",
+   "no_copy": 1,
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "idx": 1,
  "istable": 1,
  "links": [],
- "modified": "2023-10-30 17:32:24.560337",
+ "modified": "2025-03-12 17:10:43.780622",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Purchase Receipt Item",

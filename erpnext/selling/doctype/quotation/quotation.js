@@ -1,52 +1,39 @@
 // Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 // License: GNU General Public License v3. See license.txt
 
+cur_frm.cscript.tax_table = "Sales Taxes and Charges";
+
 erpnext.accounts.taxes.setup_tax_validations("Sales Taxes and Charges Template");
 erpnext.accounts.taxes.setup_tax_filters("Sales Taxes and Charges");
 erpnext.pre_sales.set_as_lost("Quotation");
 erpnext.sales_common.setup_selling_controller();
 
-frappe.ui.form.on('Quotation', {
+frappe.ui.form.on("Quotation", {
 	setup: function (frm) {
-		frm.custom_make_buttons = {
-			'Sales Order': 'Sales Order'
-		},
-
+		(frm.custom_make_buttons = {
+			"Sales Order": "Sales Order",
+		}),
 			frm.set_query("quotation_to", function () {
 				return {
-					"filters": {
-						"name": ["in", ["Customer", "Lead", "Prospect"]],
-					}
-				}
+					filters: {
+						name: ["in", ["Customer", "Lead", "Prospect"]],
+					},
+				};
 			});
 
-		frm.set_df_property('packed_items', 'cannot_add_rows', true);
-		frm.set_df_property('packed_items', 'cannot_delete_rows', true);
-
-		frm.set_query('company_address', function (doc) {
-			if (!doc.company) {
-				frappe.throw(__('Please set Company'));
-			}
-
-			return {
-				query: 'frappe.contacts.doctype.address.address.address_query',
-				filters: {
-					link_doctype: 'Company',
-					link_name: doc.company
-				}
-			};
-		});
+		frm.set_df_property("packed_items", "cannot_add_rows", true);
+		frm.set_df_property("packed_items", "cannot_delete_rows", true);
 
 		frm.set_query("serial_and_batch_bundle", "packed_items", (doc, cdt, cdn) => {
 			let row = locals[cdt][cdn];
 			return {
 				filters: {
-					'item_code': row.item_code,
-					'voucher_type': doc.doctype,
-					'voucher_no': ["in", [doc.name, ""]],
-					'is_cancelled': 0,
-				}
-			}
+					item_code: row.item_code,
+					voucher_type: doc.doctype,
+					voucher_no: ["in", [doc.name, ""]],
+					is_cancelled: 0,
+				},
+			};
 		});
 		frm.set_value('selling_price_list', "Retail");
 	},
@@ -56,14 +43,14 @@ frappe.ui.form.on('Quotation', {
 		frm.trigger("set_dynamic_field_label");
 		frm.set_value('selling_price_list', "Retail");
 
-		let sbb_field = frm.get_docfield('packed_items', 'serial_and_batch_bundle');
+		let sbb_field = frm.get_docfield("packed_items", "serial_and_batch_bundle");
 		if (sbb_field) {
 			sbb_field.get_route_options_for_new_doc = (row) => {
 				return {
-					'item_code': row.doc.item_code,
-					'warehouse': row.doc.warehouse,
-					'voucher_type': frm.doc.doctype,
-				}
+					item_code: row.doc.item_code,
+					warehouse: row.doc.warehouse,
+					voucher_type: frm.doc.doctype,
+				};
 			};
 		}
 
@@ -75,6 +62,8 @@ frappe.ui.form.on('Quotation', {
 		frm.trigger("set_label");
 		frm.trigger("toggle_reqd_lead_customer");
 		frm.trigger("set_dynamic_field_label");
+		// frm.set_value("party_name", ""); // removed to set party_name from url for crm integration
+		frm.set_value("customer_name", "");
 	},
 
 	set_label: function (frm) {
@@ -207,6 +196,9 @@ frappe.ui.form.on('Quotation', {
 erpnext.selling.QuotationController = class QuotationController extends erpnext.selling.SellingController {
 	onload(doc, dt, dn) {
 		super.onload(doc, dt, dn);
+
+		// TODO: think of better way to do this
+		// this.frm.trigger("disable_customer_if_creating_from_opportunity");
 	}
 	quotation_template() {
 		if (this.frm.doc.quotation_template) {
@@ -241,42 +233,47 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 		super.refresh(doc, dt, dn);
 		frappe.dynamic_link = {
 			doc: this.frm.doc,
-			fieldname: 'party_name',
-			doctype: doc.quotation_to == 'Customer' ? 'Customer' : 'Lead',
+			fieldname: "party_name",
+			doctype: doc.quotation_to,
 		};
 
 		var me = this;
 
 		if (doc.__islocal && !doc.valid_till) {
 			if (frappe.boot.sysdefaults.quotation_valid_till) {
-				this.frm.set_value('valid_till', frappe.datetime.add_days(doc.transaction_date, frappe.boot.sysdefaults.quotation_valid_till));
+				this.frm.set_value(
+					"valid_till",
+					frappe.datetime.add_days(
+						doc.transaction_date,
+						frappe.boot.sysdefaults.quotation_valid_till
+					)
+				);
 			} else {
-				this.frm.set_value('valid_till', frappe.datetime.add_months(doc.transaction_date, 1));
+				this.frm.set_value("valid_till", frappe.datetime.add_months(doc.transaction_date, 1));
 			}
 		}
 
 		if (doc.docstatus == 1 && !["Lost", "Ordered"].includes(doc.status)) {
-			if (frappe.boot.sysdefaults.allow_sales_order_creation_for_expired_quotation
-				|| (!doc.valid_till)
-				|| frappe.datetime.get_diff(doc.valid_till, frappe.datetime.get_today()) >= 0) {
-				this.frm.add_custom_button(
-					__("Sales Order"),
-					() => this.make_sales_order(),
-					__("Create")
-				);
+			if (
+				frappe.boot.sysdefaults.allow_sales_order_creation_for_expired_quotation ||
+				!doc.valid_till ||
+				frappe.datetime.get_diff(doc.valid_till, frappe.datetime.get_today()) >= 0
+			) {
+				this.frm.add_custom_button(__("Sales Order"), () => this.make_sales_order(), __("Create"));
 			}
 
 			if (doc.status !== "Ordered") {
-				this.frm.add_custom_button(__('Set as Lost'), () => {
-					this.frm.trigger('set_as_lost_dialog');
+				this.frm.add_custom_button(__("Set as Lost"), () => {
+					this.frm.trigger("set_as_lost_dialog");
 				});
 			}
 
-			cur_frm.page.set_inner_btn_group_as_primary(__('Create'));
+			cur_frm.page.set_inner_btn_group_as_primary(__("Create"));
 		}
 
 		if (this.frm.doc.docstatus === 0) {
-			this.frm.add_custom_button(__('Opportunity'),
+			this.frm.add_custom_button(
+				__("Opportunity"),
 				function () {
 					erpnext.utils.map_current_doc({
 						method: "erpnext.crm.doctype.opportunity.opportunity.make_quotation",
@@ -288,22 +285,25 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 								fieldname: "party_name",
 								fieldtype: "Link",
 								options: me.frm.doc.quotation_to,
-								default: me.frm.doc.party_name || undefined
+								default: me.frm.doc.party_name || undefined,
 							},
 							{
 								label: "Opportunity Type",
 								fieldname: "opportunity_type",
 								fieldtype: "Link",
 								options: "Opportunity Type",
-								default: me.frm.doc.order_type || undefined
-							}
+								default: me.frm.doc.order_type || undefined,
+							},
 						],
 						get_query_filters: {
 							status: ["not in", ["Lost", "Closed"]],
-							company: me.frm.doc.company
-						}
-					})
-				}, __("Get Items From"), "btn-default");
+							company: me.frm.doc.company,
+						},
+					});
+				},
+				__("Get Items From"),
+				"btn-default"
+			);
 		}
 
 		this.toggle_reqd_lead_customer();
@@ -318,7 +318,7 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 		} else {
 			frappe.model.open_mapped_doc({
 				method: "erpnext.selling.doctype.quotation.quotation.make_sales_order",
-				frm: me.frm
+				frm: me.frm,
 			});
 		}
 	}
@@ -330,10 +330,11 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 		} else if (this.frm.doc.quotation_to == "Lead") {
 			this.frm.set_df_property("party_name", "label", "Lead");
 			this.frm.fields_dict.party_name.get_query = function () {
-				return { query: "erpnext.controllers.queries.lead_query" }
-			}
+				return { query: "erpnext.controllers.queries.lead_query" };
+			};
 		} else if (this.frm.doc.quotation_to == "Prospect") {
 			this.frm.set_df_property("party_name", "label", "Prospect");
+			this.frm.fields_dict.party_name.get_query = null;
 		}
 	}
 
@@ -342,8 +343,8 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 
 		// to overwrite the customer_filter trigger from queries.js
 		this.frm.toggle_reqd("party_name", this.frm.doc.quotation_to);
-		this.frm.set_query('customer_address', this.address_query);
-		this.frm.set_query('shipping_address_name', this.address_query);
+		this.frm.set_query("customer_address", this.address_query);
+		this.frm.set_query("shipping_address_name", this.address_query);
 	}
 
 	tc_name() {
@@ -352,17 +353,22 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 
 	address_query(doc) {
 		return {
-			query: 'frappe.contacts.doctype.address.address.address_query',
+			query: "frappe.contacts.doctype.address.address.address_query",
 			filters: {
 				link_doctype: frappe.dynamic_link.doctype,
-				link_name: doc.party_name
-			}
+				link_name: doc.party_name,
+			},
 		};
 	}
 
 	validate_company_and_party(party_field) {
 		if (!this.frm.doc.quotation_to) {
-			frappe.msgprint(__("Please select a value for {0} quotation_to {1}", [this.frm.doc.doctype, this.frm.doc.name]));
+			frappe.msgprint(
+				__("Please select a value for {0} quotation_to {1}", [
+					this.frm.doc.doctype,
+					this.frm.doc.name,
+				])
+			);
 			return false;
 		} else if (this.frm.doc.quotation_to == "Lead") {
 			return true;
@@ -380,9 +386,9 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 		frappe.call({
 			method: "erpnext.crm.doctype.lead.lead.get_lead_details",
 			args: {
-				'lead': this.frm.doc.party_name,
-				'posting_date': this.frm.doc.transaction_date,
-				'company': this.frm.doc.company,
+				lead: this.frm.doc.party_name,
+				posting_date: this.frm.doc.transaction_date,
+				company: this.frm.doc.company,
 			},
 			callback: function (r) {
 				if (r.message) {
@@ -390,10 +396,9 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 					me.frm.set_value(r.message);
 					me.frm.refresh();
 					me.frm.updating_party_details = false;
-
 				}
-			}
-		})
+			},
+		});
 	}
 
 	show_alternative_items_dialog() {
@@ -416,7 +421,7 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 				columns: 2,
 				formatter: (value, df, options, doc) => {
 					return doc.is_alternative ? `<span class="indicator yellow">${value}</span>` : value;
-				}
+				},
 			},
 			{
 				fieldtype: "Data",
@@ -438,20 +443,20 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 				fieldname: "is_alternative",
 				label: __("Is Alternative"),
 				read_only: 1,
-			}];
+			},
+		];
 
-
-		this.data = this.frm.doc.items.filter(
-			(item) => item.is_alternative || item.has_alternative_item
-		).map((item) => {
-			return {
-				"name": item.name,
-				"item_code": item.item_code,
-				"description": item.description,
-				"amount": item.amount,
-				"is_alternative": item.is_alternative,
-			}
-		});
+		this.data = this.frm.doc.items
+			.filter((item) => item.is_alternative || item.has_alternative_item)
+			.map((item) => {
+				return {
+					name: item.name,
+					item_code: item.item_code,
+					description: item.description,
+					amount: item.amount,
+					is_alternative: item.is_alternative,
+				};
+			});
 
 		const dialog = new frappe.ui.Dialog({
 			title: __("Select Alternative Items for Sales Order"),
@@ -459,7 +464,7 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 				{
 					fieldname: "info",
 					fieldtype: "HTML",
-					read_only: 1
+					read_only: 1,
 				},
 				{
 					fieldname: "alternative_items",
@@ -473,7 +478,7 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 					get_data: () => {
 						return this.data;
 					},
-					fields: table_fields
+					fields: table_fields,
 				},
 			],
 			primary_action: function () {
@@ -481,12 +486,12 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 					method: "erpnext.selling.doctype.quotation.quotation.make_sales_order",
 					frm: me.frm,
 					args: {
-						selected_items: dialog.fields_dict.alternative_items.grid.get_selected_children()
-					}
+						selected_items: dialog.fields_dict.alternative_items.grid.get_selected_children(),
+					},
 				});
 				dialog.hide();
 			},
-			primary_action_label: __('Continue')
+			primary_action_label: __("Continue"),
 		});
 
 		dialog.fields_dict.info.$wrapper.html(
@@ -494,22 +499,53 @@ erpnext.selling.QuotationController = class QuotationController extends erpnext.
 				<span class="indicator yellow"></span>
 				${__("Alternative Items")}
 			</p>`
-		)
+		);
 		dialog.show();
+	}
+
+	currency() {
+		super.currency();
+		let me = this;
+		const company_currency = this.get_company_currency();
+		if (this.frm.doc.currency && this.frm.doc.currency !== company_currency) {
+			this.get_exchange_rate(
+				this.frm.doc.transaction_date,
+				this.frm.doc.currency,
+				company_currency,
+				function (exchange_rate) {
+					if (exchange_rate != me.frm.doc.conversion_rate) {
+						me.set_margin_amount_based_on_currency(exchange_rate);
+						me.set_actual_charges_based_on_currency(exchange_rate);
+						me.frm.set_value("conversion_rate", exchange_rate);
+					}
+				}
+			);
+		}
+	}
+
+	disable_customer_if_creating_from_opportunity(doc) {
+		if (doc.opportunity) {
+			this.frm.set_df_property("party_name", "read_only", 1);
+		}
 	}
 };
 
 cur_frm.script_manager.make(erpnext.selling.QuotationController);
 
-frappe.ui.form.on("Quotation Item", "items_on_form_rendered", "packed_items_on_form_rendered", function (frm, cdt, cdn) {
-	// enable tax_amount field if Actual
-})
+frappe.ui.form.on(
+	"Quotation Item",
+	"items_on_form_rendered",
+	"packed_items_on_form_rendered",
+	function (frm, cdt, cdn) {
+		// enable tax_amount field if Actual
+	}
+);
 
 frappe.ui.form.on("Quotation Item", "stock_balance", function (frm, cdt, cdn) {
 	var d = frappe.model.get_doc(cdt, cdn);
-	frappe.route_options = { "item_code": d.item_code };
+	frappe.route_options = { item_code: d.item_code };
 	frappe.set_route("query-report", "Stock Balance");
-})
+});
 
 //---------------------------------- Quotation on item code change and qty change
 frappe.ui.form.on('Quotation Item', {

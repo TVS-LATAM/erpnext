@@ -27,7 +27,6 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Serial No",
-   "mandatory_depends_on": "eval:parent.has_serial_no == 1",
    "options": "Serial No",
    "search_index": 1
   },
@@ -38,7 +37,6 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Batch No",
-   "mandatory_depends_on": "eval:parent.has_batch_no == 1",
    "options": "Batch",
    "search_index": 1
   },
@@ -70,7 +68,7 @@
   {
    "fieldname": "incoming_rate",
    "fieldtype": "Float",
-   "label": "Incoming Rate",
+   "label": "Valuation Rate",
    "no_copy": 1,
    "read_only": 1,
    "read_only_depends_on": "eval:parent.type_of_transaction == \"Outward\""
@@ -78,6 +76,7 @@
   {
    "fieldname": "outgoing_rate",
    "fieldtype": "Float",
+   "hidden": 1,
    "label": "Outgoing Rate",
    "no_copy": 1,
    "read_only": 1
@@ -97,6 +96,7 @@
    "default": "0",
    "fieldname": "is_outward",
    "fieldtype": "Check",
+   "hidden": 1,
    "label": "Is Outward",
    "read_only": 1
   },
@@ -122,7 +122,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2023-07-03 15:29:50.199075",
+ "modified": "2024-02-23 12:44:18.054270",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Serial and Batch Entry",

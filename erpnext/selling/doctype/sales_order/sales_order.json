@@ -114,8 +114,9 @@
   "dispatch_address",
   "col_break46",
   "company_address",
-  "column_break_92",
   "company_address_display",
+  "column_break_92",
+  "company_contact_person",
   "payment_schedule_section",
   "payment_terms_section",
   "payment_terms_template",
@@ -782,7 +783,7 @@
   },
   {
    "fieldname": "other_charges_calculation",
-   "fieldtype": "Long Text",
+   "fieldtype": "Text Editor",
    "hide_days": 1,
    "hide_seconds": 1,
    "label": "Taxes and Charges Calculation",
@@ -1145,7 +1146,8 @@
    "hide_seconds": 1,
    "label": "Inter Company Order Reference",
    "options": "Purchase Order",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "project",
@@ -1155,7 +1157,8 @@
    "label": "Project",
    "oldfieldname": "project",
    "oldfieldtype": "Link",
-   "options": "Project"
+   "options": "Project",
+   "search_index": 1
   },
   {
    "fieldname": "party_account_currency",
@@ -1535,6 +1538,7 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "amount_eligible_for_commission",
    "fieldtype": "Currency",
    "label": "Amount Eligible for Commission",
@@ -1644,13 +1648,20 @@
    "no_copy": 1,
    "print_hide": 1,
    "report_hide": 1
+  },
+  {
+   "fieldname": "company_contact_person",
+   "fieldtype": "Link",
+   "label": "Company Contact Person",
+   "options": "Contact",
+   "print_hide": 1
   }
  ],
  "icon": "fa fa-file-text",
  "idx": 105,
  "is_submittable": 1,
  "links": [],
- "modified": "2023-10-18 12:41:54.813462",
+ "modified": "2025-02-06 16:02:20.320877",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Sales Order",

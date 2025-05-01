@@ -16,11 +16,13 @@ from erpnext.setup.doctype.incoterm.incoterm import create_incoterms
 from .default_success_action import get_default_success_action
 
 default_mail_footer = """<div style="padding: 7px; text-align: right; color: #888"><small>Sent via
-	<a style="color: #888" href="http://erpnext.org">ERPNext</a></div>"""
+	<a style="color: #888" href="http://frappe.io/erpnext">ERPNext</a></div>"""
 
 
 def after_install():
-	frappe.get_doc({"doctype": "Role", "role_name": "Analytics"}).insert()
+	if not frappe.db.exists("Role", "Analytics"):
+		frappe.get_doc({"doctype": "Role", "role_name": "Analytics"}).insert()
+
 	set_single_defaults()
 	create_print_setting_custom_fields()
 	add_all_roles_to("Administrator")
@@ -31,7 +33,6 @@ def after_install():
 	add_company_to_session_defaults()
 	add_standard_navbar_items()
 	add_app_name()
-	setup_log_settings()
 	hide_workspaces()
 	update_roles()
 	frappe.db.commit()
@@ -97,7 +98,7 @@ def setup_currency_exchange():
 		ces.set("result_key", [])
 		ces.set("req_params", [])
 
-		ces.api_endpoint = "https://frankfurter.app/{transaction_date}"
+		ces.api_endpoint = "https://api.frankfurter.app/{transaction_date}"
 		ces.append("result_key", {"key": "rates"})
 		ces.append("result_key", {"key": "{to_currency}"})
 		ces.append("req_params", {"key": "base", "value": "{from_currency}"})
@@ -145,7 +146,6 @@ def create_default_success_action():
 
 
 def create_default_energy_point_rules():
-
 	for rule in get_default_energy_point_rules():
 		# check if any rule for ref. doctype exists
 		rule_exists = frappe.db.exists(
@@ -182,7 +182,7 @@ def add_standard_navbar_items():
 		{
 			"item_label": "Frappe School",
 			"item_type": "Route",
-			"route": "https://frappe.school?utm_source=in_app",
+			"route": "https://frappe.io/school?utm_source=in_app",
 			"is_standard": 1,
 		},
 		{
@@ -198,7 +198,7 @@ def add_standard_navbar_items():
 
 	for item in erpnext_navbar_items:
 		current_labels = [item.get("item_label") for item in current_navbar_items]
-		if not item.get("item_label") in current_labels:
+		if item.get("item_label") not in current_labels:
 			navbar_settings.append("help_dropdown", item)
 
 	for item in current_navbar_items:
@@ -219,13 +219,6 @@ def add_standard_navbar_items():
 
 def add_app_name():
 	frappe.db.set_single_value("System Settings", "app_name", "ERPNext")
-
-
-def setup_log_settings():
-	log_settings = frappe.get_single("Log Settings")
-	log_settings.append("logs_to_clear", {"ref_doctype": "Repost Item Valuation", "days": 60})
-
-	log_settings.save(ignore_permissions=True)
 
 
 def hide_workspaces():

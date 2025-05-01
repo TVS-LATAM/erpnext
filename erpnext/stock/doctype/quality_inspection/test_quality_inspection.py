@@ -159,9 +159,7 @@ class TestQualityInspection(FrappeTestCase):
 			do_not_submit=True,
 		)
 
-		readings = [
-			{"specification": "Iron Content", "min_value": 0.1, "max_value": 0.9, "reading_1": "1.0"}
-		]
+		readings = [{"specification": "Iron Content", "min_value": 0.1, "max_value": 0.9, "reading_1": "1.0"}]
 
 		qa = create_quality_inspection(
 			reference_type="Stock Entry", reference_name=se.name, readings=readings, status="Rejected"
@@ -250,37 +248,32 @@ class TestQualityInspection(FrappeTestCase):
 		qa.delete()
 		dn.delete()
 
-	def test_qi_status(self):
-		make_stock_entry(
-			item_code="_Test Item with QA", target="_Test Warehouse - _TC", qty=1, basic_rate=100
+	def test_delete_quality_inspection_linked_with_stock_entry(self):
+		item_code = create_item("_Test Cicuular Dependecy Item with QA").name
+
+		se = make_stock_entry(
+			item_code=item_code, target="_Test Warehouse - _TC", qty=1, basic_rate=100, do_not_submit=True
 		)
-		dn = create_delivery_note(item_code="_Test Item with QA", do_not_submit=True)
+
+		se.inspection_required = 1
+		se.save()
+
 		qa = create_quality_inspection(
-			reference_type="Delivery Note", reference_name=dn.name, status="Accepted", do_not_save=True
+			item_code=item_code, reference_type="Stock Entry", reference_name=se.name, do_not_submit=True
 		)
-		qa.readings[0].manual_inspection = 1
-		qa.save()
 
-		# Case - 1: When there are one or more readings with rejected status and parent manual inspection is unchecked, then parent status should be set to rejected.
-		qa.status = "Accepted"
-		qa.manual_inspection = 0
-		qa.readings[0].status = "Rejected"
-		qa.save()
-		self.assertEqual(qa.status, "Rejected")
+		se.reload()
+		se.items[0].quality_inspection = qa.name
+		se.save()
 
-		# Case - 2: When all readings have accepted status and parent manual inspection is unchecked, then parent status should be set to accepted.
-		qa.status = "Rejected"
-		qa.manual_inspection = 0
-		qa.readings[0].status = "Accepted"
-		qa.save()
-		self.assertEqual(qa.status, "Accepted")
+		qa.delete()
 
-		# Case - 3: When parent manual inspection is checked, then parent status should not be changed.
-		qa.status = "Accepted"
-		qa.manual_inspection = 1
-		qa.readings[0].status = "Rejected"
-		qa.save()
-		self.assertEqual(qa.status, "Accepted")
+		se.reload()
+
+		qc = se.items[0].quality_inspection
+		self.assertFalse(qc)
+
+		se.delete()
 
 
 def create_quality_inspection(**args):

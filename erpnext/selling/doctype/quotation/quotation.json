@@ -75,6 +75,7 @@
   "grand_total",
   "rounding_adjustment",
   "rounded_total",
+  "disable_rounded_total",
   "in_words",
   "section_break_44",
   "apply_discount_on",
@@ -105,8 +106,9 @@
   "shipping_address",
   "company_address_section",
   "company_address",
-  "column_break_87",
   "company_address_display",
+  "column_break_87",
+  "company_contact_person",
   "terms_tab",
   "payment_schedule_section",
   "payment_terms_template",
@@ -575,7 +577,7 @@
   },
   {
    "fieldname": "other_charges_calculation",
-   "fieldtype": "Long Text",
+   "fieldtype": "Text Editor",
    "label": "Taxes and Charges Calculation",
    "no_copy": 1,
    "oldfieldtype": "HTML",
@@ -679,6 +681,7 @@
    "width": "200px"
   },
   {
+   "depends_on": "eval:!doc.disable_rounded_total",
    "fieldname": "base_rounding_adjustment",
    "fieldtype": "Currency",
    "label": "Rounding Adjustment (Company Currency)",
@@ -727,6 +730,7 @@
    "width": "200px"
   },
   {
+   "depends_on": "eval:!doc.disable_rounded_total",
    "fieldname": "rounding_adjustment",
    "fieldtype": "Currency",
    "label": "Rounding Adjustment",
@@ -1088,6 +1092,19 @@
    "label": "Named Place"
   },
   {
+   "default": "0",
+   "fieldname": "disable_rounded_total",
+   "fieldtype": "Check",
+   "label": "Disable Rounded Total"
+  },
+  {
+   "fieldname": "company_contact_person",
+   "fieldtype": "Link",
+   "label": "Company Contact Person",
+   "options": "Contact",
+   "print_hide": 1
+  },
+  {
    "allow_on_submit": 1,
    "fetch_from": "project_name.client_mileage_state",
    "fieldname": "mileage",
@@ -1159,7 +1176,7 @@
  "idx": 82,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-04-15 17:06:02.175942",
+ "modified": "2024-11-26 12:43:29.293637",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Quotation",

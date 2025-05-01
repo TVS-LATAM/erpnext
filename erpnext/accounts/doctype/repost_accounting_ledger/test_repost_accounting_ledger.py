@@ -9,10 +9,11 @@ from frappe.utils import add_days, nowdate, today
 
 from erpnext.accounts.doctype.payment_entry.payment_entry import get_payment_entry
 from erpnext.accounts.doctype.payment_request.payment_request import make_payment_request
-from erpnext.accounts.doctype.repost_accounting_ledger.repost_accounting_ledger import start_repost
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
 from erpnext.accounts.test.accounts_mixin import AccountsTestMixin
 from erpnext.accounts.utils import get_fiscal_year
+from erpnext.stock.doctype.item.test_item import make_item
+from erpnext.stock.doctype.purchase_receipt.test_purchase_receipt import get_gl_entries, make_purchase_receipt
 
 
 class TestRepostAccountingLedger(AccountsTestMixin, FrappeTestCase):
@@ -20,17 +21,10 @@ class TestRepostAccountingLedger(AccountsTestMixin, FrappeTestCase):
 		self.create_company()
 		self.create_customer()
 		self.create_item()
-		self.update_repost_settings()
+		update_repost_settings()
 
-	def teadDown(self):
+	def tearDown(self):
 		frappe.db.rollback()
-
-	def update_repost_settings(self):
-		allowed_types = ["Sales Invoice", "Purchase Invoice", "Payment Entry", "Journal Entry"]
-		repost_settings = frappe.get_doc("Repost Accounting Ledger Settings")
-		for x in allowed_types:
-			repost_settings.append("allowed_types", {"document_type": x, "allowed": True})
-			repost_settings.save()
 
 	def test_01_basic_functions(self):
 		si = create_sales_invoice(
@@ -90,9 +84,6 @@ class TestRepostAccountingLedger(AccountsTestMixin, FrappeTestCase):
 		# Submit repost document
 		ral.save().submit()
 
-		# background jobs don't run on test cases. Manually triggering repost function.
-		start_repost(ral.name)
-
 		res = (
 			qb.from_(gl)
 			.select(gl.voucher_no, Sum(gl.debit).as_("debit"), Sum(gl.credit).as_("credit"))
@@ -140,13 +131,15 @@ class TestRepostAccountingLedger(AccountsTestMixin, FrappeTestCase):
 			cost_center=self.cost_center,
 			rate=100,
 		)
+		fy = get_fiscal_year(today(), company=self.company)
 		pcv = frappe.get_doc(
 			{
 				"doctype": "Period Closing Voucher",
 				"transaction_date": today(),
-				"posting_date": today(),
+				"period_start_date": fy[1],
+				"period_end_date": today(),
 				"company": self.company,
-				"fiscal_year": get_fiscal_year(today(), company=self.company)[0],
+				"fiscal_year": fy[0],
 				"cost_center": self.cost_center,
 				"closing_account_head": self.retained_earnings,
 				"remarks": "test",
@@ -177,26 +170,6 @@ class TestRepostAccountingLedger(AccountsTestMixin, FrappeTestCase):
 		pe = get_payment_entry(si.doctype, si.name)
 		pe.save().submit()
 
-		# without deletion flag set
-		ral = frappe.new_doc("Repost Accounting Ledger")
-		ral.company = self.company
-		ral.delete_cancelled_entries = False
-		ral.append("vouchers", {"voucher_type": si.doctype, "voucher_no": si.name})
-		ral.append("vouchers", {"voucher_type": pe.doctype, "voucher_no": pe.name})
-		ral.save()
-
-		# assert preview data is generated
-		preview = ral.generate_preview()
-		self.assertIsNotNone(preview)
-
-		ral.save().submit()
-
-		# background jobs don't run on test cases. Manually triggering repost function.
-		start_repost(ral.name)
-
-		self.assertIsNotNone(frappe.db.exists("GL Entry", {"voucher_no": si.name, "is_cancelled": 1}))
-		self.assertIsNotNone(frappe.db.exists("GL Entry", {"voucher_no": pe.name, "is_cancelled": 1}))
-
 		# with deletion flag set
 		ral = frappe.new_doc("Repost Accounting Ledger")
 		ral.company = self.company
@@ -205,6 +178,110 @@ class TestRepostAccountingLedger(AccountsTestMixin, FrappeTestCase):
 		ral.append("vouchers", {"voucher_type": pe.doctype, "voucher_no": pe.name})
 		ral.save().submit()
 
-		start_repost(ral.name)
 		self.assertIsNone(frappe.db.exists("GL Entry", {"voucher_no": si.name, "is_cancelled": 1}))
 		self.assertIsNone(frappe.db.exists("GL Entry", {"voucher_no": pe.name, "is_cancelled": 1}))
+
+	def test_05_without_deletion_flag(self):
+		si = create_sales_invoice(
+			item=self.item,
+			company=self.company,
+			customer=self.customer,
+			debit_to=self.debit_to,
+			parent_cost_center=self.cost_center,
+			cost_center=self.cost_center,
+			rate=100,
+		)
+
+		pe = get_payment_entry(si.doctype, si.name)
+		pe.save().submit()
+
+		# without deletion flag set
+		ral = frappe.new_doc("Repost Accounting Ledger")
+		ral.company = self.company
+		ral.delete_cancelled_entries = False
+		ral.append("vouchers", {"voucher_type": si.doctype, "voucher_no": si.name})
+		ral.append("vouchers", {"voucher_type": pe.doctype, "voucher_no": pe.name})
+		ral.save().submit()
+
+		self.assertIsNotNone(frappe.db.exists("GL Entry", {"voucher_no": si.name, "is_cancelled": 1}))
+		self.assertIsNotNone(frappe.db.exists("GL Entry", {"voucher_no": pe.name, "is_cancelled": 1}))
+
+	def test_06_repost_purchase_receipt(self):
+		from erpnext.accounts.doctype.account.test_account import create_account
+
+		provisional_account = create_account(
+			account_name="Provision Account",
+			parent_account="Current Liabilities - _TC",
+			company=self.company,
+		)
+
+		another_provisional_account = create_account(
+			account_name="Another Provision Account",
+			parent_account="Current Liabilities - _TC",
+			company=self.company,
+		)
+
+		company = frappe.get_doc("Company", self.company)
+		company.enable_provisional_accounting_for_non_stock_items = 1
+		company.default_provisional_account = provisional_account
+		company.save()
+
+		test_cc = company.cost_center
+		default_expense_account = company.default_expense_account
+
+		item = make_item(properties={"is_stock_item": 0})
+
+		pr = make_purchase_receipt(company=self.company, item_code=item.name, rate=1000.0, qty=1.0)
+		pr_gl_entries = get_gl_entries(pr.doctype, pr.name, skip_cancelled=True)
+		expected_pr_gles = [
+			{"account": provisional_account, "debit": 0.0, "credit": 1000.0, "cost_center": test_cc},
+			{"account": default_expense_account, "debit": 1000.0, "credit": 0.0, "cost_center": test_cc},
+		]
+		self.assertEqual(expected_pr_gles, pr_gl_entries)
+
+		# change the provisional account
+		frappe.db.set_value(
+			"Purchase Receipt Item",
+			pr.items[0].name,
+			"provisional_expense_account",
+			another_provisional_account,
+		)
+
+		repost_doc = frappe.new_doc("Repost Accounting Ledger")
+		repost_doc.company = self.company
+		repost_doc.delete_cancelled_entries = True
+		repost_doc.append("vouchers", {"voucher_type": pr.doctype, "voucher_no": pr.name})
+		repost_doc.save().submit()
+
+		pr_gles_after_repost = get_gl_entries(pr.doctype, pr.name, skip_cancelled=True)
+		expected_pr_gles_after_repost = [
+			{"account": default_expense_account, "debit": 1000.0, "credit": 0.0, "cost_center": test_cc},
+			{"account": another_provisional_account, "debit": 0.0, "credit": 1000.0, "cost_center": test_cc},
+		]
+		self.assertEqual(len(pr_gles_after_repost), len(expected_pr_gles_after_repost))
+		self.assertEqual(expected_pr_gles_after_repost, pr_gles_after_repost)
+
+		# teardown
+		repost_doc.cancel()
+		repost_doc.delete()
+
+		pr.reload()
+		pr.cancel()
+
+		company.enable_provisional_accounting_for_non_stock_items = 0
+		company.default_provisional_account = None
+		company.save()
+
+
+def update_repost_settings():
+	allowed_types = [
+		"Sales Invoice",
+		"Purchase Invoice",
+		"Payment Entry",
+		"Journal Entry",
+		"Purchase Receipt",
+	]
+	repost_settings = frappe.get_doc("Repost Accounting Ledger Settings")
+	for x in allowed_types:
+		repost_settings.append("allowed_types", {"document_type": x, "allowed": True})
+		repost_settings.save()

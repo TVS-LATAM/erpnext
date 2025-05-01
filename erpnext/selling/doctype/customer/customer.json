@@ -24,6 +24,7 @@
   "gender",
   "lead_name",
   "opportunity_name",
+  "prospect_name",
   "account_manager",
   "image",
   "defaults_tab",
@@ -138,7 +139,7 @@
    "label": "Customer Type",
    "oldfieldname": "customer_type",
    "oldfieldtype": "Select",
-   "options": "Company\nIndividual\nProprietorship\nPartnership",
+   "options": "Company\nIndividual\nPartnership",
    "reqd": 1
   },
   {
@@ -336,13 +337,15 @@
    "fetch_from": "customer_primary_contact.mobile_no",
    "fieldname": "mobile_no",
    "fieldtype": "Read Only",
-   "label": "Mobile No"
+   "label": "Mobile No",
+   "options": "Mobile"
   },
   {
    "fetch_from": "customer_primary_contact.email_id",
    "fieldname": "email_id",
    "fieldtype": "Read Only",
-   "label": "Email Id"
+   "label": "Email Id",
+   "options": "Email"
   },
   {
    "fieldname": "column_break_26",
@@ -477,7 +480,6 @@
    "report_hide": 1
   },
   {
-   "default": "0",
    "fieldname": "credit_limits",
    "fieldtype": "Table",
    "label": "Credit Limit",
@@ -512,7 +514,7 @@
   {
    "fieldname": "contact_and_address_tab",
    "fieldtype": "Tab Break",
-   "label": "Contact & Address"
+   "label": "Address & Contact"
   },
   {
    "fieldname": "defaults_tab",
@@ -605,6 +607,14 @@
    "fieldname": "vat_validation",
    "fieldtype": "Button",
    "label": "VAT Validation"
+  },
+  {
+   "fieldname": "prospect_name",
+   "fieldtype": "Link",
+   "label": "From Prospect",
+   "no_copy": 1,
+   "options": "Prospect",
+   "print_hide": 1
   }
  ],
  "icon": "fa fa-user",
@@ -618,7 +628,7 @@
    "link_fieldname": "party"
   }
  ],
- "modified": "2025-04-16 19:56:21.871021",
+ "modified": "2024-06-17 03:24:59.612974",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Customer",
@@ -696,10 +706,10 @@
   }
  ],
  "quick_entry": 1,
- "search_fields": "customer_name,customer_group,territory, mobile_no,primary_address",
+ "search_fields": "customer_group,territory, mobile_no,primary_address",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
- "sort_order": "ASC",
+ "sort_order": "DESC",
  "states": [],
  "title_field": "customer_name",
  "track_changes": 1

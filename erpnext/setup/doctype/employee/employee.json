@@ -182,8 +182,6 @@
    "read_only": 1
   },
   {
-   "fetch_from": "user_id.user_image",
-   "fetch_if_empty": 1,
    "fieldname": "image",
    "fieldtype": "Attach Image",
    "hidden": 1,
@@ -616,8 +614,8 @@
    "fieldname": "relieving_date",
    "fieldtype": "Date",
    "label": "Relieving Date",
-   "no_copy": 1,
    "mandatory_depends_on": "eval:doc.status == \"Left\"",
+   "no_copy": 1,
    "oldfieldname": "relieving_date",
    "oldfieldtype": "Date"
   },
@@ -822,12 +820,14 @@
  "icon": "fa fa-user",
  "idx": 24,
  "image_field": "image",
+ "is_tree": 1,
  "links": [],
- "modified": "2023-10-04 10:57:05.174592",
+ "modified": "2025-02-07 13:54:40.122345",
  "modified_by": "Administrator",
  "module": "Setup",
  "name": "Employee",
  "naming_rule": "By \"Naming Series\" field",
+ "nsm_parent_field": "reports_to",
  "owner": "Administrator",
  "permissions": [
   {
@@ -860,7 +860,6 @@
    "read": 1,
    "report": 1,
    "role": "HR Manager",
-   "set_user_permissions": 1,
    "share": 1,
    "write": 1
   }
@@ -870,5 +869,6 @@
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
- "title_field": "employee_name"
+ "title_field": "employee_name",
+ "track_changes": 1
 }

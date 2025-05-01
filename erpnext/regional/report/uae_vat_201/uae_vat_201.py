@@ -62,13 +62,9 @@ def append_vat_on_sales(data, filters):
 		frappe.format(get_reverse_charge_tax(filters), "Currency"),
 	)
 
-	append_data(
-		data, "4", _("Zero Rated"), frappe.format(get_zero_rated_total(filters), "Currency"), "-"
-	)
+	append_data(data, "4", _("Zero Rated"), frappe.format(get_zero_rated_total(filters), "Currency"), "-")
 
-	append_data(
-		data, "5", _("Exempt Supplies"), frappe.format(get_exempt_total(filters), "Currency"), "-"
-	)
+	append_data(data, "5", _("Exempt Supplies"), frappe.format(get_exempt_total(filters), "Currency"), "-")
 
 	append_data(data, "", "", "", "")
 
@@ -139,21 +135,19 @@ def get_total_emiratewise(filters):
 	conditions = get_conditions(filters)
 	try:
 		return frappe.db.sql(
-			"""
+			f"""
 			select
-				s.vat_emirate as emirate, sum(i.base_amount) as total, sum(i.tax_amount)
+				s.vat_emirate as emirate, sum(i.base_net_amount) as total, sum(i.tax_amount)
 			from
 				`tabSales Invoice Item` i inner join `tabSales Invoice` s
 			on
 				i.parent = s.name
 			where
 				s.docstatus = 1 and  i.is_exempt != 1 and i.is_zero_rated != 1
-				{where_conditions}
+				{conditions}
 			group by
 				s.vat_emirate;
-			""".format(
-				where_conditions=conditions
-			),
+			""",
 			filters,
 		)
 	except (IndexError, TypeError):
@@ -185,7 +179,7 @@ def get_reverse_charge_total(filters):
 	try:
 		return (
 			frappe.db.get_all(
-				"Purchase Invoice", filters=query_filters, fields=["sum(total)"], as_list=True, limit=1
+				"Purchase Invoice", filters=query_filters, fields=["sum(base_total)"], as_list=True, limit=1
 			)[0][0]
 			or 0
 		)
@@ -198,7 +192,7 @@ def get_reverse_charge_tax(filters):
 	conditions = get_conditions_join(filters)
 	return (
 		frappe.db.sql(
-			"""
+			f"""
 		select sum(debit)  from
 			`tabPurchase Invoice` p inner join `tabGL Entry` gl
 		on
@@ -208,10 +202,8 @@ def get_reverse_charge_tax(filters):
 			and p.docstatus = 1
 			and gl.docstatus = 1
 			and account in (select account from `tabUAE VAT Account` where  parent=%(company)s)
-			{where_conditions} ;
-		""".format(
-				where_conditions=conditions
-			),
+			{conditions} ;
+		""",
 			filters,
 		)[0][0]
 		or 0
@@ -227,7 +219,7 @@ def get_reverse_charge_recoverable_total(filters):
 	try:
 		return (
 			frappe.db.get_all(
-				"Purchase Invoice", filters=query_filters, fields=["sum(total)"], as_list=True, limit=1
+				"Purchase Invoice", filters=query_filters, fields=["sum(base_total)"], as_list=True, limit=1
 			)[0][0]
 			or 0
 		)
@@ -240,7 +232,7 @@ def get_reverse_charge_recoverable_tax(filters):
 	conditions = get_conditions_join(filters)
 	return (
 		frappe.db.sql(
-			"""
+			f"""
 		select
 			sum(debit * p.recoverable_reverse_charge / 100)
 		from
@@ -253,10 +245,8 @@ def get_reverse_charge_recoverable_tax(filters):
 			and p.recoverable_reverse_charge > 0
 			and gl.docstatus = 1
 			and account in (select account from `tabUAE VAT Account` where  parent=%(company)s)
-			{where_conditions} ;
-		""".format(
-				where_conditions=conditions
-			),
+			{conditions} ;
+		""",
 			filters,
 		)[0][0]
 		or 0
@@ -284,7 +274,7 @@ def get_standard_rated_expenses_total(filters):
 	try:
 		return (
 			frappe.db.get_all(
-				"Purchase Invoice", filters=query_filters, fields=["sum(total)"], as_list=True, limit=1
+				"Purchase Invoice", filters=query_filters, fields=["sum(base_total)"], as_list=True, limit=1
 			)[0][0]
 			or 0
 		)
@@ -320,7 +310,7 @@ def get_tourist_tax_return_total(filters):
 	try:
 		return (
 			frappe.db.get_all(
-				"Sales Invoice", filters=query_filters, fields=["sum(total)"], as_list=True, limit=1
+				"Sales Invoice", filters=query_filters, fields=["sum(base_total)"], as_list=True, limit=1
 			)[0][0]
 			or 0
 		)
@@ -354,19 +344,17 @@ def get_zero_rated_total(filters):
 	try:
 		return (
 			frappe.db.sql(
-				"""
+				f"""
 			select
-				sum(i.base_amount) as total
+				sum(i.base_net_amount) as total
 			from
 				`tabSales Invoice Item` i inner join `tabSales Invoice` s
 			on
 				i.parent = s.name
 			where
 				s.docstatus = 1 and  i.is_zero_rated = 1
-				{where_conditions} ;
-			""".format(
-					where_conditions=conditions
-				),
+				{conditions} ;
+			""",
 				filters,
 			)[0][0]
 			or 0
@@ -381,19 +369,17 @@ def get_exempt_total(filters):
 	try:
 		return (
 			frappe.db.sql(
-				"""
+				f"""
 			select
-				sum(i.base_amount) as total
+				sum(i.base_net_amount) as total
 			from
 				`tabSales Invoice Item` i inner join `tabSales Invoice` s
 			on
 				i.parent = s.name
 			where
 				s.docstatus = 1 and  i.is_exempt = 1
-				{where_conditions} ;
-			""".format(
-					where_conditions=conditions
-				),
+				{conditions} ;
+			""",
 				filters,
 			)[0][0]
 			or 0

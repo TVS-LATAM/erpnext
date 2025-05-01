@@ -1,6 +1,9 @@
 # Copyright (c) 2023, Frappe Technologies Pvt. Ltd. and Contributors
 # See license.txt
+import json
+
 import frappe
+from frappe.model import mapper
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, nowdate, today
 
@@ -68,6 +71,36 @@ class TestDunning(FrappeTestCase):
 		dunning.reload()
 		self.assertEqual(dunning.status, "Resolved")
 
+	def test_fetch_overdue_payments(self):
+		"""
+		Create SI with overdue payment. Check if overdue payment is fetched in Dunning.
+		"""
+		si1 = create_sales_invoice_against_cost_center(
+			posting_date=add_days(today(), -1 * 6),
+			qty=1,
+			rate=100,
+		)
+
+		si2 = create_sales_invoice_against_cost_center(
+			posting_date=add_days(today(), -1 * 6),
+			qty=1,
+			rate=300,
+		)
+
+		dunning = create_dunning_from_sales_invoice(si1.name)
+		dunning.overdue_payments = []
+
+		method = "erpnext.accounts.doctype.sales_invoice.sales_invoice.create_dunning"
+		updated_dunning = mapper.map_docs(method, json.dumps([si1.name, si2.name]), dunning)
+
+		self.assertEqual(len(updated_dunning.overdue_payments), 2)
+
+		self.assertEqual(updated_dunning.overdue_payments[0].sales_invoice, si1.name)
+		self.assertEqual(updated_dunning.overdue_payments[0].outstanding, si1.outstanding_amount)
+
+		self.assertEqual(updated_dunning.overdue_payments[1].sales_invoice, si2.name)
+		self.assertEqual(updated_dunning.overdue_payments[1].outstanding, si2.outstanding_amount)
+
 	def test_dunning_and_payment_against_partially_due_invoice(self):
 		"""
 		Create SI with first installment overdue. Check impact of Dunning and Payment Entry.
@@ -109,9 +142,7 @@ class TestDunning(FrappeTestCase):
 
 def create_dunning(overdue_days, dunning_type_name=None):
 	posting_date = add_days(today(), -1 * overdue_days)
-	sales_invoice = create_sales_invoice_against_cost_center(
-		posting_date=posting_date, qty=1, rate=100
-	)
+	sales_invoice = create_sales_invoice_against_cost_center(posting_date=posting_date, qty=1, rate=100)
 	dunning = create_dunning_from_sales_invoice(sales_invoice.name)
 
 	if dunning_type_name:

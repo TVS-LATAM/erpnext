@@ -17,22 +17,45 @@ class OverlapError(frappe.ValidationError):
 
 
 class HolidayList(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.setup.doctype.holiday.holiday import Holiday
+
+		color: DF.Color | None
+		country: DF.Autocomplete | None
+		from_date: DF.Date
+		holiday_list_name: DF.Data
+		holidays: DF.Table[Holiday]
+		subdivision: DF.Autocomplete | None
+		to_date: DF.Date
+		total_holidays: DF.Int
+		weekly_off: DF.Literal[
+			"", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+		]
+	# end: auto-generated types
+
 	def before_save(self):
 		config = frappe.get_single("Whatsapp Config")
 		aws_url = config.aws_url
 		old_rows = set()
 		if self.get_doc_before_save():
 			old_rows = {str(row.holiday_date) for row in self.get_doc_before_save().get("holidays")}
-		
+
 		new_rows = {str(row.holiday_date) for row in self.get("holidays")}
 
 		added_rows = new_rows - old_rows
 		deleted_rows = old_rows - new_rows
-		
+
 		if added_rows:
 			for row in added_rows:
 				self.switch_holiday_status(row, aws_url)
-		
+
 		if deleted_rows:
 			for row in deleted_rows:
 				self.switch_holiday_status(row, aws_url)
@@ -40,7 +63,8 @@ class HolidayList(Document):
 	def validate(self):
 		self.validate_days()
 		self.total_holidays = len(self.holidays)
-		self.validate_dupliacte_date()
+		self.validate_duplicate_date()
+		self.sort_holidays()
 
 	def switch_holiday_status(self, date: str, aws_url: str):
 		url = f"{aws_url}/appointments/fixed-appointments"
@@ -62,8 +86,6 @@ class HolidayList(Document):
 				continue
 
 			self.append("holidays", {"description": _(self.weekly_off), "holiday_date": d, "weekly_off": 1})
-
-		self.sort_holidays()
 
 	@frappe.whitelist()
 	def get_supported_countries(self):
@@ -93,7 +115,7 @@ class HolidayList(Document):
 		for holiday_date, holiday_name in country_holidays(
 			self.country,
 			subdiv=self.subdivision,
-			years=[from_date.year, to_date.year],
+			years=list(range(from_date.year, to_date.year + 1)),
 			language=frappe.local.lang,
 		).items():
 			if holiday_date in existing_holidays:
@@ -105,8 +127,6 @@ class HolidayList(Document):
 			self.append(
 				"holidays", {"description": holiday_name, "holiday_date": holiday_date, "weekly_off": 0}
 			)
-
-		self.sort_holidays()
 
 	def sort_holidays(self):
 		self.holidays.sort(key=lambda x: getdate(x.holiday_date))
@@ -154,11 +174,15 @@ class HolidayList(Document):
 	def clear_table(self):
 		self.set("holidays", [])
 
-	def validate_dupliacte_date(self):
+	def validate_duplicate_date(self):
 		unique_dates = []
 		for row in self.holidays:
 			if row.holiday_date in unique_dates:
-				frappe.throw(_("Holiday Date {0} added multiple times").format(frappe.bold(row.holiday_date)))
+				frappe.throw(
+					_("Holiday Date {0} added multiple times").format(
+						frappe.bold(formatdate(row.holiday_date))
+					)
+				)
 
 			unique_dates.append(row.holiday_date)
 
@@ -199,9 +223,7 @@ def is_holiday(holiday_list, date=None):
 	if date is None:
 		date = today()
 	if holiday_list:
-		return bool(
-			frappe.db.exists("Holiday", {"parent": holiday_list, "holiday_date": date}, cache=True)
-		)
+		return bool(frappe.db.exists("Holiday", {"parent": holiday_list, "holiday_date": date}, cache=True))
 	else:
 		return False
 

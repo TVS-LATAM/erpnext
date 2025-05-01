@@ -8,6 +8,7 @@ from frappe.utils import cint, flt
 
 from erpnext.accounts.party import get_partywise_advanced_payment_amount
 from erpnext.accounts.report.accounts_receivable.accounts_receivable import ReceivablePayableReport
+from erpnext.accounts.utils import get_currency_precision, get_party_types_from_account_type
 
 
 def execute(filters=None):
@@ -22,12 +23,8 @@ def execute(filters=None):
 class AccountsReceivableSummary(ReceivablePayableReport):
 	def run(self, args):
 		self.account_type = args.get("account_type")
-		self.party_type = frappe.db.get_all(
-			"Party Type", {"account_type": self.account_type}, pluck="name"
-		)
-		self.party_naming_by = frappe.db.get_value(
-			args.get("naming_by")[0], None, args.get("naming_by")[1]
-		)
+		self.party_type = get_party_types_from_account_type(self.account_type)
+		self.party_naming_by = frappe.db.get_value(args.get("naming_by")[0], None, args.get("naming_by")[1])
 		self.get_columns()
 		self.get_data(args)
 		return self.columns, self.data
@@ -35,6 +32,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 	def get_data(self, args):
 		self.data = []
 		self.receivables = ReceivablePayableReport(self.filters).run(args)[1]
+		self.currency_precision = get_currency_precision() or 2
 
 		self.get_party_total(args)
 
@@ -58,7 +56,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			gl_balance_map = get_gl_balance(self.filters.report_date, self.filters.company)
 
 		for party, party_dict in self.party_total.items():
-			if party_dict.outstanding == 0:
+			if flt(party_dict.outstanding, self.currency_precision) == 0:
 				continue
 
 			row = frappe._dict()
@@ -107,25 +105,23 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			self.party_total[d.party].update({"party_type": d.party_type})
 
 	def init_party_total(self, row):
+		default_dict = {
+			"invoiced": 0.0,
+			"paid": 0.0,
+			"credit_note": 0.0,
+			"outstanding": 0.0,
+			"total_due": 0.0,
+			"future_amount": 0.0,
+			"sales_person": [],
+			"party_type": row.party_type,
+		}
+		for i in self.range_numbers:
+			range_key = f"range{i}"
+			default_dict[range_key] = 0.0
+
 		self.party_total.setdefault(
 			row.party,
-			frappe._dict(
-				{
-					"invoiced": 0.0,
-					"paid": 0.0,
-					"credit_note": 0.0,
-					"outstanding": 0.0,
-					"range1": 0.0,
-					"range2": 0.0,
-					"range3": 0.0,
-					"range4": 0.0,
-					"range5": 0.0,
-					"total_due": 0.0,
-					"future_amount": 0.0,
-					"sales_person": [],
-					"party_type": row.party_type,
-				}
-			),
+			frappe._dict(default_dict),
 		)
 
 	def set_party_details(self, row):
@@ -179,6 +175,7 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 			self.add_column(_("Difference"), fieldname="diff")
 
 		self.setup_ageing_columns()
+		self.add_column(label="Total Amount Due", fieldname="total_due")
 
 		if self.filters.show_future_payments:
 			self.add_column(label=_("Future Payment Amount"), fieldname="future_amount")
@@ -211,27 +208,6 @@ class AccountsReceivableSummary(ReceivablePayableReport):
 		self.add_column(
 			label=_("Currency"), fieldname="currency", fieldtype="Link", options="Currency", width=80
 		)
-
-	def setup_ageing_columns(self):
-		for i, label in enumerate(
-			[
-				"0-{range1}".format(range1=self.filters["range1"]),
-				"{range1}-{range2}".format(
-					range1=cint(self.filters["range1"]) + 1, range2=self.filters["range2"]
-				),
-				"{range2}-{range3}".format(
-					range2=cint(self.filters["range2"]) + 1, range3=self.filters["range3"]
-				),
-				"{range3}-{range4}".format(
-					range3=cint(self.filters["range3"]) + 1, range4=self.filters["range4"]
-				),
-				"{range4}-{above}".format(range4=cint(self.filters["range4"]) + 1, above=_("Above")),
-			]
-		):
-			self.add_column(label=label, fieldname="range" + str(i + 1))
-
-		# Add column for total due amount
-		self.add_column(label="Total Amount Due", fieldname="total_due")
 
 
 def get_gl_balance(report_date, company):

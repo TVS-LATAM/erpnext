@@ -22,6 +22,52 @@ from erpnext.controllers.accounts_controller import AccountsController
 
 
 class Dunning(AccountsController):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.overdue_payment.overdue_payment import OverduePayment
+
+		address_display: DF.SmallText | None
+		amended_from: DF.Link | None
+		base_dunning_amount: DF.Currency
+		body_text: DF.TextEditor | None
+		closing_text: DF.TextEditor | None
+		company: DF.Link
+		company_address: DF.Link | None
+		company_address_display: DF.SmallText | None
+		contact_display: DF.SmallText | None
+		contact_email: DF.Data | None
+		contact_mobile: DF.SmallText | None
+		contact_person: DF.Link | None
+		conversion_rate: DF.Float
+		cost_center: DF.Link | None
+		currency: DF.Link | None
+		customer: DF.Link
+		customer_address: DF.Link | None
+		customer_name: DF.Data | None
+		dunning_amount: DF.Currency
+		dunning_fee: DF.Currency
+		dunning_type: DF.Link | None
+		grand_total: DF.Currency
+		income_account: DF.Link | None
+		language: DF.Link | None
+		letter_head: DF.Link | None
+		naming_series: DF.Literal["DUNN-.MM.-.YY.-"]
+		overdue_payments: DF.Table[OverduePayment]
+		posting_date: DF.Date
+		posting_time: DF.Time | None
+		rate_of_interest: DF.Float
+		spacer: DF.Data | None
+		status: DF.Literal["Draft", "Resolved", "Unresolved", "Cancelled"]
+		total_interest: DF.Currency
+		total_outstanding: DF.Currency
+	# end: auto-generated types
+
 	def validate(self):
 		self.validate_same_currency()
 		self.validate_overdue_payments()
@@ -93,6 +139,22 @@ class Dunning(AccountsController):
 			)
 			row.dunning_level = len(past_dunnings) + 1
 
+	def on_cancel(self):
+		super().on_cancel()
+		self.ignore_linked_doctypes = [
+			"GL Entry",
+			"Stock Ledger Entry",
+			"Repost Item Valuation",
+			"Repost Payment Ledger",
+			"Repost Payment Ledger Items",
+			"Repost Accounting Ledger",
+			"Repost Accounting Ledger Items",
+			"Unreconcile Payment",
+			"Unreconcile Payment Entries",
+			"Payment Ledger Entry",
+			"Serial and Batch Bundle",
+		]
+
 
 def resolve_dunning(doc, state):
 	"""
@@ -148,19 +210,32 @@ def get_linked_dunnings_as_per_state(sales_invoice, state):
 
 
 @frappe.whitelist()
-def get_dunning_letter_text(dunning_type, doc, language=None):
+def get_dunning_letter_text(dunning_type: str, doc: str | dict, language: str | None = None) -> dict:
+	DOCTYPE = "Dunning Letter Text"
+	FIELDS = ["body_text", "closing_text", "language"]
+
 	if isinstance(doc, str):
 		doc = json.loads(doc)
+
+	if not language:
+		language = doc.get("language")
+
+	letter_text = None
 	if language:
-		filters = {"parent": dunning_type, "language": language}
-	else:
-		filters = {"parent": dunning_type, "is_default_language": 1}
-	letter_text = frappe.db.get_value(
-		"Dunning Letter Text", filters, ["body_text", "closing_text", "language"], as_dict=1
-	)
-	if letter_text:
-		return {
-			"body_text": frappe.render_template(letter_text.body_text, doc),
-			"closing_text": frappe.render_template(letter_text.closing_text, doc),
-			"language": letter_text.language,
-		}
+		letter_text = frappe.db.get_value(
+			DOCTYPE, {"parent": dunning_type, "language": language}, FIELDS, as_dict=1
+		)
+
+	if not letter_text:
+		letter_text = frappe.db.get_value(
+			DOCTYPE, {"parent": dunning_type, "is_default_language": 1}, FIELDS, as_dict=1
+		)
+
+	if not letter_text:
+		return {}
+
+	return {
+		"body_text": frappe.render_template(letter_text.body_text, doc),
+		"closing_text": frappe.render_template(letter_text.closing_text, doc),
+		"language": letter_text.language,
+	}

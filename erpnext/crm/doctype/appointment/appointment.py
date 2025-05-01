@@ -14,6 +14,26 @@ from frappe.utils.verified_command import get_signed_params
 
 
 class Appointment(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		appointment_with: DF.Link | None
+		calendar_event: DF.Link | None
+		customer_details: DF.LongText | None
+		customer_email: DF.Data
+		customer_name: DF.Data
+		customer_phone_number: DF.Data | None
+		customer_skype: DF.Data | None
+		party: DF.DynamicLink | None
+		scheduled_time: DF.Datetime
+		status: DF.Literal["Open", "Unverified", "Closed"]
+	# end: auto-generated types
+
 	def find_lead_by_email(self):
 		lead_list = frappe.get_list(
 			"Lead", filters={"email_id": self.customer_email}, ignore_permissions=True
@@ -178,7 +198,9 @@ class Appointment(Document):
 				"starts_on": self.scheduled_time,
 				"status": "Open",
 				"type": "Public",
-				"send_reminder": frappe.db.get_single_value("Appointment Booking Settings", "email_reminders"),
+				"send_reminder": frappe.db.get_single_value(
+					"Appointment Booking Settings", "email_reminders"
+				),
 				"event_participants": [
 					dict(reference_doctype=self.appointment_with, reference_docname=self.party)
 				],
@@ -231,9 +253,7 @@ def _get_agent_list_as_strings():
 
 
 def _check_agent_availability(agent_email, scheduled_time):
-	appointemnts_at_scheduled_time = frappe.get_all(
-		"Appointment", filters={"scheduled_time": scheduled_time}
-	)
+	appointemnts_at_scheduled_time = frappe.get_all("Appointment", filters={"scheduled_time": scheduled_time})
 	for appointment in appointemnts_at_scheduled_time:
 		if appointment._assign == agent_email:
 			return False

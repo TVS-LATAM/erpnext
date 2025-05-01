@@ -4,8 +4,10 @@
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Sum
 from frappe.utils import cint, flt
 
+from erpnext.accounts.report.general_ledger.general_ledger import get_accounts_with_children
 from erpnext.accounts.report.trial_balance.trial_balance import validate_filters
 
 
@@ -22,7 +24,7 @@ def execute(filters=None):
 
 def get_data(filters, show_party_name):
 	if filters.get("party_type") in ("Customer", "Supplier", "Employee", "Member"):
-		party_name_field = "{0}_name".format(frappe.scrub(filters.get("party_type")))
+		party_name_field = "{}_name".format(frappe.scrub(filters.get("party_type")))
 	elif filters.get("party_type") == "Shareholder":
 		party_name_field = "title"
 	else:
@@ -35,9 +37,14 @@ def get_data(filters, show_party_name):
 		filters=party_filters,
 		order_by="name",
 	)
+
+	account_filter = []
+	if filters.get("account"):
+		account_filter = get_accounts_with_children(filters.get("account"))
+
 	company_currency = frappe.get_cached_value("Company", filters.company, "default_currency")
-	opening_balances = get_opening_balances(filters)
-	balances_within_period = get_balances_within_period(filters)
+	opening_balances = get_opening_balances(filters, account_filter)
+	balances_within_period = get_balances_within_period(filters, account_filter)
 
 	data = []
 	# total_debit, total_credit = 0, 0
@@ -65,9 +72,7 @@ def get_data(filters, show_party_name):
 		row.update({"debit": debit, "credit": credit})
 
 		# closing
-		closing_debit, closing_credit = toggle_debit_credit(
-			opening_debit + debit, opening_credit + credit
-		)
+		closing_debit, closing_credit = toggle_debit_credit(opening_debit + debit, opening_credit + credit)
 		row.update({"closing_debit": closing_debit, "closing_credit": closing_credit})
 
 		# totals
@@ -91,32 +96,33 @@ def get_data(filters, show_party_name):
 	return data
 
 
-def get_opening_balances(filters):
+def get_opening_balances(filters, account_filter=None):
+	GL_Entry = frappe.qb.DocType("GL Entry")
 
-	account_filter = ""
-	if filters.get("account"):
-		account_filter = "and account = %s" % (frappe.db.escape(filters.get("account")))
-
-	gle = frappe.db.sql(
-		"""
-		select party, sum(debit) as opening_debit, sum(credit) as opening_credit
-		from `tabGL Entry`
-		where company=%(company)s
-			and is_cancelled=0
-			and ifnull(party_type, '') = %(party_type)s and ifnull(party, '') != ''
-			and (posting_date < %(from_date)s or (ifnull(is_opening, 'No') = 'Yes' and posting_date <= %(to_date)s))
-			{account_filter}
-		group by party""".format(
-			account_filter=account_filter
-		),
-		{
-			"company": filters.company,
-			"from_date": filters.from_date,
-			"to_date": filters.to_date,
-			"party_type": filters.party_type,
-		},
-		as_dict=True,
+	query = (
+		frappe.qb.from_(GL_Entry)
+		.select(
+			GL_Entry.party,
+			Sum(GL_Entry.debit).as_("opening_debit"),
+			Sum(GL_Entry.credit).as_("opening_credit"),
+		)
+		.where(
+			(GL_Entry.company == filters.company)
+			& (GL_Entry.is_cancelled == 0)
+			& (GL_Entry.party_type == filters.party_type)
+			& (GL_Entry.party != "")
+			& (
+				(GL_Entry.posting_date < filters.from_date)
+				| ((GL_Entry.is_opening == "Yes") & (GL_Entry.posting_date <= filters.to_date))
+			)
+		)
+		.groupby(GL_Entry.party)
 	)
+
+	if account_filter:
+		query = query.where(GL_Entry.account.isin(account_filter))
+
+	gle = query.run(as_dict=True)
 
 	opening = frappe._dict()
 	for d in gle:
@@ -126,33 +132,32 @@ def get_opening_balances(filters):
 	return opening
 
 
-def get_balances_within_period(filters):
+def get_balances_within_period(filters, account_filter=None):
+	GL_Entry = frappe.qb.DocType("GL Entry")
 
-	account_filter = ""
-	if filters.get("account"):
-		account_filter = "and account = %s" % (frappe.db.escape(filters.get("account")))
-
-	gle = frappe.db.sql(
-		"""
-		select party, sum(debit) as debit, sum(credit) as credit
-		from `tabGL Entry`
-		where company=%(company)s
-			and is_cancelled = 0
-			and ifnull(party_type, '') = %(party_type)s and ifnull(party, '') != ''
-			and posting_date >= %(from_date)s and posting_date <= %(to_date)s
-			and ifnull(is_opening, 'No') = 'No'
-			{account_filter}
-		group by party""".format(
-			account_filter=account_filter
-		),
-		{
-			"company": filters.company,
-			"from_date": filters.from_date,
-			"to_date": filters.to_date,
-			"party_type": filters.party_type,
-		},
-		as_dict=True,
+	query = (
+		frappe.qb.from_(GL_Entry)
+		.select(
+			GL_Entry.party,
+			Sum(GL_Entry.debit).as_("debit"),
+			Sum(GL_Entry.credit).as_("credit"),
+		)
+		.where(
+			(GL_Entry.company == filters.company)
+			& (GL_Entry.is_cancelled == 0)
+			& (GL_Entry.party_type == filters.party_type)
+			& (GL_Entry.party != "")
+			& (GL_Entry.posting_date >= filters.from_date)
+			& (GL_Entry.posting_date <= filters.to_date)
+			& (GL_Entry.is_opening == "No")
+		)
+		.groupby(GL_Entry.party)
 	)
+
+	if account_filter:
+		query = query.where(GL_Entry.account.isin(account_filter))
+
+	gle = query.run(as_dict=True)
 
 	balances_within_period = frappe._dict()
 	for d in gle:

@@ -12,8 +12,35 @@ from frappe.utils import cint, get_datetime, get_link_to_form
 
 
 class DeliveryTrip(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.stock.doctype.delivery_stop.delivery_stop import DeliveryStop
+
+		amended_from: DF.Link | None
+		company: DF.Link
+		delivery_stops: DF.Table[DeliveryStop]
+		departure_time: DF.Datetime
+		driver: DF.Link | None
+		driver_address: DF.Link | None
+		driver_email: DF.Data | None
+		driver_name: DF.Data | None
+		email_notification_sent: DF.Check
+		employee: DF.Link | None
+		naming_series: DF.Literal["MAT-DT-.YYYY.-"]
+		status: DF.Literal["Draft", "Scheduled", "In Transit", "Completed", "Cancelled"]
+		total_distance: DF.Float
+		uom: DF.Link | None
+		vehicle: DF.Link
+	# end: auto-generated types
+
 	def __init__(self, *args, **kwargs):
-		super(DeliveryTrip, self).__init__(*args, **kwargs)
+		super().__init__(*args, **kwargs)
 
 		# Google Maps returns distances in meters by default
 		self.default_distance_uom = (
@@ -67,9 +94,7 @@ class DeliveryTrip(Document):
 		        delete (bool, optional): Defaults to `False`. `True` if driver details need to be emptied, else `False`.
 		"""
 
-		delivery_notes = list(
-			set(stop.delivery_note for stop in self.delivery_stops if stop.delivery_note)
-		)
+		delivery_notes = list(set(stop.delivery_note for stop in self.delivery_stops if stop.delivery_note))
 
 		update_fields = {
 			"driver": self.driver,
@@ -315,14 +340,11 @@ def get_contact_display(contact):
 		"Contact", contact, ["first_name", "last_name", "phone", "mobile_no"], as_dict=1
 	)
 
-	contact_info.html = (
-		""" <b>%(first_name)s %(last_name)s</b> <br> %(phone)s <br> %(mobile_no)s"""
-		% {
-			"first_name": contact_info.first_name,
-			"last_name": contact_info.last_name or "",
-			"phone": contact_info.phone or "",
-			"mobile_no": contact_info.mobile_no or "",
-		}
+	contact_info.html = """ <b>{first_name} {last_name}</b> <br> {phone} <br> {mobile_no}""".format(
+		first_name=contact_info.first_name,
+		last_name=contact_info.last_name or "",
+		phone=contact_info.phone or "",
+		mobile_no=contact_info.mobile_no or "",
 	)
 
 	return contact_info.html

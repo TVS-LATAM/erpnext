@@ -29,6 +29,41 @@ from erpnext.support.doctype.issue.issue import get_holidays
 
 
 class ServiceLevelAgreement(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.support.doctype.pause_sla_on_status.pause_sla_on_status import PauseSLAOnStatus
+		from erpnext.support.doctype.service_day.service_day import ServiceDay
+		from erpnext.support.doctype.service_level_priority.service_level_priority import (
+			ServiceLevelPriority,
+		)
+		from erpnext.support.doctype.sla_fulfilled_on_status.sla_fulfilled_on_status import (
+			SLAFulfilledOnStatus,
+		)
+
+		apply_sla_for_resolution: DF.Check
+		condition: DF.Code | None
+		default_priority: DF.Link | None
+		default_service_level_agreement: DF.Check
+		document_type: DF.Link
+		enabled: DF.Check
+		end_date: DF.Date | None
+		entity: DF.DynamicLink | None
+		entity_type: DF.Literal["", "Customer", "Customer Group", "Territory"]
+		holiday_list: DF.Link
+		pause_sla_on: DF.Table[PauseSLAOnStatus]
+		priorities: DF.Table[ServiceLevelPriority]
+		service_level: DF.Data
+		sla_fulfilled_on: DF.Table[SLAFulfilledOnStatus]
+		start_date: DF.Date | None
+		support_and_resolution: DF.Table[ServiceDay]
+	# end: auto-generated types
+
 	def validate(self):
 		self.validate_selected_doctype()
 		self.validate_doc()
@@ -44,22 +79,26 @@ class ServiceLevelAgreement(Document):
 			# Check if response and resolution time is set for every priority
 			if not priority.response_time:
 				frappe.throw(
-					_("Set Response Time for Priority {0} in row {1}.").format(priority.priority, priority.idx)
+					_("Set Response Time for Priority {0} in row {1}.").format(
+						priority.priority, priority.idx
+					)
 				)
 
 			if self.apply_sla_for_resolution:
 				if not priority.resolution_time:
 					frappe.throw(
-						_("Set Response Time for Priority {0} in row {1}.").format(priority.priority, priority.idx)
+						_("Set Response Time for Priority {0} in row {1}.").format(
+							priority.priority, priority.idx
+						)
 					)
 
 				response = priority.response_time
 				resolution = priority.resolution_time
 				if response > resolution:
 					frappe.throw(
-						_("Response Time for {0} priority in row {1} can't be greater than Resolution Time.").format(
-							priority.priority, priority.idx
-						)
+						_(
+							"Response Time for {0} priority in row {1} can't be greater than Resolution Time."
+						).format(priority.priority, priority.idx)
 					)
 
 			priorities.append(priority.priority)
@@ -105,7 +144,7 @@ class ServiceLevelAgreement(Document):
 		):
 			frappe.throw(
 				_("{0} is not enabled in {1}").format(
-					frappe.bold("Track Service Level Agreement"),
+					frappe.bold(_("Track Service Level Agreement")),
 					get_link_to_form("Support Settings", "Support Settings"),
 				)
 			)
@@ -323,7 +362,7 @@ def get_active_service_level_agreement_for(doc):
 					"Service Level Agreement",
 					"entity",
 					"in",
-					[customer] + get_customer_group(customer) + get_customer_territory(customer),
+					[customer, *get_customer_group(customer), *get_customer_territory(customer)],
 				],
 				["Service Level Agreement", "entity_type", "is", "not set"],
 			]
@@ -331,9 +370,7 @@ def get_active_service_level_agreement_for(doc):
 	else:
 		or_filters.append(["Service Level Agreement", "entity_type", "is", "not set"])
 
-	default_sla_filter = filters + [
-		["Service Level Agreement", "default_service_level_agreement", "=", 1]
-	]
+	default_sla_filter = [*filters, ["Service Level Agreement", "default_service_level_agreement", "=", 1]]
 	default_sla = frappe.get_all(
 		"Service Level Agreement",
 		filters=default_sla_filter,
@@ -374,7 +411,7 @@ def get_customer_group(customer):
 	customer_group = frappe.db.get_value("Customer", customer, "customer_group") if customer else None
 	if customer_group:
 		ancestors = get_ancestors_of("Customer Group", customer_group)
-		customer_groups = [customer_group] + ancestors
+		customer_groups = [customer_group, *ancestors]
 
 	return customer_groups
 
@@ -384,7 +421,7 @@ def get_customer_territory(customer):
 	customer_territory = frappe.db.get_value("Customer", customer, "territory") if customer else None
 	if customer_territory:
 		ancestors = get_ancestors_of("Territory", customer_territory)
-		customer_territories = [customer_territory] + ancestors
+		customer_territories = [customer_territory, *ancestors]
 
 	return customer_territories
 
@@ -408,7 +445,7 @@ def get_service_level_agreement_filters(doctype, name, customer=None):
 				"Service Level Agreement",
 				"entity",
 				"in",
-				[""] + [customer] + get_customer_group(customer) + get_customer_territory(customer),
+				["", customer, *get_customer_group(customer), *get_customer_territory(customer)],
 			]
 		)
 
@@ -420,8 +457,7 @@ def get_service_level_agreement_filters(doctype, name, customer=None):
 			)
 		],
 		"service_level_agreements": [
-			d.name
-			for d in frappe.get_all("Service Level Agreement", filters=filters, or_filters=or_filters)
+			d.name for d in frappe.get_all("Service Level Agreement", filters=filters, or_filters=or_filters)
 		],
 	}
 
@@ -439,7 +475,7 @@ def get_repeated(values):
 
 
 def get_documents_with_active_service_level_agreement():
-	sla_doctypes = frappe.cache().hget("service_level_agreement", "active")
+	sla_doctypes = frappe.cache.get_value("doctypes_with_active_sla")
 
 	if sla_doctypes is None:
 		return set_documents_with_active_service_level_agreement()
@@ -448,20 +484,22 @@ def get_documents_with_active_service_level_agreement():
 
 
 def set_documents_with_active_service_level_agreement():
-	active = [
+	active = frozenset(
 		sla.document_type for sla in frappe.get_all("Service Level Agreement", fields=["document_type"])
-	]
-	frappe.cache().hset("service_level_agreement", "active", active)
+	)
+	frappe.cache.set_value("doctypes_with_active_sla", active)
 	return active
 
 
 def apply(doc, method=None):
 	# Applies SLA to document on validate
+	flags = frappe.local.flags
+
 	if (
-		frappe.flags.in_patch
-		or frappe.flags.in_migrate
-		or frappe.flags.in_install
-		or frappe.flags.in_setup_wizard
+		flags.in_patch
+		or flags.in_migrate
+		or flags.in_install
+		or flags.in_setup_wizard
 		or doc.doctype not in get_documents_with_active_service_level_agreement()
 	):
 		return
@@ -478,11 +516,10 @@ def apply(doc, method=None):
 def remove_sla_if_applied(doc):
 	doc.service_level_agreement = None
 	doc.response_by = None
-	doc.resolution_by = None
+	doc.sla_resolution_by = None
 
 
 def process_sla(doc, sla):
-
 	if not doc.creation:
 		doc.creation = now_datetime(doc.get("owner"))
 		if doc.meta.has_field("service_level_agreement_creation"):
@@ -522,7 +559,7 @@ def handle_status_change(doc, apply_sla_for_resolution):
 		# In case issue was closed and after few days it has been opened
 		# The hold time should be calculated from resolution_date
 
-		on_hold_since = doc.resolution_date or doc.on_hold_since
+		on_hold_since = doc.sla_resolution_date or doc.on_hold_since
 		if on_hold_since:
 			current_hold_hours = time_diff_in_seconds(now_time, on_hold_since)
 			doc.total_hold_time = (doc.total_hold_time or 0) + current_hold_hours
@@ -547,7 +584,7 @@ def handle_status_change(doc, apply_sla_for_resolution):
 	# Open to Closed
 	if is_open_status(prev_status) and is_fulfilled_status(doc.status):
 		# Issue is closed -> Set resolution_date
-		doc.resolution_date = now_time
+		doc.sla_resolution_date = now_time
 		set_resolution_time(doc)
 
 	# Closed to Open
@@ -571,7 +608,7 @@ def handle_status_change(doc, apply_sla_for_resolution):
 		calculate_hold_hours()
 		# Issue is closed -> Set resolution_date
 		if apply_sla_for_resolution:
-			doc.resolution_date = now_time
+			doc.sla_resolution_date = now_time
 			set_resolution_time(doc)
 
 
@@ -678,7 +715,7 @@ def get_support_days(service_level):
 def set_resolution_time(doc):
 	start_date_time = get_datetime(doc.get("service_level_agreement_creation") or doc.creation)
 	if doc.meta.has_field("resolution_time"):
-		doc.resolution_time = time_diff_in_seconds(doc.resolution_date, start_date_time)
+		doc.resolution_time = time_diff_in_seconds(doc.sla_resolution_date, start_date_time)
 
 	# total time taken by a user to close the issue apart from wait_time
 	if not doc.meta.has_field("user_resolution_time"):
@@ -702,7 +739,7 @@ def set_resolution_time(doc):
 				pending_time.append(wait_time)
 
 	total_pending_time = sum(pending_time)
-	resolution_time_in_secs = time_diff_in_seconds(doc.resolution_date, start_date_time)
+	resolution_time_in_secs = time_diff_in_seconds(doc.sla_resolution_date, start_date_time)
 	doc.user_resolution_time = resolution_time_in_secs - total_pending_time
 
 
@@ -712,7 +749,6 @@ def change_service_level_agreement_and_priority(self):
 		and frappe.db.exists("Issue", self.name)
 		and frappe.db.get_single_value("Support Settings", "track_service_level_agreement")
 	):
-
 		if not self.priority == frappe.db.get_value("Issue", self.name, "priority"):
 			self.set_response_and_resolution_time(
 				priority=self.priority, service_level_agreement=self.service_level_agreement
@@ -733,16 +769,16 @@ def change_service_level_agreement_and_priority(self):
 def get_response_and_resolution_duration(doc):
 	sla = frappe.get_doc("Service Level Agreement", doc.service_level_agreement)
 	priority = sla.get_service_level_agreement_priority(doc.priority)
-	priority.update(
-		{"support_and_resolution": sla.support_and_resolution, "holiday_list": sla.holiday_list}
-	)
+	priority.update({"support_and_resolution": sla.support_and_resolution, "holiday_list": sla.holiday_list})
 	return priority
 
 
-def reset_service_level_agreement(doc, reason, user):
+@frappe.whitelist()
+def reset_service_level_agreement(doctype: str, docname: str, reason, user):
 	if not frappe.db.get_single_value("Support Settings", "allow_resetting_service_level_agreement"):
 		frappe.throw(_("Allow Resetting Service Level Agreement from Support Settings."))
 
+	doc = frappe.get_doc(doctype, docname)
 	frappe.get_doc(
 		{
 			"doctype": "Comment",
@@ -750,7 +786,7 @@ def reset_service_level_agreement(doc, reason, user):
 			"reference_doctype": doc.doctype,
 			"reference_name": doc.name,
 			"comment_email": user,
-			"content": " resetted Service Level Agreement - {0}".format(_(reason)),
+			"content": f" resetted Service Level Agreement - {_(reason)}",
 		}
 	).insert(ignore_permissions=True)
 
@@ -759,8 +795,8 @@ def reset_service_level_agreement(doc, reason, user):
 
 
 def reset_resolution_metrics(doc):
-	if doc.meta.has_field("resolution_date"):
-		doc.resolution_date = None
+	if doc.meta.has_field("sla_resolution_date"):
+		doc.sla_resolution_date = None
 
 	if doc.meta.has_field("resolution_time"):
 		doc.resolution_time = None
@@ -827,8 +863,8 @@ def on_communication_update(doc, status):
 def reset_expected_response_and_resolution(doc):
 	if doc.meta.has_field("first_responded_on") and not doc.get("first_responded_on"):
 		doc.response_by = None
-	if doc.meta.has_field("resolution_by") and not doc.get("resolution_date"):
-		doc.resolution_by = None
+	if doc.meta.has_field("sla_resolution_by") and not doc.get("sla_resolution_date"):
+		doc.sla_resolution_by = None
 
 
 def set_response_by(doc, start_date_time, priority):
@@ -845,12 +881,14 @@ def set_response_by(doc, start_date_time, priority):
 
 
 def set_resolution_by(doc, start_date_time, priority):
-	if doc.meta.has_field("resolution_by"):
-		doc.resolution_by = get_expected_time_for(
+	if doc.meta.has_field("sla_resolution_by"):
+		doc.sla_resolution_by = get_expected_time_for(
 			parameter="resolution", service_level=priority, start_date_time=start_date_time
 		)
 		if doc.meta.has_field("total_hold_time") and doc.get("total_hold_time"):
-			doc.resolution_by = add_to_date(doc.resolution_by, seconds=round(doc.get("total_hold_time")))
+			doc.sla_resolution_by = add_to_date(
+				doc.sla_resolution_by, seconds=round(doc.get("total_hold_time"))
+			)
 
 
 def record_assigned_users_on_failure(doc):
@@ -858,7 +896,7 @@ def record_assigned_users_on_failure(doc):
 	if assigned_users:
 		from frappe.utils import get_fullname
 
-		assigned_users = ", ".join((get_fullname(user) for user in assigned_users))
+		assigned_users = ", ".join(get_fullname(user) for user in assigned_users)
 		message = _("First Response SLA Failed by {}").format(assigned_users)
 		doc.add_comment(comment_type="Assigned", text=message)
 
@@ -909,7 +947,7 @@ def get_service_level_agreement_fields():
 			"read_only": 1,
 		},
 		{
-			"fieldname": "resolution_by",
+			"fieldname": "sla_resolution_by",
 			"fieldtype": "Datetime",
 			"label": "Resolution By",
 			"read_only": 1,
@@ -923,7 +961,7 @@ def get_service_level_agreement_fields():
 		},
 		{
 			"depends_on": "eval:!doc.__islocal",
-			"fieldname": "resolution_date",
+			"fieldname": "sla_resolution_date",
 			"fieldtype": "Datetime",
 			"label": "Resolution Date",
 			"no_copy": 1,
@@ -943,9 +981,9 @@ def update_agreement_status(doc, apply_sla_for_resolution):
 		if apply_sla_for_resolution:
 			if doc.meta.has_field("first_responded_on") and not doc.get("first_responded_on"):
 				doc.agreement_status = "First Response Due"
-			elif doc.meta.has_field("resolution_date") and not doc.get("resolution_date"):
+			elif doc.meta.has_field("sla_resolution_date") and not doc.get("sla_resolution_date"):
 				doc.agreement_status = "Resolution Due"
-			elif get_datetime(doc.get("resolution_date")) <= get_datetime(doc.get("resolution_by")):
+			elif get_datetime(doc.get("sla_resolution_date")) <= get_datetime(doc.get("sla_resolution_by")):
 				doc.agreement_status = "Fulfilled"
 			else:
 				doc.agreement_status = "Failed"

@@ -9,12 +9,10 @@ def get_context(context):
 	project_user = frappe.db.get_value(
 		"Project User",
 		{"parent": frappe.form_dict.project, "user": frappe.session.user},
-		["user", "view_attachments"],
+		["user", "view_attachments", "hide_timesheets"],
 		as_dict=True,
 	)
-	if frappe.session.user != "Administrator" and (
-		not project_user or frappe.session.user == "Guest"
-	):
+	if frappe.session.user != "Administrator" and (not project_user or frappe.session.user == "Guest"):
 		raise frappe.PermissionError
 
 	context.no_cache = 1
@@ -27,7 +25,8 @@ def get_context(context):
 		project.name, start=0, item_status="open", search=frappe.form_dict.get("search")
 	)
 
-	project.timesheets = get_timesheets(project.name, start=0, search=frappe.form_dict.get("search"))
+	if project_user and not project_user.hide_timesheets:
+		project.timesheets = get_timesheets(project.name, start=0, search=frappe.form_dict.get("search"))
 
 	if project_user and project_user.view_attachments:
 		project.attachments = get_attachments(project.name)
@@ -38,7 +37,7 @@ def get_context(context):
 def get_tasks(project, start=0, search=None, item_status=None):
 	filters = {"project": project}
 	if search:
-		filters["subject"] = ("like", "%{0}%".format(search))
+		filters["subject"] = ("like", f"%{search}%")
 	tasks = frappe.get_all(
 		"Task",
 		filters=filters,
@@ -53,7 +52,7 @@ def get_tasks(project, start=0, search=None, item_status=None):
 			"parent_task",
 		],
 		limit_start=start,
-		limit_page_length=10,
+		limit_page_length=100,
 	)
 	task_nest = []
 	for task in tasks:
@@ -83,7 +82,7 @@ def get_task_html(project, start=0, item_status=None):
 def get_timesheets(project, start=0, search=None):
 	filters = {"project": project}
 	if search:
-		filters["activity_type"] = ("like", "%{0}%".format(search))
+		filters["activity_type"] = ("like", f"%{search}%")
 
 	timesheets = frappe.get_all(
 		"Timesheet Detail",

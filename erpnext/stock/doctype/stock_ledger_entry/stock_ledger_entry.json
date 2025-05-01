@@ -11,6 +11,9 @@
   "warehouse",
   "posting_date",
   "posting_time",
+  "posting_datetime",
+  "is_adjustment_entry",
+  "auto_created_serial_and_batch_bundle",
   "column_break_6",
   "voucher_type",
   "voucher_no",
@@ -121,6 +124,7 @@
    "options": "DocType",
    "print_width": "150px",
    "read_only": 1,
+   "search_index": 1,
    "width": "150px"
   },
   {
@@ -228,7 +232,7 @@
   },
   {
    "fieldname": "stock_queue",
-   "fieldtype": "Text",
+   "fieldtype": "Long Text",
    "label": "FIFO Stock Queue (qty, rate)",
    "oldfieldname": "fcfs_stack",
    "oldfieldtype": "Text",
@@ -251,7 +255,6 @@
    "options": "Company",
    "print_width": "150px",
    "read_only": 1,
-   "search_index": 1,
    "width": "150px"
   },
   {
@@ -333,6 +336,25 @@
    "fieldname": "has_serial_no",
    "fieldtype": "Check",
    "label": "Has Serial No"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_adjustment_entry",
+   "fieldtype": "Check",
+   "label": "Is Adjustment Entry"
+  },
+  {
+   "default": "0",
+   "depends_on": "serial_and_batch_bundle",
+   "fieldname": "auto_created_serial_and_batch_bundle",
+   "fieldtype": "Check",
+   "label": "Auto Created Serial and Batch Bundle"
+  },
+  {
+   "fieldname": "posting_datetime",
+   "fieldtype": "Datetime",
+   "label": "Posting Datetime",
+   "search_index": 1
   }
  ],
  "hide_toolbar": 1,
@@ -341,7 +363,7 @@
  "in_create": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2023-04-03 16:33:16.270722",
+ "modified": "2024-12-23 18:03:05.171023",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Stock Ledger Entry",

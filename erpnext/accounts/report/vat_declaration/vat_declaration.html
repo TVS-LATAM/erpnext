@@ -1,0 +1,146 @@
+<div class="belasting-pdf">
+    <table class="header-table">
+      <tr><td><strong>Naam:</strong></td><td>{{ filters.company }}</td></tr>
+      <tr><td><strong>RSIN/fiscaalnummer/BSN:</strong></td><td>{{ company_info.vat_number or '-' }}</td></tr>
+      <tr><td><strong>Aangiftenummer:</strong></td><td>{{ company_info.tax_id or '-' }}</td></tr>
+      <tr><td><strong>Tijdvak:</strong></td><td>{{ frappe.format(filters.from_date, {fieldtype: "Date"}) }} t/m {{ frappe.format(filters.to_date, {fieldtype: "Date"}) }}</td></tr>
+      <tr><td><strong>Uiterste inzend- en betaaldatum:</strong></td><td>{{ frappe.format(frappe.datetime.add_days(filters.to_date, 30), {fieldtype: "Date"}) }}</td></tr>
+      <tr><td><strong>Hebt u dit tijdvak iets aan te geven?</strong></td><td>Ja</td></tr>
+      <tr><td><strong>Bedrijfsnaam:</strong></td><td>{{ company_info.legal_name or filters.company }}</td></tr>
+      <tr><td><strong>Telefoonnummer:</strong></td><td>{{ company_info.phone or '-' }}</td></tr>
+    </table>
+  
+    {% macro render_row(idx, text, vat = '-') -%}
+    <tr><td>{{ text }}</td><td class="right">{{ frappe.format(data[idx].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ vat }}</td></tr>
+    {%- endmacro %}
+  
+    <h4 class="rubriek-title">BTW-Overzicht per tarief</h4>
+    <table class="rubriek-table">
+      <thead><tr><th>Omschrijving</th><th class="right">Grondslag</th><th class="right">Btw</th></tr></thead>
+      <tbody>
+        <tr><td>21% (hoog tarief)</td><td class="right">{{ frappe.format(data[0].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ frappe.format(data[1].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        <tr><td>9% (laag tarief)</td><td class="right">{{ frappe.format(data[2].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ frappe.format(data[3].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        <tr><td>0% (0% of niet bij u belast)</td><td class="right">{{ frappe.format(data[4].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ frappe.format(data[5].amount, {fieldtype: 'Currency'}) }}</td></tr>
+      </tbody>
+    </table>
+  
+    <h4 class="rubriek-title">Rubriek 1: Prestaties binnenland</h4>
+    <table class="rubriek-table">
+      <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
+      <tbody>
+        {{ render_row(6, '1a. Leveringen/diensten belast met hoog tarief', frappe.format(data[6].amount * 0.21, {fieldtype: 'Currency'})) }}
+        {{ render_row(7, '1b. Leveringen/diensten belast met laag tarief', frappe.format(data[7].amount * 0.09, {fieldtype: 'Currency'})) }}
+        {{ render_row(8, '1c. Leveringen/diensten belast met overige tarieven, behalve 0%', frappe.format(data[8].amount * 0.05, {fieldtype: 'Currency'})) }}
+        {{ render_row(9, '1d. Privégebruik', frappe.format(data[9].amount * 0.21, {fieldtype: 'Currency'})) }}
+        {{ render_row(10, '1e. Leveringen/diensten belast met 0% of niet bij u belast', '€ 0') }}
+      </tbody>
+    </table>
+  
+    <h4 class="rubriek-title">Rubriek 2: Verleggingsregeling</h4>
+    <table class="rubriek-table">
+      <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
+      <tbody>
+        {{ render_row(11, '2a. Leveringen waarop de verleggingsregeling van toepassing is', frappe.format(data[11].amount * 0.21, {fieldtype: 'Currency'})) }}
+      </tbody>
+    </table>
+  
+    <h4 class="rubriek-title">Rubriek 3: Prestaties naar of in het buitenland</h4>
+    <table class="rubriek-table">
+      <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
+      <tbody>
+        {{ render_row(12, '3a. Leveringen naar landen buiten de EU (uitvoer)', '€ 0') }}
+        {{ render_row(13, '3b. Leveringen naar of diensten in landen binnen de EU', '€ 0') }}
+        {{ render_row(14, '3c. Installatie/afstandsverkopen binnen de EU', '€ 0') }}
+      </tbody>
+    </table>
+  
+    <h4 class="rubriek-title">Rubriek 4: Prestaties vanuit het buitenland aan u verricht</h4>
+    <table class="rubriek-table">
+      <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
+      <tbody>
+        {{ render_row(15, '4a. Leveringen/diensten uit landen buiten de EU', frappe.format(data[15].amount * 0.21, {fieldtype: 'Currency'})) }}
+        {{ render_row(16, '4b. Leveringen/diensten uit landen binnen de EU', frappe.format(data[16].amount * 0.21, {fieldtype: 'Currency'})) }}
+      </tbody>
+    </table>
+  
+    <h4 class="rubriek-title">Rubriek 5: Voorbelasting en eindtotaal</h4>
+    <table class="rubriek-table">
+      <thead><tr><th>Omschrijving</th><th></th><th class="right">Btw</th></tr></thead>
+      <tbody>
+        <tr><td>5a. Verschuldigde omzetbelasting (rubriek 1 t/m 4)</td><td></td><td class="right">{{ frappe.format(data[18].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        <tr><td>5b. Voorbelasting</td><td></td><td class="right">{{ frappe.format(data[17].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        <tr><td>5c. Subtotaal (rubriek 5a min 5b)</td><td></td><td class="right">
+          <span class="{% if data[19].amount >= 0 %}text-danger{% else %}text-success{% endif %}">
+            {{ frappe.format(data[19].amount, {fieldtype: 'Currency'}) }}
+          </span>
+        </td></tr>
+        <tr><td>5d. Vermindering volgens de kleineondernemersregeling (KOR)</td><td></td><td class="right">{{ frappe.format(data[20].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        <tr><td>5e. Schatting vorige aangifte(n)</td><td></td><td class="right">{{ frappe.format(data[21].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        <tr><td>5f. Schatting deze aangifte</td><td></td><td class="right">{{ frappe.format(data[22].amount, {fieldtype: 'Currency'}) }}</td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:18px;font-weight:bold;font-size:14px;">
+      Totaal te betalen of terug te ontvangen: <span class="{% if data[23].amount >= 0 %}text-danger{% else %}text-success{% endif %}">{{ frappe.format(data[23].amount, {fieldtype: 'Currency'}) }}</span>
+    </div>
+
+    <footer style="margin-top:30px;text-align:center;font-size:11px;color:#888;">
+      BTW-aangifte op basis van ERPNext
+    </footer>
+  </div>
+  
+  <style>
+  .belasting-pdf {
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    color: #000;
+  }
+  
+  .header-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 20px;
+  }
+  
+  .header-table td {
+    padding: 6px 4px;
+    background-color: #f2f2f2;
+    border-bottom: 1px solid #ddd;
+  }
+  
+  .rubriek-title {
+    font-size: 13px;
+    margin-top: 20px;
+    margin-bottom: 5px;
+    font-weight: bold;
+  }
+  
+  .rubriek-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 5px;
+  }
+  
+  .rubriek-table thead th {
+    background-color: #e0e0e0;
+    font-weight: bold;
+    padding: 6px;
+    border-bottom: 1px solid #ccc;
+  }
+  
+  .rubriek-table td {
+    padding: 6px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .right {
+    text-align: right;
+  }
+  
+  .text-danger {
+    color: #dc3545;
+  }
+  
+  .text-success {
+    color: #28a745;
+  }
+  </style>

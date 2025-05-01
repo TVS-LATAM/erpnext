@@ -5,7 +5,8 @@ import datetime
 import unittest
 
 import frappe
-from frappe.utils import add_months, add_to_date, now_datetime, nowdate
+from frappe.tests.utils import change_settings
+from frappe.utils import add_to_date, now_datetime, nowdate
 
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
 from erpnext.projects.doctype.timesheet.timesheet import OverlapError, make_sales_invoice
@@ -40,9 +41,7 @@ class TestTimesheet(unittest.TestCase):
 		emp = make_employee("test_employee_6@salary.com")
 
 		timesheet = make_timesheet(emp, simulate=True, is_billable=1)
-		sales_invoice = make_sales_invoice(
-			timesheet.name, "_Test Item", "_Test Customer", currency="INR"
-		)
+		sales_invoice = make_sales_invoice(timesheet.name, "_Test Item", "_Test Customer", currency="INR")
 		sales_invoice.due_date = nowdate()
 		sales_invoice.submit()
 		timesheet = frappe.get_doc("Timesheet", timesheet.name)
@@ -55,6 +54,7 @@ class TestTimesheet(unittest.TestCase):
 		self.assertEqual(item.qty, 2.00)
 		self.assertEqual(item.rate, 50.00)
 
+	@change_settings("Projects Settings", {"fetch_timesheet_in_sales_invoice": 1})
 	def test_timesheet_billing_based_on_project(self):
 		emp = make_employee("test_employee_6@salary.com")
 		project = frappe.get_value("Project", {"project_name": "_Test Project"})
@@ -64,6 +64,7 @@ class TestTimesheet(unittest.TestCase):
 		)
 		sales_invoice = create_sales_invoice(do_not_save=True)
 		sales_invoice.project = project
+		sales_invoice.add_timesheet_data()
 		sales_invoice.submit()
 
 		ts = frappe.get_doc("Timesheet", timesheet.name)
@@ -211,9 +212,7 @@ def make_timesheet(
 	timesheet_detail.activity_type = activity_type
 	timesheet_detail.from_time = now_datetime()
 	timesheet_detail.hours = 2
-	timesheet_detail.to_time = timesheet_detail.from_time + datetime.timedelta(
-		hours=timesheet_detail.hours
-	)
+	timesheet_detail.to_time = timesheet_detail.from_time + datetime.timedelta(hours=timesheet_detail.hours)
 	timesheet_detail.project = project
 	timesheet_detail.task = task
 

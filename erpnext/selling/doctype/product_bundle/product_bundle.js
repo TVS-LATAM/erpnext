@@ -1,14 +1,20 @@
 frappe.ui.form.on("Product Bundle", {
-    refresh: function (frm) {
-        frm.toggle_enable("new_item_code", frm.is_new());
-        frm.set_query("new_item_code", () => {
-            return {
-                query: "erpnext.selling.doctype.product_bundle.product_bundle.get_new_item_code",
-            };
-        });
-    },
+	refresh: function (frm) {
+		frm.toggle_enable("new_item_code", frm.is_new());
+		frm.set_query("new_item_code", () => {
+			return {
+				query: "erpnext.selling.doctype.product_bundle.product_bundle.get_new_item_code",
+			};
+		});
 
-    product_bundle_template: function(frm) {
+		frm.set_query("item_code", "items", () => {
+			return {
+				filters: {
+					has_variants: 0,
+				},
+			};
+		});
+	},product_bundle_template: function(frm) {
 		const current_items = frm.doc.items || [];
         let new_items = [];
 
@@ -24,16 +30,16 @@ frappe.ui.form.on("Product Bundle", {
                             creation: new Date().toISOString(),
                             description: item.description || "",
                             description_visible: 0,
-                            docstatus: 0, 
-                            doctype: "Product Bundle Item", 
+                            docstatus: 0,
+                            doctype: "Product Bundle Item",
                             idx: current_items.length + index + 1,
-                            item_code: item.item_code, 
+                            item_code: item.item_code,
                             modified: new Date().toISOString(),
                             modified_by: frappe.session.user,
-                            name: item.name, 
+                            name: item.name,
                             owner: frappe.session.user,
                             parent: frm.doc.name,
-                            parentfield: "items", 
+                            parentfield: "items",
                             parenttype: "Product Bundle",
                             qty: item.qty,
                             rate: 0,

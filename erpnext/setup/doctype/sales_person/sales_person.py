@@ -10,15 +10,42 @@ from frappe import _
 from frappe.query_builder import Interval
 from frappe.query_builder.functions import Count, CurDate, UnixTimestamp
 from frappe.utils import flt
+from frappe.utils.data import get_url_to_list
 from frappe.utils.nestedset import NestedSet, get_root_of
 
 from erpnext import get_default_currency
 
 
 class SalesPerson(NestedSet):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.setup.doctype.target_detail.target_detail import TargetDetail
+
+		commission_rate: DF.Data | None
+		department: DF.Link | None
+		employee: DF.Link | None
+		enabled: DF.Check
+		is_group: DF.Check
+		lft: DF.Int
+		old_parent: DF.Data | None
+		parent_sales_person: DF.Link | None
+		rgt: DF.Int
+		sales_person_name: DF.Data
+		targets: DF.Table[TargetDetail]
+	# end: auto-generated types
+
 	nsm_parent_field = "parent_sales_person"
 
 	def validate(self):
+		if not self.enabled:
+			self.validate_sales_person()
+
 		if not self.parent_sales_person:
 			self.parent_sales_person = get_root_of("Sales Person")
 
@@ -57,8 +84,27 @@ class SalesPerson(NestedSet):
 		self.set_onload("dashboard_info", info)
 
 	def on_update(self):
-		super(SalesPerson, self).on_update()
+		super().on_update()
 		self.validate_one_root()
+
+	def validate_sales_person(self):
+		sales_team = frappe.qb.DocType("Sales Team")
+
+		query = (
+			frappe.qb.from_(sales_team)
+			.select(sales_team.sales_person)
+			.where((sales_team.sales_person == self.name) & (sales_team.parenttype == "Customer"))
+			.groupby(sales_team.sales_person)
+		).run(as_dict=True)
+
+		if query:
+			frappe.throw(
+				_("The Sales Person is linked with {0}").format(
+					frappe.bold(
+						f"""<a href="{get_url_to_list("Customer")}?sales_person={self.name}">{"Customers"}</a>"""
+					)
+				)
+			)
 
 	def get_email_id(self):
 		if self.employee:

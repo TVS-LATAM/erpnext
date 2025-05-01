@@ -6,37 +6,50 @@
  "document_type": "Document",
  "engine": "InnoDB",
  "field_order": [
+  "dates_section",
   "posting_date",
   "transaction_date",
+  "column_break_avko",
+  "fiscal_year",
+  "due_date",
+  "account_details_section",
   "account",
+  "account_currency",
+  "column_break_ifvf",
+  "against",
   "party_type",
   "party",
-  "cost_center",
-  "debit",
-  "credit",
-  "account_currency",
-  "debit_in_account_currency",
-  "credit_in_account_currency",
-  "against",
-  "against_voucher_type",
-  "against_voucher",
+  "transaction_details_section",
   "voucher_type",
   "voucher_no",
+  "voucher_subtype",
+  "transaction_currency",
+  "column_break_dpsx",
+  "against_voucher_type",
+  "against_voucher",
   "voucher_detail_no",
+  "transaction_exchange_rate",
+  "amounts_section",
+  "debit_in_account_currency",
+  "debit",
+  "debit_in_transaction_currency",
+  "column_break_bm1w",
+  "credit_in_account_currency",
+  "credit",
+  "credit_in_transaction_currency",
+  "dimensions_section",
+  "cost_center",
+  "column_break_lmnm",
   "project",
-  "remarks",
+  "more_info_section",
+  "finance_book",
+  "company",
   "is_opening",
   "is_advance",
-  "fiscal_year",
-  "company",
-  "finance_book",
+  "column_break_8abq",
   "to_rename",
-  "due_date",
   "is_cancelled",
-  "transaction_currency",
-  "debit_in_transaction_currency",
-  "credit_in_transaction_currency",
-  "transaction_exchange_rate"
+  "remarks"
  ],
  "fields": [
   {
@@ -142,8 +155,7 @@
    "label": "Against Voucher Type",
    "oldfieldname": "against_voucher_type",
    "oldfieldtype": "Data",
-   "options": "DocType",
-   "search_index": 1
+   "options": "DocType"
   },
   {
    "fieldname": "against_voucher",
@@ -162,8 +174,7 @@
    "label": "Voucher Type",
    "oldfieldname": "voucher_type",
    "oldfieldtype": "Select",
-   "options": "DocType",
-   "search_index": 1
+   "options": "DocType"
   },
   {
    "fieldname": "voucher_no",
@@ -180,7 +191,8 @@
    "fieldname": "voucher_detail_no",
    "fieldtype": "Data",
    "label": "Voucher Detail No",
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "project",
@@ -267,7 +279,8 @@
   {
    "fieldname": "transaction_exchange_rate",
    "fieldtype": "Float",
-   "label": "Transaction Exchange Rate"
+   "label": "Transaction Exchange Rate",
+   "precision": "9"
   },
   {
    "fieldname": "debit_in_transaction_currency",
@@ -280,13 +293,72 @@
    "fieldtype": "Currency",
    "label": "Credit Amount in Transaction Currency",
    "options": "transaction_currency"
+  },
+  {
+   "fieldname": "voucher_subtype",
+   "fieldtype": "Small Text",
+   "label": "Voucher Subtype"
+  },
+  {
+   "fieldname": "dates_section",
+   "fieldtype": "Section Break",
+   "label": "Dates"
+  },
+  {
+   "fieldname": "column_break_avko",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "account_details_section",
+   "fieldtype": "Section Break",
+   "label": "Account Details"
+  },
+  {
+   "fieldname": "column_break_ifvf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "transaction_details_section",
+   "fieldtype": "Section Break",
+   "label": "Transaction Details"
+  },
+  {
+   "fieldname": "amounts_section",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "column_break_dpsx",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "more_info_section",
+   "fieldtype": "Section Break",
+   "label": "More Info"
+  },
+  {
+   "fieldname": "column_break_bm1w",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Dimensions"
+  },
+  {
+   "fieldname": "column_break_lmnm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_8abq",
+   "fieldtype": "Column Break"
   }
  ],
  "icon": "fa fa-list",
  "idx": 1,
  "in_create": 1,
  "links": [],
- "modified": "2023-08-16 21:38:44.072267",
+ "modified": "2025-02-21 14:36:49.431166",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "GL Entry",
@@ -318,7 +390,7 @@
  ],
  "quick_entry": 1,
  "search_fields": "voucher_no,account,posting_date,against_voucher",
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

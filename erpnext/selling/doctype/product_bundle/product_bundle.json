@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "creation": "2013-06-20 11:53:21",
- "description": "Aggregate group of **Items** into another **Item**. This is useful if you are bundling a certain **Items** into a package and you maintain stock of the packed **Items** and not the aggregate **Item**. \n\nThe package **Item** will have \"Is Stock Item\" as \"No\" and \"Is Sales Item\" as \"Yes\".\n\nFor Example: If you are selling Laptops and Backpacks separately and have a special price if the customer buys both, then the Laptop + Backpack will be a new Product Bundle Item.\n\nNote: BOM = Bill of Materials",
+ "description": "Aggregate a group of Items into another Item. This is useful if you are maintaining the stock of the packed items and not the bundled item",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -10,6 +10,8 @@
   "new_item_code",
   "description",
   "product_bundle_template",
+  "column_break_eonk",
+  "disabled",
   "item_section",
   "items",
   "section_break_4",
@@ -62,17 +64,27 @@
    "fieldtype": "HTML",
    "options": "<h3>About Product Bundle</h3>\n\n<p>Aggregate group of <b>Items</b> into another <b>Item</b>. This is useful if you are bundling a certain <b>Items</b> into a package and you maintain stock of the packed <b>Items</b> and not the aggregate <b>Item</b>.</p>\n<p>The package <b>Item</b> will have <code>Is Stock Item</code> as <b>No</b> and <code>Is Sales Item</code> as <b>Yes</b>.</p>\n<h4>Example:</h4>\n<p>If you are selling Laptops and Backpacks separately and have a special price if the customer buys both, then the Laptop + Backpack will be a new Product Bundle Item.</p>"
   },
+   {
+     "fieldname": "product_bundle_template",
+     "fieldtype": "Link",
+     "label": "Product Bundle Template",
+     "options": "Product Bundle Template"
+   },
   {
-   "fieldname": "product_bundle_template",
-   "fieldtype": "Link",
-   "label": "Product Bundle Template",
-   "options": "Product Bundle Template"
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "column_break_eonk",
+   "fieldtype": "Column Break"
   }
  ],
  "icon": "fa fa-sitemap",
  "idx": 1,
  "links": [],
- "modified": "2024-10-21 18:25:32.764503",
+ "modified": "2024-01-30 13:57:04.951788",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Product Bundle",

@@ -3,16 +3,16 @@
 frappe.ui.form.on("Project", {
 	setup(frm) {
 		frm.make_methods = {
-			'Timesheet': () => {
+			Timesheet: () => {
 				open_form(frm, "Timesheet", "Timesheet Detail", "time_logs");
 			},
-			'Purchase Order': () => {
+			"Purchase Order": () => {
 				open_form(frm, "Purchase Order", "Purchase Order Item", "items");
 			},
-			'Purchase Receipt': () => {
+			"Purchase Receipt": () => {
 				open_form(frm, "Purchase Receipt", "Purchase Receipt Item", "items");
 			},
-			'Purchase Invoice': () => {
+			"Purchase Invoice": () => {
 				open_form(frm, "Purchase Invoice", "Purchase Invoice Item", "items");
 			},
 		};
@@ -22,23 +22,30 @@ frappe.ui.form.on("Project", {
 		so.get_route_options_for_new_doc = () => {
 			if (frm.is_new()) return {};
 			return {
-				"customer": frm.doc.customer,
-				"project_name": frm.doc.name
+				customer: frm.doc.customer,
+				project_name: frm.doc.name,
 			};
 		};
 
-		frm.set_query('customer', 'erpnext.controllers.queries.customer_query');
-
 		frm.set_query("user", "users", function () {
 			return {
-				query: "erpnext.projects.doctype.project.project.get_users_for_project"
+				query: "erpnext.projects.doctype.project.project.get_users_for_project",
+			};
+		});
+
+		frm.set_query("department", function (doc) {
+			return {
+				filters: {
+					company: doc.company,
+				},
 			};
 		});
 
 		// sales order
-		frm.set_query('sales_order', function () {
+		frm.set_query("sales_order", function () {
 			var filters = {
-				'project': ["in", frm.doc.__islocal ? [""] : [frm.doc.name, ""]]
+				project: ["in", frm.doc.__islocal ? [""] : [frm.doc.name, ""]],
+				company: frm.doc.company,
 			};
 
 			if (frm.doc.customer) {
@@ -46,7 +53,15 @@ frappe.ui.form.on("Project", {
 			}
 
 			return {
-				filters: filters
+				filters: filters,
+			};
+		});
+
+		frm.set_query("cost_center", () => {
+			return {
+				filters: {
+					company: frm.doc.company,
+				},
 			};
 		});
 
@@ -86,7 +101,7 @@ frappe.ui.form.on("Project", {
 			frm.web_link && frm.web_link.remove();
 		} else {
 			frm.add_web_link("/projects?project=" + encodeURIComponent(frm.doc.name));
-			frm.trigger('show_dashboard');
+			frm.trigger("show_dashboard");
 		}
 
 		if (!frm.is_new() && !await erpnext.utils.isWorkshopViewer(frm)) {
@@ -99,169 +114,8 @@ frappe.ui.form.on("Project", {
 					quotation_to: 'Customer'
 				});
 			})
-			frm.add_custom_button(__("View Customer Details"), async () => {
-				const customer = await frappe.db.get_doc('Customer', frm.doc.customer)
-				const linked_contacts_and_addresses = await frappe.db.get_list(
-					"Address",
-					{
-						filters: [
-							["disabled", "=", 0],
-							["address_type", "in", ["Billing", "Shipping"]],
-							["Dynamic Link", "link_doctype", "=", "Customer"],
-							["Dynamic Link", "link_name", "=", `${frm.doc.customer}`],
-							["Dynamic Link", "parenttype", "=", "Address"]
-						],
-						fields: ["address_line1", "address_line2", "country", "city", "pincode", "state", "address_type"]
-					}
-				);
-
-
-				let billingAddress = null;
-				let shippingAddress = null;
-
-				// Find the first Billing and Shipping address
-				for (let address of linked_contacts_and_addresses) {
-					if (address.address_type === 'Billing' && !billingAddress) {
-						billingAddress = address;
-					} else if (address.address_type === 'Shipping' && !shippingAddress) {
-						shippingAddress = address;
-					}
-
-					// Exit the loop if both addresses are found
-					if (billingAddress && shippingAddress) {
-						break;
-					}
-				}
-
-				let addresses_info = '';
-				if (billingAddress) {
-					addresses_info += `
-						<br><b>Address Type: Billing</b><br>
-						Address Line 1: ${billingAddress.address_line1}<br>
-						Address Line 2: ${billingAddress.address_line2 || 'N/A'}<br>
-						Country: ${billingAddress.country}<br>
-						City: ${billingAddress.city}<br>
-						Postal Code: ${billingAddress.pincode || 'N/A'}<br>
-						State/Province: ${billingAddress.state}<br>
-					`;
-				}
-
-				if (shippingAddress) {
-					addresses_info += `
-						<br><b>Address Type: Shipping</b><br>
-						Address Line 1: ${shippingAddress.address_line1}<br>
-						Address Line 2: ${shippingAddress.address_line2 || 'N/A'}<br>
-						Country: ${shippingAddress.country}<br>
-						City: ${shippingAddress.city}<br>
-						Postal Code: ${shippingAddress.pincode || 'N/A'}<br>
-						State/Province: ${shippingAddress.state}<br>
-					`;
-				}
-
-				frappe.msgprint({
-					title: __('Customer Information'),
-					indicator: 'green',
-					message: __(
-						`Name: ${customer.name || 'No name provided'}<br>` +
-						`Phone: ${customer.phone_number || customer.mobile_no || 'No phone number provided'}<br>` +
-						`Email: ${customer.email_id || 'No email provided'}<br><br>` +
-						`Addresses: ${addresses_info || 'No addresses found'}`
-					)
-				});
-			})
-			frm.add_custom_button("Validate Bank Transfer Payment", async () => {
-				if (frm.doc.status === "Invoice paid" || frm.doc.status === "Completed" || frm.doc.status === "Cancelled") {
-						frappe.msgprint('The project is already paid, completed, or cancelled');
-						return;
-				}
-				frappe.prompt([
-						{
-								label: 'Select Payment Type',
-								fieldname: 'confirm_method',
-								fieldtype: 'Select',
-								options: ['workshop', 'loan car'],
-								reqd: 1,
-								description: `
-									<ul style="color: #d14343; padding-left: 20px;">
-											<li>Approved quotations will be marked as paid.</li>
-											<li>An invoice will be generated.</li>
-											<li>The invoice will be sent to the customer.</li>
-											<li>The project status will be updated to "Invoice Paid".</li>
-											<li>This action can <span style="font-weight: bold;">NOT</span> be undone.</li>
-									</ul>
-							`
-						}
-				], 
-				async (values) => {
-						frappe.confirm(
-								"Are you sure you want to mark approved quotations as paid? By confirming, you acknowledge that the payment has been verified in the company's account.",
-								async () => {
-										try {
-												const response = await frappe.call({
-														method: "frappe.desk.reportview.get_list",
-														args: {
-																doctype: "Quotation",
-																filters: [["project_name", "=", frm.doc.name], ["status", "=", "Approved"]],
-																fields: ["name", "grand_total"]
-														}
-												});
-		
-												if (response.message && response.message.length > 0) {
-														const quotations = response.message;
-														const totalAmount = quotations.reduce((sum, q) => sum + q.grand_total, 0);
-														const { aws_url, confirm_payment_webhook } = await frappe.db.get_doc('Rest Config');
-														if (!aws_url || !confirm_payment_webhook) {
-																frappe.msgprint('AWS URL or Confirm Payment Webhook not found');
-																return;
-														}
-		
-														const paymentData = {
-																confirm_payment_webhook: confirm_payment_webhook,
-																selected_method: values.confirm_method,
-																name: frm.doc.name,
-																payment_gateway: "manual",
-																total: totalAmount
-														};
-		
-														const apiResponse = await fetch(`${aws_url}manual-confirm-payment`, {
-																method: 'POST',
-																headers: {
-																		'Content-Type': 'application/json',
-																},
-																body: JSON.stringify(paymentData)
-														});
-		
-														if (apiResponse.ok) {
-																frappe.msgprint({
-																		title: 'Success',
-																		indicator: 'green',
-																		message: 'Payment confirmed successfully'
-																});
-																frm.reload_doc();
-														} else {
-																throw new Error('API call failed');
-														}
-												} else {
-														frappe.msgprint('No quotations found for this project');
-												}
-										} catch (error) {
-												frappe.msgprint({
-														title: 'Error',
-														indicator: 'red',
-														message: 'An error occurred while processing the payment: ' + error.message
-												});
-										}
-								},
-								() => {
-										frappe.msgprint('Payment action cancelled');
-								}
-						);
-				},
-				'Confirm Payment Method',
-				'Confirm Payment Type and Proceed');
-		});
-		
-		
+			viewCustomerDetails(frm);
+			validateBankTransferPayment(frm);
 		}
 
 		if (!await erpnext.utils.isWorkshopViewer(this.frm)) {
@@ -280,20 +134,117 @@ frappe.ui.form.on("Project", {
 				sidebar.hide();
 			}
 		}
-
 		if (!frm.previous_status) {
 			frm.previous_status = frm.doc.status
 		}
 	},
+
+	set_custom_buttons: function (frm) {
+		if (!frm.is_new()) {
+			frm.add_custom_button(
+				__("Duplicate Project with Tasks"),
+				() => {
+					frm.events.create_duplicate(frm);
+				},
+				__("Actions")
+			);
+
+			frm.add_custom_button(
+				__("Update Total Purchase Cost"),
+				() => {
+					frm.events.update_total_purchase_cost(frm);
+				},
+				__("Actions")
+			);
+
+			frm.trigger("set_project_status_button");
+
+			if (frappe.model.can_read("Task")) {
+				frm.add_custom_button(
+					__("Gantt Chart"),
+					function () {
+						frappe.route_options = {
+							project: frm.doc.name,
+						};
+						frappe.set_route("List", "Task", "Gantt");
+					},
+					__("View")
+				);
+
+				frm.add_custom_button(
+					__("Kanban Board"),
+					() => {
+						frappe
+							.call(
+								"erpnext.projects.doctype.project.project.create_kanban_board_if_not_exists",
+								{
+									project: frm.doc.name,
+								}
+							)
+							.then(() => {
+								frappe.set_route("List", "Task", "Kanban", frm.doc.project_name);
+							});
+					},
+					__("View")
+				);
+			}
+		}
+	},
+
+	update_total_purchase_cost: function (frm) {
+		frappe.call({
+			method: "erpnext.projects.doctype.project.project.recalculate_project_total_purchase_cost",
+			args: { project: frm.doc.name },
+			freeze: true,
+			freeze_message: __("Recalculating Purchase Cost against this Project..."),
+			callback: function (r) {
+				if (r && !r.exc) {
+					frappe.msgprint(__("Total Purchase Cost has been updated"));
+					frm.refresh();
+				}
+			},
+		});
+	},
+
+	set_project_status_button: function (frm) {
+		frm.add_custom_button(
+			__("Set Project Status"),
+			() => frm.events.get_project_status_dialog(frm).show(),
+			__("Actions")
+		);
+	},
+
+	get_project_status_dialog: function (frm) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Set Project Status"),
+			fields: [
+				{
+					fieldname: "status",
+					fieldtype: "Select",
+					label: "Status",
+					reqd: 1,
+					options: "Completed\nCancelled",
+				},
+			],
+			primary_action: function () {
+				frm.events.set_status(frm, dialog.get_values().status);
+				dialog.hide();
+			},
+			primary_action_label: __("Set Project Status"),
+		});
+		return dialog;
+	},
+
 	create_duplicate: function (frm) {
-		return new Promise(resolve => {
-			frappe.prompt('Project Name', (data) => {
-				frappe.xcall('erpnext.projects.doctype.project.project.create_duplicate_project',
-					{
+		return new Promise((resolve) => {
+			frappe.prompt("Project Name", (data) => {
+				frappe
+					.xcall("erpnext.projects.doctype.project.project.create_duplicate_project", {
 						prev_doc: frm.doc,
-						project_name: data.value
-					}).then(() => {
-						frappe.set_route('Form', "Project", data.value);
+						project_name: data.value,
+					})
+					.then(() => {
+						frappe.set_route("Form", "Project", data.value);
 						frappe.show_alert(__("Duplicate project has been created"));
 					});
 				resolve();
@@ -302,14 +253,18 @@ frappe.ui.form.on("Project", {
 	},
 
 	set_status: function (frm, status) {
-		frappe.confirm(__('Set Project and all Tasks to status {0}?', [status.bold()]), () => {
-			frappe.xcall('erpnext.projects.doctype.project.project.set_project_status',
-				{ project: frm.doc.name, status: status }).then(() => {
+		frappe.confirm(__("Set Project and all Tasks to status {0}?", [__(status).bold()]), () => {
+			frappe
+				.xcall("erpnext.projects.doctype.project.project.set_project_status", {
+					project: frm.doc.name,
+					status: status,
+				})
+				.then(() => {
 					frm.reload_doc();
 				});
 		});
 	},
-	before_save: function (frm) {
+before_save: function (frm) {
 		if (frm.doc.__islocal) {
 			frm.previous_status = null;
 		} else {
@@ -416,7 +371,7 @@ function buildFields(frm, quotations, incomplete_requirements) {
 			options: `
 				<ul style="border-bottom: 1px solid black;padding-bottom:1rem;">
 				${quotations.map(quotation => `<li><strong>Quotation:</strong> <a href="/app/quotation/${quotation.name}" target="__blank">${quotation.name}</a>, <strong>Status:</strong> ${quotation.status}.</li>\n`)}
-				</ul> 
+				</ul>
 			`
 		}
 	]
@@ -430,7 +385,7 @@ function buildFields(frm, quotations, incomplete_requirements) {
 			options: `
 				<ul>
 				${incomplete_requirements.map(item => `<li><strong>Requirement:</strong> ${item.requirement}</li>\n`)}
-				</ul> 
+				</ul>
 			`
 		},
 	]
@@ -590,7 +545,6 @@ function open_form(frm, doctype, child_doctype, parentfield) {
 
 		frappe.ui.form.make_quick_entry(doctype, null, null, new_doc);
 	});
-
 }
 
 let touchTimeout;
@@ -814,7 +768,7 @@ async function insertVinSearchButton(frm) {
 		}).then(() => {
 			frm.save();
 		});
-		
+
 	});
 
 	button.appendChild(iconSpan);
@@ -1059,4 +1013,171 @@ async function insertLoanCarButton(frm) {
 		frappe.open_in_new_tab = true
 		frappe.set_route('Form', 'Loan car', loan_car[0].name)
 	})
+}
+
+function viewCustomerDetails(frm) {
+	frm.add_custom_button(__("View Customer Details"), async () => {
+		const customer = await frappe.db.get_doc('Customer', frm.doc.customer)
+		const linked_contacts_and_addresses = await frappe.db.get_list(
+			"Address",
+			{
+				filters: [
+					["disabled", "=", 0],
+					["address_type", "in", ["Billing", "Shipping"]],
+					["Dynamic Link", "link_doctype", "=", "Customer"],
+					["Dynamic Link", "link_name", "=", `${frm.doc.customer}`],
+					["Dynamic Link", "parenttype", "=", "Address"]
+				],
+				fields: ["address_line1", "address_line2", "country", "city", "pincode", "state", "address_type"]
+			}
+		);
+
+
+		let billingAddress = null;
+		let shippingAddress = null;
+
+		// Find the first Billing and Shipping address
+		for (let address of linked_contacts_and_addresses) {
+			if (address.address_type === 'Billing' && !billingAddress) {
+				billingAddress = address;
+			} else if (address.address_type === 'Shipping' && !shippingAddress) {
+				shippingAddress = address;
+			}
+
+			// Exit the loop if both addresses are found
+			if (billingAddress && shippingAddress) {
+				break;
+			}
+		}
+
+		let addresses_info = '';
+		if (billingAddress) {
+			addresses_info += `
+						<br><b>Address Type: Billing</b><br>
+						Address Line 1: ${billingAddress.address_line1}<br>
+						Address Line 2: ${billingAddress.address_line2 || 'N/A'}<br>
+						Country: ${billingAddress.country}<br>
+						City: ${billingAddress.city}<br>
+						Postal Code: ${billingAddress.pincode || 'N/A'}<br>
+						State/Province: ${billingAddress.state}<br>
+					`;
+		}
+
+		if (shippingAddress) {
+			addresses_info += `
+						<br><b>Address Type: Shipping</b><br>
+						Address Line 1: ${shippingAddress.address_line1}<br>
+						Address Line 2: ${shippingAddress.address_line2 || 'N/A'}<br>
+						Country: ${shippingAddress.country}<br>
+						City: ${shippingAddress.city}<br>
+						Postal Code: ${shippingAddress.pincode || 'N/A'}<br>
+						State/Province: ${shippingAddress.state}<br>
+					`;
+		}
+
+		frappe.msgprint({
+			title: __('Customer Information'),
+			indicator: 'green',
+			message: __(
+				`Name: ${customer.name || 'No name provided'}<br>` +
+				`Phone: ${customer.phone_number || customer.mobile_no || 'No phone number provided'}<br>` +
+				`Email: ${customer.email_id || 'No email provided'}<br><br>` +
+				`Addresses: ${addresses_info || 'No addresses found'}`
+			)
+		});
+	})
+}
+
+function validateBankTransferPayment(frm) {
+	frm.add_custom_button("Validate Bank Transfer Payment", async () => {
+		if (frm.doc.status === "Invoice paid" || frm.doc.status === "Completed" || frm.doc.status === "Cancelled") {
+			frappe.msgprint('The project is already paid, completed, or cancelled');
+			return;
+		}
+		frappe.prompt([
+				{
+					label: 'Select Payment Type',
+					fieldname: 'confirm_method',
+					fieldtype: 'Select',
+					options: ['workshop', 'loan car'],
+					reqd: 1,
+					description: `
+									<ul style="color: #d14343; padding-left: 20px;">
+											<li>Approved quotations will be marked as paid.</li>
+											<li>An invoice will be generated.</li>
+											<li>The invoice will be sent to the customer.</li>
+											<li>The project status will be updated to "Invoice Paid".</li>
+											<li>This action can <span style="font-weight: bold;">NOT</span> be undone.</li>
+									</ul>
+							`
+				}
+			],
+			async (values) => {
+				frappe.confirm(
+					"Are you sure you want to mark approved quotations as paid? By confirming, you acknowledge that the payment has been verified in the company's account.",
+					async () => {
+						try {
+							const response = await frappe.call({
+								method: "frappe.desk.reportview.get_list",
+								args: {
+									doctype: "Quotation",
+									filters: [["project_name", "=", frm.doc.name], ["status", "=", "Approved"]],
+									fields: ["name", "grand_total"]
+								}
+							});
+
+							if (response.message && response.message.length > 0) {
+								const quotations = response.message;
+								const totalAmount = quotations.reduce((sum, q) => sum + q.grand_total, 0);
+								const { aws_url, confirm_payment_webhook } = await frappe.db.get_doc('Rest Config');
+								if (!aws_url || !confirm_payment_webhook) {
+									frappe.msgprint('AWS URL or Confirm Payment Webhook not found');
+									return;
+								}
+
+								const paymentData = {
+									confirm_payment_webhook: confirm_payment_webhook,
+									selected_method: values.confirm_method,
+									name: frm.doc.name,
+									payment_gateway: "manual",
+									total: totalAmount
+								};
+
+								const apiResponse = await fetch(`${aws_url}manual-confirm-payment`, {
+									method: 'POST',
+									headers: {
+										'Content-Type': 'application/json',
+									},
+									body: JSON.stringify(paymentData)
+								});
+
+								if (apiResponse.ok) {
+									frappe.msgprint({
+										title: 'Success',
+										indicator: 'green',
+										message: 'Payment confirmed successfully'
+									});
+									frm.reload_doc();
+								} else {
+									throw new Error('API call failed');
+								}
+							} else {
+								frappe.msgprint('No quotations found for this project');
+							}
+						} catch (error) {
+							frappe.msgprint({
+								title: 'Error',
+								indicator: 'red',
+								message: 'An error occurred while processing the payment: ' + error.message
+							});
+						}
+					},
+					() => {
+						frappe.msgprint('Payment action cancelled');
+					}
+				);
+			},
+			'Confirm Payment Method',
+			'Confirm Payment Type and Proceed');
+	});
 }
