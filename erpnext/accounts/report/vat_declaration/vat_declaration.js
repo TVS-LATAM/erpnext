@@ -115,8 +115,26 @@ frappe.query_reports["VAT Declaration"] = {
 				return formatAmount(reportData[idx].vat);
 			}
 			
+			async function getLetterHead() {
+				let letterhead_html = "";
+				await frappe.call({
+					method: "frappe.desk.form.load.getdoc?doctype=Letter%20Head&name=VAT%20Declaration",
+					args: {
+						doctype: "Letter Head",
+						name: "VAT Declaration"
+					},
+					async: false,
+					callback: function(r) {
+						if(r.docs.length > 0)
+							letterhead_html = r.docs[0].content || "";
+					}
+				});
+				return letterhead_html;
+			}
+			getLetterHead();
 			// Obtener datos de la empresa desde los filtros
 			const company = filters.company || "";
+			
 			
 			// Crear HTML basado en el template del reporte VAT
 			const html = `
