@@ -39,7 +39,7 @@ frappe.query_reports["ICP Declaration"] = {
 	
 	onload: async function(report) {
 		// Aplicar estilos para que la tabla ocupe el 100% del ancho
-		setTimeout(async function() {
+		setTimeout(function() {
 			// Seleccionar la tabla de datos y aplicar estilos
 			$('.datatable').css({
 				'width': '100%',
@@ -114,7 +114,6 @@ frappe.query_reports["ICP Declaration"] = {
 					callback: function(r) {
 						if(r.docs.length > 0) {
 							letterhead_html = r.docs[0].content || "";
-							console.log(letterhead_html);
 							// Replace placeholders in letterhead with actual date values if they exist
 							if (fromDate && toDate) {
 								const formattedFromDate = frappe.datetime.str_to_user(fromDate);
