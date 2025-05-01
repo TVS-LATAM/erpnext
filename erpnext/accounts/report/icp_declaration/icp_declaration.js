@@ -37,9 +37,9 @@ frappe.query_reports["ICP Declaration"] = {
 		return value;
 	},
 	
-	onload: function(report) {
+	onload: async function(report) {
 		// Aplicar estilos para que la tabla ocupe el 100% del ancho
-		setTimeout(function() {
+		setTimeout(async function() {
 			// Seleccionar la tabla de datos y aplicar estilos
 			$('.datatable').css({
 				'width': '100%',
@@ -83,7 +83,8 @@ frappe.query_reports["ICP Declaration"] = {
 			}
 		});
 		
-		report.page.add_inner_button(__('Download PDF'), function() {
+		// Add PDF download button
+		report.page.add_inner_button(__('Download PDF'), async function() {
 			// Obtener los filtros actuales del reporte
 			const filters = report.get_values();
 			
@@ -92,79 +93,255 @@ frappe.query_reports["ICP Declaration"] = {
 				frappe.datetime.str_to_user(filters.from_date) + " - " + 
 				frappe.datetime.str_to_user(filters.to_date);
 			
-			// Usar directamente los datos del reporte
-			let rows_data = [];
+			// Preparar datos para la plantilla HTML
+			const reportData = report.data;
 			
-			// Verificar si hay datos disponibles
-			if (report.data && report.data.length) {
-				// Filtrar para incluir solo filas de datos (no totales)
-				rows_data = report.data.filter(row => 
-					!row.is_total_row && row["Customer Name"] !== "Total"
-				);
-				
-				// Calcular totales
-				let net_amount_total = 0;
-				let vat_total = 0;
-				
-				rows_data.forEach(row => {
-					net_amount_total += flt(row["Net Amount"]) || 0;
-					vat_total += flt(row["Total VAT"]) || 0;
-				});
-				
-				// Agregar una fila vacía para crear espacio
-				let empty_row = {};
-				for (let col of report.get_columns_for_print()) {
-					empty_row[col.fieldname] = "";
-				}
-				empty_row.is_empty_row = true;
-				rows_data.push(empty_row);
-				
-				// Agregar fila de totales
-				let total_data = {};
-				total_data["Customer Name"] = __("Total");
-				total_data["VAT Identification Number"] = "";
-				total_data["Net Amount"] = net_amount_total;
-				total_data["Total VAT"] = vat_total;
-				total_data["Invoice Type"] = "";
-				total_data.is_total_row = true;
-				rows_data.push(total_data);
+			// Función para formatear montos
+			function formatAmount(amount) {
+				if (amount === undefined || amount === null) return "-";
+				return frappe.format(amount, {fieldtype: 'Currency'});
 			}
 			
-			// Generar el PDF usando frappe.render_grid
-			frappe.ui.get_print_settings(false, (print_settings) => {
-				frappe.render_grid({
-					title: title,
-					subtitle: __("Company") + ": " + filters.company,
-					print_settings: print_settings,
-					columns: report.get_columns_for_print(),
-					data: rows_data,
-					can_use_smaller_font: 1,
-					report: true,
-					// Función personalizada para formatear filas
-					row_formatter: function(row, data) {
-						if (data.is_empty_row) {
-							row.css({
-								'height': '20px',
-								'border-left': 'none',
-								'border-right': 'none'
-							});
-							row.find('td').css({
-								'border-left': 'none',
-								'border-right': 'none'
-							});
-						}
-						if (data.is_total_row) {
-							row.css({
-								'background-color': '#f9f9f9',
-								'font-weight': 'bold'
-							});
+			async function getLetterHead(fromDate, toDate) {
+				let letterhead_html = "";
+				await frappe.call({
+					method: "frappe.desk.form.load.getdoc?doctype=Letter%20Head&name=ICP%20Declaration",
+					args: {
+						doctype: "Letter Head",
+						name: "ICP Declaration"
+					},
+					async: false,
+					callback: function(r) {
+						if(r.docs.length > 0) {
+							letterhead_html = r.docs[0].content || "";
+							console.log(letterhead_html);
+							// Replace placeholders in letterhead with actual date values if they exist
+							if (fromDate && toDate) {
+								const formattedFromDate = frappe.datetime.str_to_user(fromDate);
+								const formattedToDate = frappe.datetime.str_to_user(toDate);
+								const periode = `${formattedFromDate} – ${formattedToDate}`;
+								
+								// Calculate submission deadline
+								const submissionDeadline = frappe.datetime.add_days(toDate, 30);
+								const formattedDeadline = frappe.datetime.str_to_user(submissionDeadline);
+								
+								// Replace placeholders with actual values if they exist in the letterhead
+								letterhead_html = letterhead_html.replaceAll('${{periode}}', periode);
+								letterhead_html = letterhead_html.replaceAll('${{uiterste_inzenddatum}}', formattedDeadline);
+							}
 						}
 					}
 				});
-			});
+				return letterhead_html;
+			}
+			
+			// Get letterhead HTML content with date parameters
+			const letterhead = await getLetterHead(filters.from_date, filters.to_date);
+			
+			// Obtener datos de la empresa desde los filtros
+			const company = filters.company || "";
+			
+			// Verificar si hay datos disponibles
+			let rows_html = '';
+			let net_amount_total = 0;
+			let vat_total = 0;
+			
+			if (reportData && reportData.length) {
+				// Filtrar para incluir solo filas de datos (no totales)
+				const rows_data = reportData.filter(row => 
+					!row.is_total_row && row["Customer Name"] !== "Total"
+				);
+				
+				// Generar filas HTML
+				rows_data.forEach(row => {
+					net_amount_total += flt(row["Net Amount"]) || 0;
+					vat_total += flt(row["Total VAT"]) || 0;
+					
+					rows_html += `
+					<tr>
+						<td>${row["Customer Name"] || ""}</td>
+						<td>${row["VAT Identification Number"] || ""}</td>
+						<td class="text-right">${formatAmount(row["Net Amount"])}</td>
+						<td class="text-right">${formatAmount(row["Total VAT"])}</td>
+						<td>${row["Invoice Type"] || ""}</td>
+					</tr>
+					`;
+				});
+			}
+			
+			// Crear HTML basado en el template mejorado
+			const html = `
+			<div class="icp-declaration-report" style="width: 100%;">
+				${letterhead}	
+				<!-- Contenido del reporte -->
+				<div class="table-responsive" style="width: 100%;">
+					<table class="table table-bordered icp-table" style="width: 100% !important; table-layout: fixed;">
+						<thead>
+							<tr>
+								<th style="width: 30%;">${__("Customer Name")}</th>
+								<th style="width: 20%;">${__("VAT Identification Number")}</th>
+								<th style="width: 15%;" class="text-right">${__("Net Amount")}</th>
+								<th style="width: 15%;" class="text-right">${__("Total VAT")}</th>
+								<th style="width: 20%;">${__("Invoice Type")}</th>
+							</tr>
+						</thead>
+						<tbody>
+							${rows_html}
+						</tbody>
+						<tfoot>
+							<tr class="empty-row">
+								<td>&nbsp;</td>
+								<td>&nbsp;</td>
+								<td>&nbsp;</td>
+								<td>&nbsp;</td>
+								<td>&nbsp;</td>
+							</tr>
+							<tr class="total-row">
+								<th>${__("Total")}</th>
+								<th></th>
+								<th class="text-right">${formatAmount(net_amount_total)}</th>
+								<th class="text-right">${formatAmount(vat_total)}</th>
+								<th></th>
+							</tr>
+						</tfoot>
+					</table>
+				</div>
+			</div>
+			`;
+			
+			// Estilos para el PDF
+			const styles = `
+			<style>
+.icp-declaration-report {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  padding: 15px;
+  width: 100%;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.icp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+.icp-table th {
+  background-color: #f5f5f5;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  text-align: left;
+  font-weight: 600;
+}
+
+.icp-table td {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  vertical-align: top;
+}
+
+.icp-table .text-right {
+  text-align: right;
+}
+
+.icp-table .group-header td {
+  background-color: #f0f0f0;
+  font-weight: bold;
+}
+
+.subtotal-row td,
+.total-row th {
+  font-weight: bold;
+  background-color: #f9f9f9;
+}
+
+.empty-row td {
+  border-left-color: transparent;
+  border-right-color: transparent;
+  height: 20px;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+
+.text-success {
+  color: #28a745;
+}
+
+@media print {
+  .icp-declaration-report {
+    padding: 0;
+    width: 100%;
+  }
+
+  .icp-table th,
+  .icp-table .group-header td,
+  .subtotal-row td,
+  .total-row th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-danger,
+  .text-success {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+</style>
+			`;
+			
+			// Crear ventana de impresión
+			const w = window.open('', '_blank');
+			
+			// Contenido HTML para la ventana
+			const htmlContent = `
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<title>${title}</title>
+					${styles}
+				</head>
+				<body>
+					<div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+						<div class="no-print" style="margin-bottom: 20px; text-align: center;">
+							<h2 style="margin-bottom: 5px;">${title}</h2>
+							<button id="printButton" style="padding: 8px 15px; background-color: black; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Print</button>
+							<p style="color: #666; font-size: 12px; margin-top: 10px;">This window will remain open after printing so you can review it or print it again.</p>
+						</div>
+						${html}
+					</div>
+				</body>
+				</html>
+			`;
+			
+			// Escribir el contenido en la ventana
+			w.document.open();
+			w.document.write(htmlContent);
+			w.document.close();
+			
+			// Agregar el evento de impresión después de que el documento esté completamente cargado
+			w.onload = function() {
+				const printButton = w.document.getElementById('printButton');
+				if (printButton) {
+					printButton.addEventListener('click', function() {
+						w.print();
+					});
+				}
+			};
 		});
 		
-		// Agregar botón para exportar a Excel
+		// Add Excel export button
 		report.page.add_inner_button(__('Export to Excel'), function() {
 			// Método simplificado para exportar a Excel
 			const filters = report.get_values();
@@ -202,19 +379,9 @@ frappe.query_reports["ICP Declaration"] = {
 	
 	// Función que se ejecuta después de renderizar la tabla
 	after_datatable_render: function(datatable) {
-		// Aplicar estilos adicionales a la tabla después de renderizarla
-		$('.datatable').css({
-			'width': '100%',
-			'max-width': '100%'
+		// Personalización adicional después de que se renderiza la tabla
+		datatable.$container.find('.dt-scrollable').css({
+			'max-height': '500px' // Limitar la altura del área desplazable
 		});
-		
-		// Ajustar el contenedor de la tabla
-		$('.dt-scrollable').css({
-			'width': '100%',
-			'max-width': '100%'
-		});
-		
-		// Forzar un recálculo del ancho
-		datatable.refresh();
 	}
 };
