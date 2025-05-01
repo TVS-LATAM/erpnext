@@ -165,7 +165,7 @@ frappe.query_reports["VAT Declaration"] = {
 						<thead>
 							<tr>
 								<th style="width: 60%;">${__("Omschrijving")}</th>
-								<th style="width: 20%;" class="text-right">${__("Bedrag waarover omzetbelasting wordt berekend")}</th>
+								<th style="width: 20%;" class="text-right">${__("Belaste omzet")}</th>
 								<th style="width: 20%;" class="text-right">${__("Omzetbelasting")}</th>
 							</tr>
 						</thead>
@@ -308,145 +308,94 @@ frappe.query_reports["VAT Declaration"] = {
 			// Estilos para el PDF
 			const styles = `
 			<style>
-			.vat-declaration-report {
-				font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-				padding: 15px;
-				width: 100%;
-			}
-			
-			.report-summary {
-				background-color: #f8f9fa;
-				padding: 15px;
-				margin-bottom: 20px;
-				border-radius: 4px;
-				width: 100%;
-			}
-			
-			.summary-item {
-				margin-bottom: 10px;
-			}
-			
-			.summary-label {
-				font-weight: bold;
-				margin-right: 5px;
-			}
-			
-			.summary-value {
-				font-weight: normal;
-			}
-			
-			.table-responsive {
-				width: 100%;
-				overflow-x: auto;
-			}
-			
-			.vat-table {
-				width: 100% !important;
-				border-collapse: collapse;
-				margin-bottom: 20px;
-				table-layout: fixed;
-			}
-			
-			.vat-table th {
-				background-color: #f2f2f2;
-				padding: 10px;
-				border: 1px solid #ddd;
-				font-weight: bold;
-			}
-			
-			.vat-table td {
-				padding: 8px 10px;
-				border: 1px solid #ddd;
-			}
-			
-			.vat-table .text-right {
-				text-align: right;
-			}
-			
-			.empty-row td {
-				border-left-color: transparent;
-				border-right-color: transparent;
-				height: 20px;
-			}
-			
-			.total-row {
-				background-color: #f9f9f9;
-			}
-			
-			.total-row th {
-				font-weight: bold;
-			}
-			
-			.subtotal-row {
-				background-color: #f9f9f9;
-				font-weight: bold;
-			}
-			
-			.text-danger {
-				color: #dc3545;
-			}
-			
-			.text-success {
-				color: #28a745;
-			}
-			
-			/* Specific styles for PDF */
-			@media print {
-				.vat-declaration-report {
-					padding: 0;
-					width: 100%;
-				}
-				
-				.report-summary {
-					border: 1px solid #ddd;
-					margin-bottom: 15px;
-					width: 100%;
-				}
-				
-				.table-responsive {
-					width: 100%;
-				}
-				
-				.vat-table {
-					width: 100% !important;
-					table-layout: fixed;
-				}
-				
-				.vat-table th {
-					background-color: #eee !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.empty-row td {
-					border-left-color: transparent !important;
-					border-right-color: transparent !important;
-					height: 20px;
-				}
-				
-				.total-row, .subtotal-row {
-					background-color: #f5f5f5 !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.text-danger {
-					color: #dc3545 !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.text-success {
-					color: #28a745 !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.no-print {
-					display: none !important;
-				}
-			}
-			</style>
+.vat-declaration-report {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  padding: 15px;
+  width: 100%;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.vat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+.vat-table th {
+  background-color: #f5f5f5;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  text-align: left;
+  font-weight: 600;
+}
+
+.vat-table td {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  vertical-align: top;
+}
+
+.vat-table .text-right {
+  text-align: right;
+}
+
+.vat-table .group-header td {
+  background-color: #f0f0f0;
+  font-weight: bold;
+}
+
+.subtotal-row td,
+.total-row th {
+  font-weight: bold;
+  background-color: #f9f9f9;
+}
+
+.empty-row td {
+  border-left-color: transparent;
+  border-right-color: transparent;
+  height: 20px;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+
+.text-success {
+  color: #28a745;
+}
+
+@media print {
+  .vat-declaration-report {
+    padding: 0;
+    width: 100%;
+  }
+
+  .vat-table th,
+  .vat-table .group-header td,
+  .subtotal-row td,
+  .total-row th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-danger,
+  .text-success {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+</style>
+
 			`;
 			
 			// Crear ventana de impresión
