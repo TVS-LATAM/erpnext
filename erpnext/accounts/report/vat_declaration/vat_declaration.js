@@ -43,9 +43,9 @@ frappe.query_reports["VAT Declaration"] = {
 		return value;
 	},
 	
-	onload: function(report) {
+	onload: async function(report) {
 		// Apply styles to make the table occupy 100% of the width
-		setTimeout(function() {
+		setTimeout(async function() {
 			// Select the data table and apply styles
 			$('.datatable').css({
 				'width': '100%',
@@ -90,7 +90,7 @@ frappe.query_reports["VAT Declaration"] = {
 		});
 		
 		// Add PDF download button
-		report.page.add_inner_button(__('Download PDF'), function() {
+		report.page.add_inner_button(__('Download PDF'), async function() {
 			// Get current report filters
 			const filters = report.get_values();
 			
@@ -115,57 +115,57 @@ frappe.query_reports["VAT Declaration"] = {
 				return formatAmount(reportData[idx].vat);
 			}
 			
+			async function getLetterHead(fromDate, toDate) {
+				let letterhead_html = "";
+				await frappe.call({
+					method: "frappe.desk.form.load.getdoc?doctype=Letter%20Head&name=VAT%20Declaration",
+					args: {
+						doctype: "Letter Head",
+						name: "VAT Declaration"
+					},
+					async: false,
+					callback: function(r) {
+						if(r.docs.length > 0) {
+							letterhead_html = r.docs[0].content || "";
+							
+							// Replace placeholders in letterhead with actual date values if they exist
+							if (fromDate && toDate) {
+								const formattedFromDate = frappe.datetime.str_to_user(fromDate);
+								const formattedToDate = frappe.datetime.str_to_user(toDate);
+								const periode = `${formattedFromDate} – ${formattedToDate}`;
+								
+								// Calculate Uiterste inzenddatum (submission deadline)
+								// Typically this is the last day of the month following the end of the quarter
+								// For Dutch VAT declarations, it's typically +30 days after the end date
+								const submissionDeadline = frappe.datetime.add_days(toDate, 30);
+								const formattedDeadline = frappe.datetime.str_to_user(submissionDeadline);
+								
+								// Replace placeholders with actual values if they exist in the letterhead
+								letterhead_html = letterhead_html.replace('${{periode}}', periode);
+								letterhead_html = letterhead_html.replace('${{uiterste_inzenddatum}}', formattedDeadline);
+							}
+						}
+					}
+				});
+				return letterhead_html;
+			}
+			// Get letterhead HTML content with date parameters
+			const letterhead = await getLetterHead(filters.from_date, filters.to_date);
 			// Obtener datos de la empresa desde los filtros
 			const company = filters.company || "";
+			
 			
 			// Crear HTML basado en el template del reporte VAT
 			const html = `
 			<div class="vat-declaration-report" style="width: 100%;">
-				<!-- Encabezado específico para el reporte VAT -->
-				<table style="width:100%; font-family:Arial, sans-serif; font-size:13px; border-collapse:collapse; border:1px solid #ccc; margin-bottom: 20px;">
-					<tbody>
-						<tr style="background:#e9ecef;">
-							<td colspan="4" style="font-size:17px; font-weight:bold; padding:8px; border:1px solid #ccc;">
-								BTW Aangifte – Kwartaaloverzicht
-							</td>
-						</tr>
-
-						<!-- Gegevens onderneming -->
-						<tr><td colspan="4" style="background:#f1f1f1; font-weight:bold; padding:6px;">Gegevens onderneming</td></tr>
-						<tr>
-							<td style="padding:6px;"><b>Naam:</b> Fiscale Eenheid R.M. Logmans Beheer B.V. en TVS Engineering B.V. C.S.</td>
-							<td style="padding:6px;"><b>RSIN:</b> 823862021</td>
-							<td style="padding:6px;"><b>BTW-nummer:</b> NL853871334B01</td>
-							<td style="padding:6px;"><b>KvK-nummer:</b> [invullen]</td>
-						</tr>
-
-						<!-- Tijdvak -->
-						<tr><td colspan="4" style="background:#f1f1f1; font-weight:bold; padding:6px;">Tijdvak</td></tr>
-						<tr>
-							<td style="padding:6px;"><b>Frequentie:</b> kwartaal</td>
-							<td style="padding:6px;"><b>Periode:</b> ${frappe.datetime.str_to_user(filters.from_date)} – ${frappe.datetime.str_to_user(filters.to_date)}</td>
-							<td style="padding:6px;"><b>Uiterste inzenddatum:</b> ${frappe.datetime.str_to_user(frappe.datetime.add_days(filters.to_date, 30))}</td>
-							<td style="padding:6px;"></td>
-						</tr>
-
-						<!-- Contactpersoon -->
-						<tr><td colspan="4" style="background:#f1f1f1; font-weight:bold; padding:6px;">Contactpersoon</td></tr>
-						<tr>
-							<td style="padding:6px;"><b>Naam:</b> Logmans JCA</td>
-							<td style="padding:6px;"><b>Telefoon:</b> 0645921347</td>
-							<td style="padding:6px;"><b>Email:</b> [email@bedrijf.nl]</td>
-							<td style="padding:6px;"></td>
-						</tr>
-					</tbody>
-				</table>
-				
+				${letterhead}	
 				<!-- Contenido original del reporte -->
 				<div class="table-responsive" style="width: 100%;">
 					<table class="table table-bordered vat-table" style="width: 100% !important; table-layout: fixed;">
 						<thead>
 							<tr>
 								<th style="width: 60%;">${__("Omschrijving")}</th>
-								<th style="width: 20%;" class="text-right">${__("Bedrag waarover omzetbelasting wordt berekend")}</th>
+								<th style="width: 20%;" class="text-right">${__("Belaste omzet")}</th>
 								<th style="width: 20%;" class="text-right">${__("Omzetbelasting")}</th>
 							</tr>
 						</thead>
@@ -308,145 +308,94 @@ frappe.query_reports["VAT Declaration"] = {
 			// Estilos para el PDF
 			const styles = `
 			<style>
-			.vat-declaration-report {
-				font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-				padding: 15px;
-				width: 100%;
-			}
-			
-			.report-summary {
-				background-color: #f8f9fa;
-				padding: 15px;
-				margin-bottom: 20px;
-				border-radius: 4px;
-				width: 100%;
-			}
-			
-			.summary-item {
-				margin-bottom: 10px;
-			}
-			
-			.summary-label {
-				font-weight: bold;
-				margin-right: 5px;
-			}
-			
-			.summary-value {
-				font-weight: normal;
-			}
-			
-			.table-responsive {
-				width: 100%;
-				overflow-x: auto;
-			}
-			
-			.vat-table {
-				width: 100% !important;
-				border-collapse: collapse;
-				margin-bottom: 20px;
-				table-layout: fixed;
-			}
-			
-			.vat-table th {
-				background-color: #f2f2f2;
-				padding: 10px;
-				border: 1px solid #ddd;
-				font-weight: bold;
-			}
-			
-			.vat-table td {
-				padding: 8px 10px;
-				border: 1px solid #ddd;
-			}
-			
-			.vat-table .text-right {
-				text-align: right;
-			}
-			
-			.empty-row td {
-				border-left-color: transparent;
-				border-right-color: transparent;
-				height: 20px;
-			}
-			
-			.total-row {
-				background-color: #f9f9f9;
-			}
-			
-			.total-row th {
-				font-weight: bold;
-			}
-			
-			.subtotal-row {
-				background-color: #f9f9f9;
-				font-weight: bold;
-			}
-			
-			.text-danger {
-				color: #dc3545;
-			}
-			
-			.text-success {
-				color: #28a745;
-			}
-			
-			/* Specific styles for PDF */
-			@media print {
-				.vat-declaration-report {
-					padding: 0;
-					width: 100%;
-				}
-				
-				.report-summary {
-					border: 1px solid #ddd;
-					margin-bottom: 15px;
-					width: 100%;
-				}
-				
-				.table-responsive {
-					width: 100%;
-				}
-				
-				.vat-table {
-					width: 100% !important;
-					table-layout: fixed;
-				}
-				
-				.vat-table th {
-					background-color: #eee !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.empty-row td {
-					border-left-color: transparent !important;
-					border-right-color: transparent !important;
-					height: 20px;
-				}
-				
-				.total-row, .subtotal-row {
-					background-color: #f5f5f5 !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.text-danger {
-					color: #dc3545 !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.text-success {
-					color: #28a745 !important;
-					-webkit-print-color-adjust: exact;
-					print-color-adjust: exact;
-				}
-				
-				.no-print {
-					display: none !important;
-				}
-			}
-			</style>
+.vat-declaration-report {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  padding: 15px;
+  width: 100%;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.vat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+.vat-table th {
+  background-color: #f5f5f5;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  text-align: left;
+  font-weight: 600;
+}
+
+.vat-table td {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  vertical-align: top;
+}
+
+.vat-table .text-right {
+  text-align: right;
+}
+
+.vat-table .group-header td {
+  background-color: #f0f0f0;
+  font-weight: bold;
+}
+
+.subtotal-row td,
+.total-row th {
+  font-weight: bold;
+  background-color: #f9f9f9;
+}
+
+.empty-row td {
+  border-left-color: transparent;
+  border-right-color: transparent;
+  height: 20px;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+
+.text-success {
+  color: #28a745;
+}
+
+@media print {
+  .vat-declaration-report {
+    padding: 0;
+    width: 100%;
+  }
+
+  .vat-table th,
+  .vat-table .group-header td,
+  .subtotal-row td,
+  .total-row th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-danger,
+  .text-success {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+</style>
+
 			`;
 			
 			// Crear ventana de impresión
