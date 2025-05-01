@@ -656,7 +656,18 @@ cur_frm.set_query("asset", "items", function (doc, cdt, cdn) {
 	};
 });
 
-frappe.ui.form.on("Sales Invoice", {
+frappe.ui.form.on('Sales Invoice', {
+	before_save: function (frm) {
+		if (!frm.doc.payment_id || frm.doc.payment_id == "") {
+			const generateCompactID = () => {
+				const timestamp = Date.now().toString().slice(-8);
+				const randomPart = frappe.utils.randomString(6);
+				return `Auto-${timestamp}-${randomPart}`;
+			};
+			
+			frm.doc.payment_id = generateCompactID();
+		}
+	},
 	setup: function (frm) {
 		frm.add_fetch("customer", "tax_id", "tax_id");
 		frm.add_fetch("payment_term", "invoice_portion", "invoice_portion");
@@ -1178,4 +1189,3 @@ function refreshSalesInvoicesFields(frm) {
 	frm.trigger("calculate_taxes_and_totals");
 	frm.refresh_fields(['rate', 'total', 'grand_total', 'net_total']);
 }
-

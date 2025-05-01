@@ -62,6 +62,7 @@
   "tax_tab",
   "taxation_section",
   "tax_id",
+  "vat_validation",
   "column_break_21",
   "tax_category",
   "tax_withholding_category",
@@ -188,30 +189,30 @@
    "search_index": 1
   },
   {
-    "fieldname": "phone_number",
-    "label": "Phone number",
-    "fieldtype": "Data",
-    "in_list_view": 1,
-    "reqd": 1,
-    "in_standard_filter": 1,
-    "in_filter": 1
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Phone number",
+   "reqd": 1
   },
   {
-    "default": "0",
-    "fieldname": "is_phone_number_verified",
-    "fieldtype": "Check",
-    "label": "Is phone number verified",
-    "in_standard_filter": 1,
-    "in_list_view": 1
-   },
-   {
-    "default": "0",
-    "fieldname": "is_dealer_verified",
-    "fieldtype": "Check",
-    "label": "Is dealer verified",
-    "in_standard_filter": 1,
-    "in_list_view": 1
-   },
+   "default": "0",
+   "fieldname": "is_phone_number_verified",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is phone number verified"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_dealer_verified",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Is dealer verified"
+  },
   {
    "fieldname": "territory",
    "fieldtype": "Link",
@@ -235,11 +236,11 @@
    "options": "Tax Category"
   },
   {
-    "default": "0",
-    "fieldname": "disabled",
-    "fieldtype": "Check",
-    "label": "Disabled"
-   },
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
+  },
   {
    "default": "0",
    "fieldname": "is_internal_customer",
@@ -601,6 +602,11 @@
   {
    "fieldname": "column_break_nwor",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "vat_validation",
+   "fieldtype": "Button",
+   "label": "VAT Validation"
   },
   {
    "fieldname": "prospect_name",
