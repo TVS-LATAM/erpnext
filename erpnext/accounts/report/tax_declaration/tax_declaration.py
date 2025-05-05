@@ -1,5 +1,5 @@
 # tax.py
-# TAX Declaration – Belastingdienst Compliant (with tax_category mapping)
+# TAX Declaration – Belastingdienst Compliant (Enhanced)
 
 import frappe
 from frappe import _
@@ -8,18 +8,16 @@ from datetime import timedelta, date
 
 # Explicit tax_category to rubric mapping
 TAX_CATEGORY_MAPPING = {
-    "hoog tarief": "1a",
-    "laag tarief": "1b",
-    "overig tarief": "1c",
-    "privégebruik": "1d",
+    "21% binnenland": "1a",
+    "9% binnenland": "1b",
     "vrijgesteld": "1e",
-    "verlegd": "2a",
-    "export": "3a",
-    "eu klant": "3b",
+    "eu customer": "3b",
     "afstandsverkopen": "3c",
+    "privégebruik": "1d",
     "diensten buiten eu": "4a",
     "diensten eu": "4b"
 }
+
 
 def execute(filters=None):
     if not filters:
@@ -29,47 +27,64 @@ def execute(filters=None):
     first_day_current = date(today.year, today.month, 1)
     last_day_last_month = first_day_current - timedelta(days=1)
     first_day_last_month = date(last_day_last_month.year, last_day_last_month.month, 1)
+
     from_date = filters.get("from_date") or first_day_last_month.strftime('%Y-%m-%d')
     to_date = filters.get("to_date") or last_day_last_month.strftime('%Y-%m-%d')
 
-    filters["from_date"] = from_date
-    filters["to_date"] = to_date
-    filters["from_date_str"] = getdate(from_date).strftime('%d-%m-%Y')
-    filters["to_date_str"] = getdate(to_date).strftime('%d-%m-%Y')
-    filters["due_date"] = (getdate(to_date) + timedelta(days=30)).strftime('%d-%m-%Y')
-    filters["aangiftenummer"] = "823862021B014300"
-    filters["rsin"] = "823862021"
-    filters["naam"] = "Fiscale Eenheid R.M. Logmans Beheer B.V. en TVS Engineering B.V. C.S."
+    filters.update({
+        "from_date": from_date,
+        "to_date": to_date,
+        "from_date_str": getdate(from_date).strftime('%d-%m-%Y'),
+        "to_date_str": getdate(to_date).strftime('%d-%m-%Y'),
+        "due_date": (getdate(to_date) + timedelta(days=30)).strftime('%d-%m-%Y'),
+        "aangiftenummer": "823862021B014300",
+        "rsin": "823862021",
+        "naam": "Fiscale Eenheid R.M. Logmans Beheer B.V. en TVS Engineering B.V. C.S."
+    })
 
     columns = get_columns()
     data = fetch_tax_data(filters)
 
     return columns, data
 
+
 def fetch_tax_data(filters):
     from_date = filters["from_date"]
     to_date = filters["to_date"]
     company = filters.get("company", "")
 
-    # Grouped sales by tax_category
+    # Initialize sales mapping for rubrieken
+    sales_map = {key: 0.0 for key in TAX_CATEGORY_MAPPING.values()}
+    sales_map["1c"] = 0.0  # fallback for unknown or special tax categories
+    sales_map["3a"] = 0.0
+
+    # Fetch sales per category
     sales_rows = frappe.db.sql("""
         SELECT
-            LOWER(tax_category) AS category,
+            LOWER(TRIM(tax_category)) AS category,
             SUM(base_net_total) AS net_total
         FROM `tabSales Invoice`
         WHERE docstatus = 1
             AND posting_date BETWEEN %(from_date)s AND %(to_date)s
             AND company = %(company)s
-        GROUP BY LOWER(tax_category)
+        GROUP BY LOWER(TRIM(tax_category))
     """, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)
 
-    sales_map = {key: 0.0 for key in TAX_CATEGORY_MAPPING.values()}
+    unknown_categories = []
+
     for row in sales_rows:
-        rubric = TAX_CATEGORY_MAPPING.get(row.category)
+        category = row.category
+        rubric = TAX_CATEGORY_MAPPING.get(category)
         if rubric:
             sales_map[rubric] += row.net_total or 0.0
+        else:
+            sales_map["1c"] += row.net_total or 0.0
+            unknown_categories.append(category)
 
-    # Additional fields: reverse charge and output tax
+    if unknown_categories:
+        frappe.msgprint(_("Unknown tax categories encountered (added to 1c):") + "<br>" + "<br>".join(set(unknown_categories)))
+
+    # Additional fields: output tax, reverse charge, exports
     tax_data = frappe.db.sql("""
         SELECT
             SUM(stc.base_tax_amount) AS output_tax_due,
@@ -105,23 +120,24 @@ def fetch_tax_data(filters):
     return [
         {"rubric": "1a", "description": _("Domestic sales with high tax rate (21%)"), "amount": sales_map["1a"]},
         {"rubric": "1b", "description": _("Domestic sales with low tax rate (9%)"), "amount": sales_map["1b"]},
-        {"rubric": "1c", "description": _("Other tax rates"), "amount": sales_map["1c"]},
+        {"rubric": "1c", "description": _("Other or unmapped tax rates"), "amount": sales_map["1c"]},
         {"rubric": "1d", "description": _("Private use (privégebruik)"), "amount": sales_map["1d"]},
         {"rubric": "1e", "description": _("Sales at 0% or exempt (vrijgesteld)"), "amount": sales_map["1e"]},
         {"rubric": "2a", "description": _("Domestic reverse charge (verlegd)"), "amount": tax_data.reverse_charge},
         {"rubric": "3a", "description": _("Exports outside the EU"), "amount": tax_data.export_outside_EU},
-        {"rubric": "3b", "description": _("Intra-EU sales"), "amount": sales_map["3b"]},
+        {"rubric": "3b", "description": _("Intra-EU sales (ICP)"), "amount": sales_map["3b"]},
         {"rubric": "3c", "description": _("Distance/installation sales within EU"), "amount": sales_map["3c"]},
         {"rubric": "4a", "description": _("Services from outside the EU"), "amount": purchase_tax.services_outside_EU},
         {"rubric": "4b", "description": _("Services from within the EU"), "amount": purchase_tax.services_EU},
         {"rubric": "5a", "description": _("Total output tax payable"), "amount": output_tax},
         {"rubric": "5b", "description": _("Input tax from purchases"), "amount": input_tax},
-        {"rubric": "5c", "description": _("Subtotal (output tax - input tax)"), "amount": net_tax_payable},
+        {"rubric": "5c", "description": _("Subtotal (output - input)"), "amount": net_tax_payable},
         {"rubric": "5d", "description": _("Small business scheme deduction (KOR)"), "amount": 0.0},
         {"rubric": "5e", "description": _("Correction(s) from previous declarations"), "amount": 0.0},
         {"rubric": "5f", "description": _("Estimated for this declaration"), "amount": 0.0},
         {"rubric": "Total", "description": _("Tax Payable/Refundable"), "amount": net_tax_payable}
     ]
+
 
 def get_columns():
     return [
