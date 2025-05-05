@@ -24,6 +24,14 @@ frappe.query_reports["VAT Declaration"] = {
 			fieldtype: "Date",
 			default: frappe.datetime.get_today(),
 			reqd: 1
+		},
+		{
+			fieldname: "frequency",
+			label: __("Frequency"),
+			fieldtype: "Select",
+			options: "Monthly\nQuarterly\nYearly",
+			default: "Quarterly",
+			reqd: 1
 		}
 	],
 	formatter: function(value, row, column, data, default_formatter) {
@@ -115,7 +123,7 @@ frappe.query_reports["VAT Declaration"] = {
 				return formatAmount(reportData[idx].vat);
 			}
 			
-			async function getLetterHead(fromDate, toDate) {
+			async function getLetterHead(fromDate, toDate, frequency) {
 				let letterhead_html = "";
 				await frappe.call({
 					method: "frappe.desk.form.load.getdoc?doctype=Letter%20Head&name=VAT%20Declaration",
@@ -143,14 +151,16 @@ frappe.query_reports["VAT Declaration"] = {
 								// Replace placeholders with actual values if they exist in the letterhead
 								letterhead_html = letterhead_html.replace('${{periode}}', periode);
 								letterhead_html = letterhead_html.replace('${{uiterste_inzenddatum}}', formattedDeadline);
+								letterhead_html = letterhead_html.replace('${{frequency}}', frequency || "Quarterly");
 							}
 						}
 					}
 				});
 				return letterhead_html;
 			}
-			// Get letterhead HTML content with date parameters
-			const letterhead = await getLetterHead(filters.from_date, filters.to_date);
+			// Get letterhead HTML content with date parameters and frequency
+			const letterhead = await getLetterHead(filters.from_date, filters.to_date, filters.frequency);
+			
 			// Obtener datos de la empresa desde los filtros
 			const company = filters.company || "";
 			

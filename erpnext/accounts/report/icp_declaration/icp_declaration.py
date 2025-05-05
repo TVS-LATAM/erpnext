@@ -22,7 +22,8 @@ def fetch_icp_data(filters):
     query = """
         SELECT 
             customer_name AS `Customer Name`, 
-            tax_id AS `VAT Identification Number`, 
+            tax_id AS `VAT Identification Number`,
+            LEFT(tax_id, 2) AS `Country Code`, 
             SUM(base_net_total) AS `Net Amount`,  
             0.0 AS `Total VAT`, 
             CASE WHEN is_return = 1 THEN "Credit" ELSE "Normal" END AS `Invoice Type`
@@ -59,6 +60,12 @@ def get_columns():
             "label": _("VAT Identification Number"),
             "fieldtype": "Data",
             "width": 180
+        },
+        {
+            "fieldname": "Country Code",
+            "label": _("Country Code"),
+            "fieldtype": "Data",
+            "width": 100
         },
         {
             "fieldname": "Net Amount",
