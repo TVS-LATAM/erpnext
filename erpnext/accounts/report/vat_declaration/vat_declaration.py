@@ -1,4 +1,4 @@
-# vat_declaration.py – Declaración de IVA compatible con Belastingdienst (corregido)
+# vat_declaration.py – Declaración de IVA compatible con Belastingdienst (versión corregida)
 
 import frappe
 from frappe import _
@@ -71,6 +71,7 @@ def fetch_vat_data(filters):
 
     unknown_categories = set()
 
+    # === Ventas ===
     for row in sales_rows:
         cat = (row.category or "").strip().lower()
         incoterm = (row.incoterm or "").strip().upper()
@@ -96,11 +97,12 @@ def fetch_vat_data(filters):
             if cat:
                 unknown_categories.add(cat)
 
-        sales["5a"] += tax  # total output tax
+        sales["5a"] += tax
 
     if unknown_categories:
         frappe.msgprint(_("Categorías fiscales desconocidas detectadas (sumadas a 1c):") + "<br>" + "<br>".join(sorted(unknown_categories)))
 
+    # === Compras ===
     for row in purchase_rows:
         cat = (row.category or "").strip().lower()
         amt = row.base_total or 0.0
@@ -135,7 +137,6 @@ def fetch_vat_data(filters):
         {"rubric": "5f", "description": _("5f. Schatting deze aangifte"), "amount": 0.0},
         {"rubric": "Totaal", "description": _("Totaal te betalen of terug te vorderen"), "amount": net_total}
     ]
-
 
 def get_columns():
     return [

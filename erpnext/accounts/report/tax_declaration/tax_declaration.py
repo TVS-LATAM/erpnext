@@ -69,7 +69,6 @@ def fetch_tax_data(filters):
             AND company = %(company)s
         GROUP BY LOWER(TRIM(tax_category))
     """, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)
-
     unknown_categories = []
 
     for row in sales_rows:
@@ -96,7 +95,6 @@ def fetch_tax_data(filters):
             AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
             AND si.company = %(company)s
     """, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)[0]
-
     for key in tax_data:
         tax_data[key] = tax_data.get(key) or 0.0
 
@@ -112,7 +110,7 @@ def fetch_tax_data(filters):
 
     for key in purchase_tax:
         purchase_tax[key] = purchase_tax.get(key) or 0.0
-
+        
     output_tax = tax_data.output_tax_due
     input_tax = purchase_tax.input_tax
     net_tax_payable = output_tax - input_tax
