@@ -1042,7 +1042,6 @@
   }
  ],
  "quick_entry": 1,
- "row_format": "Dynamic",
  "search_fields": "project_name,customer, status",
  "show_name_in_global_search": 1,
  "sort_field": "queue_position",
