@@ -25,43 +25,102 @@ class Project(Document):
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
+		from erpnext.projects.doctype.client_requirements.client_requirements import ClientRequirements
+		from erpnext.projects.doctype.project_invoice.project_invoice import ProjectInvoice
+		from erpnext.projects.doctype.project_user.project_user import ProjectUser
 		from frappe.types import DF
 
-		from erpnext.projects.doctype.project_user.project_user import ProjectUser
-
+		actual_dsg_number_software_version: DF.Data | None
+		actual_ecu_number: DF.Data | None
+		actual_ecu_software_version: DF.Data | None
 		actual_end_date: DF.Date | None
+		actual_mileage: DF.Data | None
 		actual_start_date: DF.Date | None
 		actual_time: DF.Float
+		appointment_date: DF.Date | None
+		appointment_time: DF.Literal["", "9:00-9:30", "9:30-10:00", "10:00-10:30", "10:30-11:00", "11:00-11:30", "11:30-12:00", "12:00-12:30", "12:30-13:00", "13:00-13:30", "13:30-14:00", "14:00-14:30", "14:30-15:00", "15:00-15:30", "15:30-16:00", "16:00-16:30", "16:30-17:00", "17:00-17:30", "17:30-18:00"]
+		assistant_confirmed: DF.Check
+		brand: DF.Data | None
+		bring_car_date: DF.Data | None
+		callback_date: DF.Date | None
+		callback_time: DF.Literal["", "9:30-10:00", "13:30-14:00", "17:30-18:00"]
+		car_driving: DF.Check
+		client_description: DF.TextEditor | None
+		client_dsg_state: DF.Data | None
+		client_engine_state: DF.Data | None
+		client_mileage_state: DF.Data | None
+		clutch: DF.Data | None
 		collect_progress: DF.Check
 		company: DF.Link
 		copied_from: DF.Data | None
 		cost_center: DF.Link | None
-		customer: DF.Link | None
+		customer: DF.Link
 		daily_time_to_send: DF.Time | None
 		day_to_send: DF.Literal["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 		department: DF.Link | None
+		description_title: DF.Data | None
+		diagnose_modified: DF.Datetime | None
+		diagnose_result: DF.TextEditor | None
+		done: DF.Check
+		dongle_tested: DF.Check
+		dsg_code: DF.Data | None
+		dsg_gearbox: DF.Data | None
+		dsg_model: DF.Data | None
+		ecu_number: DF.Data | None
+		engine_code: DF.Data | None
+		engine_liters: DF.Data | None
 		estimated_costing: DF.Currency
 		expected_end_date: DF.Date | None
 		expected_start_date: DF.Date | None
 		first_email: DF.Time | None
+		flywheel: DF.Data | None
 		frequency: DF.Literal["Hourly", "Twice Daily", "Daily", "Weekly"]
 		from_time: DF.Time | None
 		gross_margin: DF.Currency
+		has_dongle: DF.Check
 		holiday_list: DF.Link | None
+		hp_kw: DF.Data | None
+		internal_notes: DF.TextEditor | None
 		is_active: DF.Literal["Yes", "No"]
+		is_loan_car: DF.Literal["No", "Yes", "Loaned car", "Car returned"]
+		language: DF.Data | None
+		loan_car: DF.TextEditor | None
+		mechatronic: DF.Data | None
 		message: DF.Text | None
+		model: DF.Data | None
+		model_year: DF.Data | None
 		naming_series: DF.Literal["PROJ-.####"]
 		notes: DF.TextEditor | None
+		parking_date: DF.Data | None
+		parts_status: DF.Literal["", "New request", "New order", "Processing order", "Quality control", "Ready for pickup", "In Transit", "Delivered", "Core return pending", "Core return completed", "Warranty return", "Aftersales support", "Quoted", "Completed order", "Cancelled order", "Completed support", "Completed warranty return"]
+		payment_status: DF.Literal["No", "Awaiting approval quotation", "Quotation approved", "Quotation Declined", "Invoice send awaiting payment", "Payment ready."]
 		per_gross_margin: DF.Percent
 		percent_complete: DF.Percent
 		percent_complete_method: DF.Literal["Manual", "Task Completion", "Task Progress", "Task Weight"]
+		pickup: DF.Literal["", "Dropoff service", "Pickup service", "Dropoff service arranged", "Pickup service arranged", "Ready"]
+		plate: DF.Data
+		price_agreement: DF.Currency
 		priority: DF.Literal["Medium", "Low", "High"]
+		project_description: DF.Data | None
+		project_diagnozer: DF.Link | None
+		project_invoice: DF.Table[ProjectInvoice]
+		project_mechanic: DF.Link | None
 		project_name: DF.Data
 		project_template: DF.Link | None
 		project_type: DF.Link | None
+		queue_position: DF.Literal[None]
+		remote_diagnostic_date: DF.Date | None
+		remote_diagnostic_time: DF.Literal["", "15:30-16:15", "16:15-17:00"]
+		requirements: DF.Table[ClientRequirements]
+		sales_invoice: DF.Link | None
 		sales_order: DF.Link | None
 		second_email: DF.Time | None
-		status: DF.Literal["Open", "Completed", "Cancelled"]
+		software_status: DF.Literal["", "Software request", "Software is ready for use", "Software has been attached"]
+		status: DF.Literal["", "In queue", "In parking", "Pre-diagnose", "Diagnosed", "Quoted", "Quote approved", "In repair", "Repair ready", "Fully-tested/adapted", "Quality check approved", "Invoice paid", "Awaiting pickup", "Completed", "Cancelled", "In pause", "No response from customer", "Request a callback", "Remote diagnose", "Soft. showroom", "Soft. internally"]
+		status_modified: DF.Date | None
+		team_viewer_id: DF.Data | None
+		terms_and_conditions_accepted: DF.Check
+		test_drive_terms_and_conditions: DF.Check
 		to_time: DF.Time | None
 		total_billable_amount: DF.Currency
 		total_billed_amount: DF.Currency
@@ -69,7 +128,10 @@ class Project(Document):
 		total_costing_amount: DF.Currency
 		total_purchase_cost: DF.Currency
 		total_sales_amount: DF.Currency
+		transmission_code: DF.Data | None
+		type_of_job: DF.Literal["Diagnose", "Reparatie", "Oliewissel", "Overig", "Software", "Parts"]
 		users: DF.Table[ProjectUser]
+		vin: DF.Data | None
 		weekly_time_to_send: DF.Time | None
 	# end: auto-generated types
 
@@ -80,6 +142,10 @@ class Project(Document):
 			old_doc=frappe.get_doc(self.doctype, self.name)
 			if self.status != old_doc.status:
 				self.status_modified = get_datetime()
+
+			# Track when diagnose_result was last updated
+			if self.diagnose_result != old_doc.diagnose_result:
+				self.diagnose_modified = get_datetime()
 
 			if self.status in self.done_status:
 				self.queue_position = 0
