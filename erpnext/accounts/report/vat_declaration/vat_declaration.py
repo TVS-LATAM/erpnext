@@ -78,9 +78,8 @@ def fetch_vat_data(filters):
         amt = row.base_total or 0.0
         tax = row.tax_total or 0.0
 
-        if incoterm in export_incoterms:
-            sales["3a"] += amt
-        elif cat == "21% binnenland":
+        # 1️⃣ Prioridad a tax_category para ventas nacionales
+        if cat == "21% binnenland":
             sales["1a"] += amt
         elif cat == "9% binnenland":
             sales["1b"] += amt
@@ -92,6 +91,12 @@ def fetch_vat_data(filters):
             sales["3b"] += amt
         elif cat == "afstandsverkopen":
             sales["3c"] += amt
+
+        # 2️⃣ Solo considerar exportación si no es una venta nacional
+        elif incoterm in export_incoterms:
+            sales["3a"] += amt
+
+        # 3️⃣ Todo lo no reconocido va a 1c
         else:
             sales["1c"] += amt
             if cat:

@@ -147,9 +147,10 @@ frappe.ui.form.on("Handle Parts", {
         }
     },
 
-    download_excel_format: async function (frm) {
+    download_parts_excel_format: async function (frm) {
         frm.page.set_indicator(__('Downloading...'), 'orange');
         const data = await frappe.db.get_doc('Handle Parts Config');
+        console.log("data", data);
         if (!data || !data.excel_format_url) {
             frappe.msgprint({
                 title: __('Validation Error'),
