@@ -87,6 +87,7 @@
   "client_mileage_state",
   "section_break2",
   "diagnose_result",
+  "diagnose_modified",
   "price_agreement",
   "attachments",
   "html_pybn",
@@ -219,11 +220,11 @@
    "label": "Flywheel"
   },
   {
-    "fieldname": "loan_car",
-    "fieldtype": "Text Editor",
-    "in_list_view": 1,
-    "label": "Loan car"
-   },
+   "fieldname": "loan_car",
+   "fieldtype": "Text Editor",
+   "in_list_view": 1,
+   "label": "Loan car"
+  },
   {
    "fieldname": "queue_position",
    "fieldtype": "Select",
@@ -625,6 +626,12 @@
    "label": "Diagnose result"
   },
   {
+   "fieldname": "diagnose_modified",
+   "fieldtype": "Datetime",
+   "label": "Last Diagnose Update",
+   "read_only": 1
+  },
+  {
    "collapsible": 1,
    "fieldname": "section_break_18",
    "fieldtype": "Section Break",
@@ -973,7 +980,7 @@
  "index_web_pages_for_search": 1,
  "links": [],
  "max_attachments": 4,
- "modified": "2024-04-24 10:56:16.001032",
+ "modified": "2025-05-07 17:04:04.952048",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Project",
@@ -1035,6 +1042,7 @@
   }
  ],
  "quick_entry": 1,
+ "row_format": "Dynamic",
  "search_fields": "project_name,customer, status",
  "show_name_in_global_search": 1,
  "sort_field": "queue_position",
