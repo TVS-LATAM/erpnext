@@ -92,7 +92,7 @@ class Project(Document):
 		naming_series: DF.Literal["PROJ-.####"]
 		notes: DF.TextEditor | None
 		parking_date: DF.Data | None
-		parts_status: DF.Literal["", "New request", "New order", "Processing order", "Quality control", "Ready for pickup", "In Transit", "Delivered", "Core return pending", "Core return completed", "Warranty return", "Aftersales support", "Quoted", "Completed order", "Cancelled order", "Completed support", "Completed warranty return"]
+		parts_status: DF.Literal["", "New request", "Sent for approval", "Quotation approved", "New order", "Processing order", "Quality control", "Ready for pickup", "In Transit", "Delivered", "Core return pending", "Core return completed", "Warranty return", "Aftersales support", "Quoted", "Completed order", "Cancelled order", "Completed support", "Completed warranty return", "Quotation rejected"]
 		payment_status: DF.Literal["No", "Awaiting approval quotation", "Quotation approved", "Quotation Declined", "Invoice send awaiting payment", "Payment ready."]
 		per_gross_margin: DF.Percent
 		percent_complete: DF.Percent
