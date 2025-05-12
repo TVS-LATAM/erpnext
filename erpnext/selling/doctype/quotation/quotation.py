@@ -291,6 +291,14 @@ class Quotation(SellingController):
 		# update enquiry status
 		self.update_opportunity("Quotation")
 		self.update_lead()
+		
+		# update project status if linked
+		if self.project_name:
+			project = frappe.get_doc("Project", self.project_name)
+			if project.parts_status == "New request":
+				project.parts_status = "Sent for approval"
+				project.save(ignore_permissions=True)
+				frappe.msgprint(_("Project {0} status updated to 'Sent for approval'").format(self.project_name))
 
 	def on_cancel(self):
 		if self.lost_reasons:

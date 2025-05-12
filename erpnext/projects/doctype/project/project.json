@@ -281,7 +281,7 @@
    "label": "Parts Status",
    "oldfieldname": "parts_status",
    "oldfieldtype": "Select",
-   "options": "\nNew request\nNew order\nProcessing order\nQuality control\nReady for pickup\nIn Transit\nDelivered\nCore return pending\nCore return completed\nWarranty return\nAftersales support\nQuoted\nCompleted order\nCancelled order\nCompleted support\nCompleted warranty return"
+   "options": "\nNew request\nSent for approval\nQuotation approved\nNew order\nProcessing order\nQuality control\nReady for pickup\nIn Transit\nDelivered\nCore return pending\nCore return completed\nWarranty return\nAftersales support\nQuoted\nCompleted order\nCancelled order\nCompleted support\nCompleted warranty return\nQuotation rejected"
   },
   {
    "fieldname": "software_status",
@@ -975,12 +975,13 @@
    "label": "Transmission Code"
   }
  ],
+ "grid_page_length": 50,
  "icon": "fa fa-puzzle-piece",
  "idx": 29,
  "index_web_pages_for_search": 1,
  "links": [],
  "max_attachments": 4,
- "modified": "2025-05-07 17:04:04.952048",
+ "modified": "2025-05-08 19:47:46.756075",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Project",
@@ -1042,6 +1043,7 @@
   }
  ],
  "quick_entry": 1,
+ "row_format": "Dynamic",
  "search_fields": "project_name,customer, status",
  "show_name_in_global_search": 1,
  "sort_field": "queue_position",
