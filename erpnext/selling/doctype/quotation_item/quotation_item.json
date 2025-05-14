@@ -24,6 +24,7 @@
   "image_view",
   "quantity_and_rate",
   "stock_uom",
+  "is_stock_item",
   "col_break2",
   "uom",
   "conversion_factor",
@@ -185,8 +186,10 @@
    "label": "Description"
   },
   {
+   "columns": 2,
    "fieldname": "description",
    "fieldtype": "Text Editor",
+   "in_list_view": 1,
    "label": "Description",
    "oldfieldname": "description",
    "oldfieldtype": "Small Text",
@@ -731,17 +734,26 @@
    "print_hide": 1,
    "print_width": "300px",
    "width": "300px"
+  },
+  {
+   "default": "0",
+   "fetch_from": "item_code.is_stock_item",
+   "fieldname": "is_stock_item",
+   "fieldtype": "Check",
+   "label": "is stock item"
   }
  ],
+ "grid_page_length": 50,
  "idx": 1,
  "istable": 1,
  "links": [],
- "modified": "2024-12-12 13:49:18.765883",
+ "modified": "2025-05-14 21:36:49.958441",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Quotation Item",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
