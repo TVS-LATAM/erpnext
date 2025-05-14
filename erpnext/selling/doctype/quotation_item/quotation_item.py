@@ -39,6 +39,8 @@ class QuotationItem(Document):
 		image: DF.Attach | None
 		is_alternative: DF.Check
 		is_free_item: DF.Check
+		is_installed: DF.Check
+		is_stock_item: DF.Check
 		item_code: DF.Link | None
 		item_group: DF.Link | None
 		item_name: DF.Data
@@ -48,6 +50,7 @@ class QuotationItem(Document):
 		margin_type: DF.Literal["", "Percentage", "Amount"]
 		net_amount: DF.Currency
 		net_rate: DF.Currency
+		order_notes: DF.TextEditor | None
 		page_break: DF.Check
 		parent: DF.Data
 		parentfield: DF.Data
@@ -64,7 +67,8 @@ class QuotationItem(Document):
 		stock_uom: DF.Link | None
 		stock_uom_rate: DF.Currency
 		total_weight: DF.Float
-		uom: DF.Link
+		tvs_pn: DF.Data | None
+		uom: DF.Link | None
 		valuation_rate: DF.Currency
 		warehouse: DF.Link | None
 		weight_per_unit: DF.Float
