@@ -30,7 +30,7 @@
       <tbody>
         {{ render_row(6, '1a. Leveringen/diensten belast met hoog tarief', frappe.format(data[6].amount * 0.21, {fieldtype: 'Currency'})) }}
         {{ render_row(7, '1b. Leveringen/diensten belast met laag tarief', frappe.format(data[7].amount * 0.09, {fieldtype: 'Currency'})) }}
-        {{ render_row(8, '1c. Leveringen/diensten belast met overige tarieven, behalve 0%', frappe.format(data[8].amount * 0.05, {fieldtype: 'Currency'})) }}
+        {{ render_row(8, '1c. Leveringen/diensten belast met overige tarieven, behalve 0%', frappe.format(data[8].vat_amount || (data[8].amount * 0.05), {fieldtype: 'Currency'})) }}
         {{ render_row(9, '1d. Privégebruik', frappe.format(data[9].amount * 0.21, {fieldtype: 'Currency'})) }}
         {{ render_row(10, '1e. Leveringen/diensten belast met 0% of niet bij u belast', '€ 0') }}
       </tbody>

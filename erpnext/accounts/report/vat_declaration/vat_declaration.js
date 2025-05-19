@@ -197,7 +197,7 @@ frappe.query_reports["VAT Declaration"] = {
 							<tr>
 								<td>1c. Leveringen/diensten belast met overige tarieven, behalve 0%</td>
 								<td class="text-right">${formatAmount(reportData[2]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[2]?.amount * 0.05)}</td>
+								<td class="text-right">${formatAmount(reportData[2]?.vat_amount || (reportData[2]?.amount * 0.05))}</td>
 							</tr>
 							<tr>
 								<td>1d. Prive-gebruik</td>
