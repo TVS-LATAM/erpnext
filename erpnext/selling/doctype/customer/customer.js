@@ -1,6 +1,11 @@
 // Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 // License: GNU General Public License v3. See license.txt
 
+const TAX_CATEGORY = {
+	EU: '21% binnenland',
+	Non_EU: 'Outside EU'
+}
+
 frappe.ui.form.on("Customer", {
 	vat_validation: async function(frm) {
     if (!frm.doc.tax_id) {
@@ -43,11 +48,13 @@ frappe.ui.form.on("Customer", {
                         fieldname: 'company_details'
                     }
                 ],
-                primary_action_label: __('Update Customer Group'),
+                primary_action_label: __('Update Customer Group and Tax Category'),
                 primary_action: function() {
                     // Update customer information if validation is successful
                     if (response.isValid) {
+												let tax_category = response.outsideEU ? TAX_CATEGORY.Non_EU : TAX_CATEGORY.EU
                         frm.set_value("customer_group", "Commercial")
+												frm.set_value("tax_category", tax_category)
 												frm.save();
                     }
 
@@ -77,6 +84,7 @@ frappe.ui.form.on("Customer", {
             // Set company details HTML
             let company_details = '';
             if (response.isValid) {
+							let tax_category = response.outsideEU ? TAX_CATEGORY.Non_EU : TAX_CATEGORY.EU
                 company_details = `
                     <div class="row">
                         <div class="col-xs-12">
@@ -91,6 +99,10 @@ frappe.ui.form.on("Customer", {
                             <div class="row">
                                 <div class="col-xs-4"><strong>${__('VAT Number')}:</strong></div>
                                 <div class="col-xs-8">${response.vatNumber || '-'}</div>
+                            </div>
+														<div class="row">
+                                <div class="col-xs-4"><strong>${__('Tax Category')}:</strong></div>
+                                <div class="col-xs-8">${tax_category}</div>
                             </div>
                             <div class="row">
                                 <div class="col-xs-4"><strong>${__('Request Date')}:</strong></div>
