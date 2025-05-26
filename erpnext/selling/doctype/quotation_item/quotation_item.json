@@ -83,6 +83,7 @@
   "item_tax_rate",
   "shopping_cart_section",
   "additional_notes",
+  "parent_item",
   "section_break_61",
   "page_break",
   "is_installed"
@@ -741,13 +742,18 @@
    "fieldname": "is_stock_item",
    "fieldtype": "Check",
    "label": "is stock item"
+  },
+  {
+   "fieldname": "parent_item",
+   "fieldtype": "Data",
+   "label": "parent item"
   }
  ],
  "grid_page_length": 50,
  "idx": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-05-14 21:36:49.958441",
+ "modified": "2025-05-21 17:40:26.606731",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Quotation Item",
