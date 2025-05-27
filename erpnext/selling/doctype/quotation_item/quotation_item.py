@@ -53,6 +53,7 @@ class QuotationItem(Document):
 		order_notes: DF.TextEditor | None
 		page_break: DF.Check
 		parent: DF.Data
+		parent_item: DF.Data | None
 		parentfield: DF.Data
 		parenttype: DF.Data
 		prevdoc_docname: DF.DynamicLink | None
