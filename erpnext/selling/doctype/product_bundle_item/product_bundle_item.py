@@ -15,13 +15,14 @@ class ProductBundleItem(Document):
 		from frappe.types import DF
 
 		description: DF.TextEditor | None
+		description_visible: DF.Check
+		is_stock_item: DF.Check
 		item_code: DF.Link
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data
 		qty: DF.Float
-		rate: DF.Float
-		uom: DF.Link | None
+		tvs_pn: DF.Data | None
 	# end: auto-generated types
 
 	pass

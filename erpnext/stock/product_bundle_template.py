@@ -74,6 +74,7 @@ class ProductBundleTemplate:
                 description = item.get("description", "No description available")
                 description_visible = item.get("description_visible", "No UOM specified")
                 qty = Decimal(item.get("qty", 0))
+                is_stock_item = item.get("is_stock_item", 0)
             except AttributeError:
                 name = None
                 item_code = None
@@ -89,6 +90,7 @@ class ProductBundleTemplate:
                 "description": description,
                 "description_visible": description_visible,
                 "qty": qty,
+                "is_stock_item": is_stock_item,
                 "price": self.get_item_price(item),
                 "sub_items": self.get_product_bundle_sub_items(item_code, product_bundle_name, item.get("name")),
                 "_parent": product_bundle_name,  # Referencia al Product Bundle principal
