@@ -461,6 +461,18 @@ $.extend(erpnext.utils, {
 			}
 		})
 		return response.message
+	},
+	isMechanic: async () => {
+		const response = await frappe.call({
+			method: "frappe.sessions.get_is_mechanic",
+			callback: (r) => {
+				return r.message
+			},
+			error: (r) => {
+				return r.message
+			}
+		})
+		return response.message
 	}
 });
 

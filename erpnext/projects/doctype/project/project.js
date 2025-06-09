@@ -104,7 +104,7 @@ frappe.ui.form.on("Project", {
 			frm.trigger("show_dashboard");
 		}
 
-		if (!frm.is_new() && !await erpnext.utils.isWorkshopViewer(frm)) {
+		if (!frm.is_new() && !await erpnext.utils.isWorkshopViewer(frm) && !await erpnext.utils.isMechanic()) {
 			frm.add_custom_button(__("Generate Quotation"), async () => {
 				const doc = await frappe.model.get_new_doc('Quotation');
 				doc.party_name = frm.doc.customer;
@@ -117,8 +117,11 @@ frappe.ui.form.on("Project", {
 			viewCustomerDetails(frm);
 			validateBankTransferPayment(frm);
 		}
+		if(await erpnext.utils.isMechanic(frm)) {
+			installQuotationItems(frm);
+		}
 
-		if (!await erpnext.utils.isWorkshopViewer(this.frm)) {
+		if (!await erpnext.utils.isWorkshopViewer(this.frm) && !await erpnext.utils.isMechanic()) {
 			installChat(frm);
 			installQuotationItems(frm);
 			insertCarousel(frm);

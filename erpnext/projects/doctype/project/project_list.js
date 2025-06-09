@@ -9,7 +9,7 @@ frappe.listview_settings["Project"] = {
 		}
 	},
 	async before_render() {
-		if(!await erpnext.utils.isWorkshopViewer(this.frm)){
+		if(!await erpnext.utils.isWorkshopViewer(this.frm) && !await erpnext.utils.isMechanic(this.frm)){
 			insertFreezeQueuePosition()
 		}else{
 			const sidebar = $(".layout-side-section");
