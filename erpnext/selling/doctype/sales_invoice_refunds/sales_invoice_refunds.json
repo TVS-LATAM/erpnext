@@ -1,0 +1,93 @@
+{
+ "actions": [],
+ "allow_copy": 1,
+ "autoname": "naming_series:",
+ "creation": "2025-06-16 23:19:44.882205",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trx_id",
+  "state",
+  "created_at",
+  "counterparty_name",
+  "expiry_date",
+  "amount",
+  "reference",
+  "naming_series"
+ ],
+ "fields": [
+  {
+   "fieldname": "trx_id",
+   "fieldtype": "Data",
+   "label": "Trx Id"
+  },
+  {
+   "fieldname": "state",
+   "fieldtype": "Data",
+   "label": "State"
+  },
+  {
+   "fieldname": "created_at",
+   "fieldtype": "Data",
+   "label": "Created At"
+  },
+  {
+   "fieldname": "counterparty_name",
+   "fieldtype": "Data",
+   "label": "Customer Name"
+  },
+  {
+   "fieldname": "expiry_date",
+   "fieldtype": "Data",
+   "label": "Expire Date"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Data",
+   "label": "Amount"
+  },
+  {
+   "fieldname": "reference",
+   "fieldtype": "Data",
+   "label": "Reference"
+  },
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Series",
+   "print_hide": 1,
+   "report_hide": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "hide_toolbar": 1,
+ "in_create": 1,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-06-18 20:16:07.999872",
+ "modified_by": "Administrator",
+ "module": "Selling",
+ "name": "Sales Invoice Refunds",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
