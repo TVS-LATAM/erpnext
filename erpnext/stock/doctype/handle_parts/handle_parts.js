@@ -18,7 +18,6 @@ frappe.ui.form.on("Handle Parts", {
         if (uploadButton) {
             uploadButton.disabled = true;
         }
-
         try {
             const fileResponse = await fetch(frm.doc.excel)
             const file = await fileResponse.blob()
@@ -29,7 +28,6 @@ frappe.ui.form.on("Handle Parts", {
             if (!presignedUrl) {
                 return;
             }
-
             await upload_file(frm, fileBuffer, presignedUrl)
             
         } catch (error) {
@@ -70,7 +68,6 @@ frappe.ui.form.on("Handle Parts", {
                 })
             }
             const createdAt = errors.length > 0 ? errors[0].created_at : '';
-            console.log("createdAt", createdAt, "-- ", errors[0].created_at);
             const title = __('Product Bundle Errors (Red items are not found, and the bundle was not created)');
 
             let dialog = new frappe.ui.Dialog({
@@ -150,7 +147,6 @@ frappe.ui.form.on("Handle Parts", {
     download_parts_excel_format: async function (frm) {
         frm.page.set_indicator(__('Downloading...'), 'orange');
         const data = await frappe.db.get_doc('Handle Parts Config');
-        console.log("data", data);
         if (!data || !data.excel_format_url) {
             frappe.msgprint({
                 title: __('Validation Error'),
@@ -508,7 +504,7 @@ async function upload_file(frm, fileBuffer, presignedUrl) {
         },
         body: fileBuffer
     });
-
+ 
     if (uploadResponse.ok) {
         frappe.msgprint({
             title: __('Success'),

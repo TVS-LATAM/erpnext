@@ -83,8 +83,6 @@ frappe.ui.form.on("Quotation", {
 			item.qty > 0
 		);
 
-		console.log({ productBundlesToCheck });
-
 		for (const product_bundle of productBundlesToCheck) {
 			for (const bundle_item of product_bundle.product_bundle_items) {
 				if (bundle_item.is_stock_item === 1 && bundle_item.qty > 0) {
@@ -97,8 +95,6 @@ frappe.ui.form.on("Quotation", {
 				itemsToCheck.push(...subItems);
 			}
 		}
-
-		console.log({ itemsToCheck });
 
 		if (!itemsToCheck.length) return;
 
@@ -956,7 +952,6 @@ async function insertResendQuotationApprovalButton(frm) {
 				primary_action_label: __("Send"),
 				primary_action: async function () {
 					const { aws_url } = await frappe.db.get_doc('Queue Settings')
-					console.log({ aws_url })
 					const url = `${aws_url}quotation/created`;
 					const obj = {
 						"party_name": frm.doc.party_name,
@@ -965,8 +960,6 @@ async function insertResendQuotationApprovalButton(frm) {
 						"name": frm.doc.name,
 						"grand_total": frm.doc.grand_total
 					};
-					console.log(obj);
-
 					fetch(url, {
 						method: 'POST',
 						headers: {

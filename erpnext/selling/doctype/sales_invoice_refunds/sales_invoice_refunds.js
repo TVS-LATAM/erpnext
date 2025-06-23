@@ -15,7 +15,6 @@ frappe.ui.form.on("Sales Invoice Refunds", {
 						indicator: 'orange'
 					});
           const { aws_url } = await frappe.db.get_doc('Queue Settings')
-          console.log({ aws_url })
           await fetch(`${aws_url}/refund/revolut-payment-link-cancel`, {
             method: 'POST',
             headers: {

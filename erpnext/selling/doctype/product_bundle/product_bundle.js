@@ -19,7 +19,6 @@ frappe.ui.form.on("Product Bundle", {
         let new_items = [];
 
         if (frm.doc.product_bundle_template) {
-			console.log("current items ", current_items)
             const existing_item_names = new Set(current_items.map(item => item.item_code));
 
             frappe.db.get_doc("Product Bundle Template", frm.doc.product_bundle_template).then((doc) => {
