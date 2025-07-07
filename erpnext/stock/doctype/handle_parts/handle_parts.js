@@ -457,7 +457,13 @@ function generate_transmission_error_table(errors) {
 }
 
 async function get_presigned_url(frm, file) {
-    const filename = frm.doc.excel.split('/').pop()
+    // Get original filename and extension
+    const originalFilename = frm.doc.excel.split('/').pop()
+    const fileExtension = originalFilename.includes('.') ? `.${originalFilename.split('.').pop()}` : ''
+    
+    // Generate a cryptoUUID for the filename
+    const cryptoUUID = generateCryptoUUID()
+    const filename = `${cryptoUUID}${fileExtension}`
     const { aws_url } = await frappe.db.get_doc('Handle Parts Config');
 
     const action = {
@@ -494,6 +500,24 @@ async function get_presigned_url(frm, file) {
     }
     
     return presignedUrlResponse.url
+}
+
+// Generate a cryptographically secure UUID for file naming
+function generateCryptoUUID() {
+    // Use crypto.getRandomValues for cryptographically secure random values
+    const array = new Uint8Array(16)
+    crypto.getRandomValues(array)
+    
+    // Format as UUID string (xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)
+    // Where y is one of: 8, 9, A, or B
+    array[6] = (array[6] & 0x0f) | 0x40 // Version 4
+    array[8] = (array[8] & 0x3f) | 0x80 // Variant
+    
+    // Convert to hex string
+    return Array.from(array)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5')
 }
 
 async function upload_file(frm, fileBuffer, presignedUrl) {
