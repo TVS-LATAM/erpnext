@@ -115,6 +115,7 @@ class Project(Document):
 		sales_invoice: DF.Link | None
 		sales_order: DF.Link | None
 		second_email: DF.Time | None
+		sent_software_offer: DF.Check
 		software_status: DF.Literal["", "Software request", "Software is ready for use", "Software has been attached"]
 		status: DF.Literal["", "In queue", "In parking", "Pre-diagnose", "Diagnosed", "Quoted", "Quote approved", "In repair", "Repair ready", "Fully-tested/adapted", "Quality check approved", "Invoice paid", "Awaiting pickup", "Completed", "Cancelled", "In pause", "No response from customer", "Request a callback", "Remote diagnose", "Soft. showroom", "Soft. internally"]
 		status_modified: DF.Date | None
