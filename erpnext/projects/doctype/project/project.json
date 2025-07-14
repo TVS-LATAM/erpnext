@@ -26,6 +26,7 @@
   "parts_status",
   "car_driving",
   "test_drive_terms_and_conditions",
+  "sent_software_offer",
   "software_status",
   "expected_start_date",
   "expected_end_date",
@@ -973,6 +974,13 @@
    "fieldname": "transmission_code",
    "fieldtype": "Data",
    "label": "Transmission Code"
+  },
+  {
+   "default": "0",
+   "fieldname": "sent_software_offer",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Sent Software Offer"
   }
  ],
  "grid_page_length": 50,
@@ -981,7 +989,7 @@
  "index_web_pages_for_search": 1,
  "links": [],
  "max_attachments": 4,
- "modified": "2025-05-08 19:47:46.756075",
+ "modified": "2025-07-07 18:10:13.642650",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Project",
