@@ -1,7 +1,7 @@
 import "@tvsgroup/erp-calendar";
 
 (async () => {
-  if (! await erpnext.utils.isWorkshopViewer(this.frm)) {
+  if (! await erpnext.utils.isWorkshopViewer(this.frm) || ! await erpnext.utils.isMechanic(this.frm)) {
     const el = document.createElement('erp-calendar')
     const { aws_url } = await frappe.db.get_doc('Whatsapp Config')
     el.setAttribute('url', location.origin);
