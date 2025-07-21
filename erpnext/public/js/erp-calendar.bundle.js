@@ -1,7 +1,11 @@
 import "@tvsgroup/erp-calendar";
 
 (async () => {
-  if (! await erpnext.utils.isWorkshopViewer(this.frm) || ! await erpnext.utils.isMechanic(this.frm)) {
+  const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
+  const isMechanic = await erpnext.utils.isMechanic(this.frm);
+  
+  // If user is NOT a workshop viewer AND is NOT a mechanic, then show the component
+  if (!isWorkshopViewer && !isMechanic) {
     const el = document.createElement('erp-calendar')
     const { aws_url } = await frappe.db.get_doc('Whatsapp Config')
     el.setAttribute('url', location.origin);
