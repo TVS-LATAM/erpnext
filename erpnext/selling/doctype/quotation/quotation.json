@@ -920,7 +920,7 @@
    "no_copy": 1,
    "oldfieldname": "status",
    "oldfieldtype": "Select",
-   "options": "Draft\nOpen\nApproved\nDeclined\nReplied\nPartially Ordered\nOrdered\nPaid\nLost\nCancelled\nExpired",
+   "options": "Draft\nOpen\nApproved\nDeclined\nReplied\nPartially Ordered\nOrdered\nPartially Paid\nPaid\nLost\nCancelled\nExpired",
    "print_hide": 1,
    "reqd": 1
   },
