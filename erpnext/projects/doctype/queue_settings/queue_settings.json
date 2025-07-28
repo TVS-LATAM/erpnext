@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "auto_move_paused",
+  "vacations_mode",
   "aws_url",
   "cars_per_day",
   "job_workload_status"
@@ -35,12 +36,19 @@
    "in_list_view": 1,
    "label": "Cars per day",
    "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "vacations_mode",
+   "fieldtype": "Check",
+   "label": "Vacations mode"
   }
  ],
+ "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-01-14 20:52:37.025632",
+ "modified": "2025-07-28 21:52:58.006449",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Queue Settings",
@@ -64,7 +72,9 @@
    "share": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "track_changes": 1
 }
