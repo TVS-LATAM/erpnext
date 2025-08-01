@@ -315,3 +315,4 @@ def set_expired_status():
 	#  	""",
 	#  	(nowdate()),
 	#  )
+	return ""

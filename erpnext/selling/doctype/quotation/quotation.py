@@ -467,34 +467,32 @@ def _make_sales_order(source_name, target_doc=None, ignore_permissions=False):
 
 
 def set_expired_status():
-    # filter out submitted non expired quotations whose validity has been ended
-    cond = "`tabQuotation`.docstatus = 1 and `tabQuotation`.status NOT IN ('Expired', 'Lost', 'Approved', 'Paid', 'Ordered', 'Partially Ordered', 'Partially Paid') and `tabQuotation`.valid_till < %s"
-    
-    # check if those QUO have SO against it
-    so_against_quo = """
-        SELECT
-            so.name FROM `tabSales Order` so, `tabSales Order Item` so_item
-        WHERE
-            so_item.docstatus = 1 and so.docstatus = 1
-            and so_item.parent = so.name
-            and so_item.prevdoc_docname = `tabQuotation`.name
+    excluded_statuses = (
+        'Expired', 'Lost', 'Approved', 'Paid', 'Ordered',
+        'Partially Ordered', 'Partially Paid'
+    )
+
+    cond = f"""
+        `tabQuotation`.docstatus = 1
+        AND `tabQuotation`.status NOT IN {excluded_statuses}
+        AND `tabQuotation`.valid_till < %s
     """
 
-    # if not exists any SO, set status as Expired
     frappe.db.multisql(
         {
-            "mariadb": f"""UPDATE `tabQuotation`
-                           SET `tabQuotation`.status = 'Expired'
-                           WHERE {cond} AND NOT EXISTS({so_against_quo})""",
-            
-            "postgres": f"""UPDATE `tabQuotation`
-                            SET status = 'Expired'
-                            FROM `tabSales Order`, `tabSales Order Item`
-                            WHERE {cond} AND NOT EXISTS({so_against_quo})""",
+            "mariadb": f"""
+                UPDATE `tabQuotation`
+                SET status = 'Expired'
+                WHERE {cond}
+            """,
+            "postgres": f"""
+                UPDATE `tabQuotation`
+                SET status = 'Expired'
+                WHERE {cond}
+            """,
         },
         (nowdate(),),
     )
-
 
 
 @frappe.whitelist()
