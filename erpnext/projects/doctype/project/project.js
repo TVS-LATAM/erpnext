@@ -117,7 +117,7 @@ frappe.ui.form.on("Project", {
 			viewCustomerDetails(frm);
 			validateBankTransferPayment(frm);
 		}
-		if(await erpnext.utils.isMechanic(frm)) {
+		if (await erpnext.utils.isMechanic(frm)) {
 			installQuotationItems(frm);
 		}
 
@@ -128,6 +128,9 @@ frappe.ui.form.on("Project", {
 			insertVinSearchButton(frm);
 			insertResendPaymentLink(frm);
 			insertDiagnoseResultTranslation(frm);
+			insertClientDescriptionTranslation(frm);
+			insertNotesTranslation(frm);
+			insertInternalNotesTranslation(frm);
 			insertUpdateQueuePositionButton(frm);
 			insertLoanCarButton(frm)
 			frm.trigger("set_custom_buttons");
@@ -267,7 +270,7 @@ frappe.ui.form.on("Project", {
 				});
 		});
 	},
-before_save: function (frm) {
+	before_save: function (frm) {
 		if (frm.doc.__islocal) {
 			frm.previous_status = null;
 		} else {
@@ -883,15 +886,96 @@ async function insertDiagnoseResultTranslation(frm) {
 		el.classList = `flag ${lang}`
 		el.title = `translate diagnose result to ${lang}`
 
-		el.addEventListener('click', () => onClick(frm, spinner, field, lang))
+		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'diagnose_result'))
 		container.appendChild(el)
 	}
 
 	container.appendChild(spinner);
 }
 
-async function onClick(frm, spinner, field, lang) {
-	const flags = document.getElementsByClassName('flag')
+async function insertClientDescriptionTranslation(frm) {
+	const lang = frappe?.boot?.user?.language || 'nl'
+	const languages = new Set(['nl', 'en', 'uk', lang])
+	const field = document.querySelector('div[data-fieldname="client_description"]');
+	if (!field) return;
+	const container = field.querySelector('.clearfix');
+	container.style = 'display:flex;gap:1rem;align-items:center;'
+
+	const spinner = document.createElement('div')
+	spinner.setAttribute('hidden', 'true')
+	spinner.classList = 'vin-search-spinner'
+	spinner.style = `position: relative !important;`
+
+	if (container.getElementsByClassName('flag').length) return
+
+	for (const lang of languages) {
+		const el = document.createElement(`div`)
+		el.classList = `flag ${lang}`
+		el.title = `translate client description to ${lang}`
+
+		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'client_description'))
+		container.appendChild(el)
+	}
+
+	container.appendChild(spinner);
+}
+
+async function insertNotesTranslation(frm) {
+	const lang = frappe?.boot?.user?.language || 'nl'
+	const languages = new Set(['nl', 'en', 'uk', lang])
+	const field = document.querySelector('div[data-fieldname="notes"]');
+	if (!field) return;
+	const container = field.querySelector('.clearfix');
+	container.style = 'display:flex;gap:1rem;align-items:center;'
+
+	const spinner = document.createElement('div')
+	spinner.setAttribute('hidden', 'true')
+	spinner.classList = 'vin-search-spinner'
+	spinner.style = `position: relative !important;`
+
+	if (container.getElementsByClassName('flag').length) return
+
+	for (const lang of languages) {
+		const el = document.createElement(`div`)
+		el.classList = `flag ${lang}`
+		el.title = `translate notes to ${lang}`
+
+		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'notes'))
+		container.appendChild(el)
+	}
+
+	container.appendChild(spinner);
+}
+
+async function insertInternalNotesTranslation(frm) {
+	const lang = frappe?.boot?.user?.language || 'nl'
+	const languages = new Set(['nl', 'en', 'uk', lang])
+	const field = document.querySelector('div[data-fieldname="internal_notes"]');
+	if (!field) return;
+	const container = field.querySelector('.clearfix');
+	container.style = 'display:flex;gap:1rem;align-items:center;'
+
+	const spinner = document.createElement('div')
+	spinner.setAttribute('hidden', 'true')
+	spinner.classList = 'vin-search-spinner'
+	spinner.style = `position: relative !important;`
+
+	if (container.getElementsByClassName('flag').length) return
+
+	for (const lang of languages) {
+		const el = document.createElement(`div`)
+		el.classList = `flag ${lang}`
+		el.title = `translate internal notes to ${lang}`
+
+		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'internal_notes'))
+		container.appendChild(el)
+	}
+
+	container.appendChild(spinner);
+}
+
+async function onClick(frm, spinner, field, lang, fieldType = 'diagnose_result') {
+	const flags = field.getElementsByClassName('flag')
 
 	for (const flag of flags) {
 		flag.setAttribute('hidden', 'true')
@@ -902,13 +986,21 @@ async function onClick(frm, spinner, field, lang) {
 
 	if (!aws_url) return
 
-	const response = await fetch(`${aws_url}project/translate-diagnose-result`, {
+	// Determine the API endpoint and field content based on fieldType
+
+	const apiEndpoint = `${aws_url}project/translate-field`;
+	let fieldContent = frm.doc[fieldType];
+
+	let requestBody = {
+		project_name: frm.docname,
+		language: lang,
+		content: fieldContent,
+		field_name: fieldType
+	};
+
+	const response = await fetch(apiEndpoint, {
 		method: "POST",
-		body: JSON.stringify({
-			project_name: frm.docname,
-			language: lang,
-			diagnose_result: frm.doc.diagnose_result
-		})
+		body: JSON.stringify(requestBody)
 	}).then(res => res.json())
 
 	spinner.setAttribute('hidden', 'true')
@@ -1098,13 +1190,13 @@ function validateBankTransferPayment(frm) {
 			return;
 		}
 		frappe.prompt([
-				{
-					label: 'Select Payment Type',
-					fieldname: 'confirm_method',
-					fieldtype: 'Select',
-					options: ['workshop', 'loan car'],
-					reqd: 1,
-					description: `
+			{
+				label: 'Select Payment Type',
+				fieldname: 'confirm_method',
+				fieldtype: 'Select',
+				options: ['workshop', 'loan car'],
+				reqd: 1,
+				description: `
 									<ul style="color: #d14343; padding-left: 20px;">
 											<li>Approved quotations will be marked as paid.</li>
 											<li>An invoice will be generated.</li>
@@ -1113,8 +1205,8 @@ function validateBankTransferPayment(frm) {
 											<li>This action can <span style="font-weight: bold;">NOT</span> be undone.</li>
 									</ul>
 							`
-				}
-			],
+			}
+		],
 			async (values) => {
 				frappe.confirm(
 					"Are you sure you want to mark approved quotations as paid? By confirming, you acknowledge that the payment has been verified in the company's account.",
