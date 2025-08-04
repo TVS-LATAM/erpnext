@@ -1,9 +1,11 @@
 (async () => {
   const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
   const isMechanic = await erpnext.utils.isMechanic(this.frm);
+  const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
+  const isSeniorMechanic = await erpnext.utils.isSeniorMechanic(this.frm);
   
   // If user is NOT a workshop viewer AND is NOT a mechanic, then show the icons
-  if (!isWorkshopViewer && !isMechanic) {
+  if (!isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic) {
     setTimeout(() => {
       const button = document.querySelector('#show-icons')
       const chat = document.querySelector('erp-full-chat').shadowRoot.querySelector('#full-chat-icon-container')

@@ -473,6 +473,30 @@ $.extend(erpnext.utils, {
 			}
 		})
 		return response.message
+	},
+	isJuniorMechanic: async () => {
+		const response = await frappe.call({
+			method: "frappe.sessions.get_is_junior_mechanic",
+			callback: (r) => {
+				return r.message
+			},
+			error: (r) => {
+				return r.message
+			}
+		})
+		return response.message
+	},
+	isSeniorMechanic: async () => {
+		const response = await frappe.call({
+			method: "frappe.sessions.get_is_senior_mechanic",
+			callback: (r) => {
+				return r.message
+			},
+			error: (r) => {
+				return r.message
+			}
+		})
+		return response.message
 	}
 });
 
@@ -489,8 +513,7 @@ erpnext.utils.select_alternate_items = function (opts) {
 			{
 				fieldname: "alternative_items",
 				fieldtype: "Table",
-				cannot_add_rows: true,
-				in_place_edit: true,
+				cannot_add_rows: true,				in_place_edit: true,
 				data: this.data,
 				get_data: () => {
 					return this.data;

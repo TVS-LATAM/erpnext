@@ -9,7 +9,11 @@ frappe.listview_settings["Project"] = {
 		}
 	},
 	async before_render() {
-		if(!await erpnext.utils.isWorkshopViewer(this.frm) && !await erpnext.utils.isMechanic(this.frm)){
+		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
+		const isMechanic = await erpnext.utils.isMechanic(this.frm);
+		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
+		const isSeniorMechanic = await erpnext.utils.isSeniorMechanic(this.frm);
+		if(!isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic){
 			insertFreezeQueuePosition()
 		}else{
 			const sidebar = $(".layout-side-section");

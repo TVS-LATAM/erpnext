@@ -104,7 +104,12 @@ frappe.ui.form.on("Project", {
 			frm.trigger("show_dashboard");
 		}
 
-		if (!frm.is_new() && !await erpnext.utils.isWorkshopViewer(frm) && !await erpnext.utils.isMechanic()) {
+		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
+		const isMechanic = await erpnext.utils.isMechanic(this.frm);
+		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
+		const isSeniorMechanic = await erpnext.utils.isSeniorMechanic(this.frm);
+
+		if (!frm.is_new() && !isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic) {
 			frm.add_custom_button(__("Generate Quotation"), async () => {
 				const doc = await frappe.model.get_new_doc('Quotation');
 				doc.party_name = frm.doc.customer;
@@ -117,11 +122,11 @@ frappe.ui.form.on("Project", {
 			viewCustomerDetails(frm);
 			validateBankTransferPayment(frm);
 		}
-		if(await erpnext.utils.isMechanic(frm)) {
+		if(isMechanic || isJuniorMechanic || isSeniorMechanic) {
 			installQuotationItems(frm);
 		}
-
-		if (!await erpnext.utils.isWorkshopViewer(this.frm) && !await erpnext.utils.isMechanic()) {
+		
+		if (!isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic) {
 			installChat(frm);
 			installQuotationItems(frm);
 			insertCarousel(frm);
@@ -267,15 +272,23 @@ frappe.ui.form.on("Project", {
 				});
 		});
 	},
-before_save: function (frm) {
+	before_save: function (frm) {
 		if (frm.doc.__islocal) {
 			frm.previous_status = null;
-		} else {
-			if (frm.doc.status === "Completed" && frm.previous_status === "Remote diagnose") {
-				showSentMessageAfterRemoteDiagnoseDialog(frm.docname)
-			}
-			frm.previous_status = frm.doc.status;
+			return;
 		}
+		const currentStatus = frm.doc.status;
+		const previousStatus = frm.previous_status;
+		const user = frappe.session.user;
+		if (currentStatus === "Completed" && previousStatus === "Remote diagnose") {
+			showSentMessageAfterRemoteDiagnoseDialog(frm.docname);
+		}
+		const isMechanic = user === "Mechanic" || user === "Junior Mechanic"
+		if (isMechanic) {
+			frm.doc.status = previousStatus;
+			showMessageNotAllowedUpdateStatus();
+		}
+		frm.previous_status = frm.doc.status;
 	},
 	status: async function (frm) {
 		let new_value = frm.doc.status;
@@ -806,6 +819,14 @@ function showSentMessageAfterRemoteDiagnoseDialog(project_name) {
 	});
 
 	dialog.show();
+}
+function showMessageNotAllowedUpdateStatus() {
+	frappe.msgprint({
+		title: "Not Allowed",
+		message: "You are not allowed to update the status of this project.",
+		indicator: "red",
+		alert: true
+	});
 }
 async function insertResendPaymentLink(frm) {
 	if (["Quality check approved"].includes(frm.doc.status)) {
