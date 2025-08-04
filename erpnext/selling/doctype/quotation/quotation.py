@@ -471,11 +471,12 @@ def set_expired_status():
         'Expired', 'Lost', 'Approved', 'Paid', 'Ordered',
         'Partially Ordered', 'Partially Paid'
     )
+		
+    excluded_statuses_str = ", ".join(f"'{status}'" for status in excluded_statuses)
 
     cond = f"""
-        `tabQuotation`.docstatus = 1
-        AND `tabQuotation`.status NOT IN {excluded_statuses}
-        AND `tabQuotation`.valid_till < %s
+        status NOT IN ({excluded_statuses_str})
+        AND valid_till < %s
     """
 
     frappe.db.multisql(
@@ -486,13 +487,14 @@ def set_expired_status():
                 WHERE {cond}
             """,
             "postgres": f"""
-                UPDATE `tabQuotation`
+                UPDATE "tabQuotation"
                 SET status = 'Expired'
                 WHERE {cond}
             """,
         },
         (nowdate(),),
     )
+
 
 
 @frappe.whitelist()
