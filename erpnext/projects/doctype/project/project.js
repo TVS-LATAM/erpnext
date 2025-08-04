@@ -275,7 +275,7 @@ frappe.ui.form.on("Project", {
 				});
 		});
 	},
-	before_save: function (frm) {
+	before_save: async function (frm) {
 		if (frm.doc.__islocal) {
 			frm.previous_status = null;
 			return;
@@ -286,8 +286,9 @@ frappe.ui.form.on("Project", {
 		if (currentStatus === "Completed" && previousStatus === "Remote diagnose") {
 			showSentMessageAfterRemoteDiagnoseDialog(frm.docname);
 		}
-		const isMechanic = user === "Mechanic" || user === "Junior Mechanic"
-		if (isMechanic) {
+		const isMechanic = await erpnext.utils.isMechanic(this.frm);
+		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
+		if (isMechanic || isJuniorMechanic) {
 			frm.doc.status = previousStatus;
 			showMessageNotAllowedUpdateStatus();
 		}
