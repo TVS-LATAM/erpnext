@@ -294,7 +294,7 @@ frappe.ui.form.on("Project", {
 		}
 		const isMechanic = await erpnext.utils.isMechanic(this.frm);
 		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
-		
+
 		if (isMechanic || isJuniorMechanic) {
 			frm.doc.status = previousStatus;
 			showMessageNotAllowedUpdateStatus();
@@ -1086,9 +1086,11 @@ async function insertUpdateQueuePositionButton(frm) {
 	const cardName = $('.frappe-list .kanban-card-title.ellipsis');
 	cardName.html(cardName.html() + doc.model != "" ? " " + doc.model : "");
 
-
+		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
+		const isMechanic = await erpnext.utils.isMechanic(this.frm);
+		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
 	frm.set_df_property("queue_position", "read_only", frm.is_new() ? 0 : 1);
-	if (!frm.is_new() && doc.status === 'In queue') {
+	if (!frm.is_new() && doc.status === 'In queue' && !isWorkshopViewer && !isMechanic && !isJuniorMechanic) {
 		frm.add_custom_button('Change queue position', async () => {
 			const select = await getSelect(doc.name)
 
