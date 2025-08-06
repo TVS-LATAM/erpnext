@@ -294,6 +294,7 @@ frappe.ui.form.on("Project", {
 		}
 		const isMechanic = await erpnext.utils.isMechanic(this.frm);
 		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
+		
 		if (isMechanic || isJuniorMechanic) {
 			frm.doc.status = previousStatus;
 			showMessageNotAllowedUpdateStatus();
