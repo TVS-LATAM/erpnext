@@ -124,6 +124,12 @@ frappe.ui.form.on("Project", {
 		}
 		if(isMechanic || isJuniorMechanic || isSeniorMechanic) {
 			installQuotationItems(frm);
+			insertCarousel(frm);
+			insertVinSearchButton(frm);
+			insertDiagnoseResultTranslation(frm);
+			insertClientDescriptionTranslation(frm);
+			insertNotesTranslation(frm);
+			insertInternalNotesTranslation(frm);
 		}
 		
 		if (!isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic) {
