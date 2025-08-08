@@ -284,12 +284,15 @@ frappe.ui.form.on("Project", {
 	before_save: async function (frm) {
 		if (frm.doc.__islocal) {
 			frm.previous_status = null;
+			frm.previus_remote_diagnose_status
 			return;
 		}
 		const currentStatus = frm.doc.status;
 		const previousStatus = frm.previous_status;
+		const currentRemoteDiagnoseStatus = frm.doc.remote_diagnose_status;
+		const previousRemoteDiagnoseStatus = frm.previous_remote_diagnose_status;
 		const user = frappe.session.user;
-		if (currentStatus === "Completed" && previousStatus === "Remote diagnose") {
+		if (currentRemoteDiagnoseStatus === "After diagnoses" && previousRemoteDiagnoseStatus === "In diagnose") {
 			showSentMessageAfterRemoteDiagnoseDialog(frm.docname);
 		}
 		const isMechanic = await erpnext.utils.isMechanic(this.frm);

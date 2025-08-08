@@ -5,7 +5,7 @@
  "doctype": "Number Card",
  "document_type": "Project",
  "dynamic_filters_json": "[]",
- "filters_json": "[[\"Project\",\"status\",\"=\",\"Remote diagnose\",false]]",
+ "filters_json": "[[\"Project\",\"remote_diagnose_status\",\"=\",\"Remote diagnose\",false]]",
  "function": "Count",
  "idx": 0,
  "is_public": 1,

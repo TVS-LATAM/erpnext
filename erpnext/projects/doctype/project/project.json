@@ -32,6 +32,7 @@
   "expected_end_date",
   "remote_diagnostic_date",
   "remote_diagnostic_time",
+  "remote_diagnose_status",
   "priority",
   "department",
   "project_mechanic",
@@ -160,7 +161,7 @@
    "no_copy": 1,
    "oldfieldname": "status",
    "oldfieldtype": "Select",
-   "options": "\nIn queue\nIn parking\nPre-diagnose\nDiagnosed\nQuoted\nQuote approved\nIn repair\nRepair ready\nFully-tested/adapted\nQuality check approved\nInvoice paid\nAwaiting pickup\nCompleted\nCancelled\nIn pause\nNo response from customer\nRequest a callback\nRemote diagnose\nSoft. showroom\nSoft. internally",
+   "options": "\nIn queue\nIn parking\nPre-diagnose\nDiagnosed\nQuoted\nQuote approved\nIn repair\nRepair ready\nFully-tested/adapted\nQuality check approved\nInvoice paid\nAwaiting pickup\nCompleted\nCancelled\nIn pause\nNo response from customer\nRequest a callback\nSoft. showroom\nSoft. internally",
    "search_index": 1
   },
   {
@@ -981,6 +982,16 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Sent Software Offer"
+  },
+  {
+   "description": "Remote Diagnostic Time",
+   "fetch_if_empty": 1,
+   "fieldname": "remote_diagnose_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "R.D Status",
+   "options": "\nRemote diagnose\nIn diagnosis\nAfter diagnosis"
   }
  ],
  "grid_page_length": 50,
@@ -989,7 +1000,7 @@
  "index_web_pages_for_search": 1,
  "links": [],
  "max_attachments": 4,
- "modified": "2025-07-07 18:10:13.642650",
+ "modified": "2025-08-08 19:39:27.015795",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Project",

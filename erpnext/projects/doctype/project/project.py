@@ -109,6 +109,7 @@ class Project(Document):
 		project_template: DF.Link | None
 		project_type: DF.Link | None
 		queue_position: DF.Literal[None]
+		remote_diagnose_status: DF.Literal["", "Remote diagnose", "In diagnosis", "After diagnosis"]
 		remote_diagnostic_date: DF.Date | None
 		remote_diagnostic_time: DF.Literal["", "15:30-16:15", "16:15-17:00"]
 		requirements: DF.Table[ClientRequirements]
@@ -117,7 +118,7 @@ class Project(Document):
 		second_email: DF.Time | None
 		sent_software_offer: DF.Check
 		software_status: DF.Literal["", "Software request", "Software is ready for use", "Software has been attached"]
-		status: DF.Literal["", "In queue", "In parking", "Pre-diagnose", "Diagnosed", "Quoted", "Quote approved", "In repair", "Repair ready", "Fully-tested/adapted", "Quality check approved", "Invoice paid", "Awaiting pickup", "Completed", "Cancelled", "In pause", "No response from customer", "Request a callback", "Remote diagnose", "Soft. showroom", "Soft. internally"]
+		status: DF.Literal["", "In queue", "In parking", "Pre-diagnose", "Diagnosed", "Quoted", "Quote approved", "In repair", "Repair ready", "Fully-tested/adapted", "Quality check approved", "Invoice paid", "Awaiting pickup", "Completed", "Cancelled", "In pause", "No response from customer", "Request a callback", "Soft. showroom", "Soft. internally"]
 		status_modified: DF.Date | None
 		team_viewer_id: DF.Data | None
 		terms_and_conditions_accepted: DF.Check
