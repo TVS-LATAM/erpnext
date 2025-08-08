@@ -295,7 +295,8 @@ frappe.ui.form.on("Project", {
 		const isMechanic = await erpnext.utils.isMechanic(this.frm);
 		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
 
-		if (isMechanic || isJuniorMechanic) {
+		// Only block and notify when attempting to change the status field
+		if ((isMechanic || isJuniorMechanic) && currentStatus !== previousStatus) {
 			frm.doc.status = previousStatus;
 			showMessageNotAllowedUpdateStatus();
 		}
