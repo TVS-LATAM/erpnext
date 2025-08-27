@@ -1217,12 +1217,168 @@ function viewCustomerDetails(frm) {
 	})
 }
 
+/**
+ * Render a payment history table as an HTML string.
+ * - Safe: escapes user-visible strings to prevent XSS.
+ * - Robust: tolerates missing fields and mixed types.
+ * - Internationalized: uses Intl for currency and date formatting.
+ *
+ * @param {Object} data
+ * @param {Array}  data.history            - List of payments [{ created_at, amount, payment_gateway }]
+ * @param {number} [data.fullAmount]       - Total invoice amount
+ * @param {number} [data.totalPaid]        - Optional precomputed total paid
+ * @param {Object} [opts]
+ * @param {string} [opts.locale='en-US']   - BCP 47 locale for formatting
+ * @param {string} [opts.currency='EUR']   - ISO 4217 currency code
+ * @param {'asc'|'desc'} [opts.sortDir='desc'] - Sort by date ascending or descending
+ * @param {Intl.DateTimeFormatOptions} [opts.dateOptions] - Override date display options
+ * @returns {string} HTML string
+ */
+function renderPaymentHistoryTable(data, opts = {}) {
+  const {
+    locale = 'de-DE',
+    currency = 'EUR',
+    sortDir = 'desc',
+    dateOptions = {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }
+  } = opts;
+
+  const history = Array.isArray(data?.history) ? data.history : [];
+
+  const dtf = new Intl.DateTimeFormat(locale, dateOptions);
+  const nf = new Intl.NumberFormat(locale, { style: 'currency', currency, currencyDisplay: 'symbol' });
+
+  const esc = (s) =>
+    String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const toNumber = (x) => {
+    if (typeof x === 'number' && Number.isFinite(x)) return x;
+    const n = Number(String(x).replace(/[^\d.-]/g, ''));
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const formatDate = (isoLike) => {
+    const d = new Date(isoLike);
+    return Number.isFinite(d.getTime()) ? dtf.format(d) : '—';
+  };
+
+  const formatCurrency = (amount) => nf.format(toNumber(amount));
+
+  // Sort payments by date
+  const sorted = [...history].sort((a, b) => {
+    const ta = new Date(a?.created_at).getTime();
+    const tb = new Date(b?.created_at).getTime();
+    const da = Number.isFinite(ta) ? ta : 0;
+    const db = Number.isFinite(tb) ? tb : 0;
+    return sortDir === 'asc' ? da - db : db - da;
+  });
+
+  // Totals
+  const computedTotalPaid = sorted.reduce((sum, p) => sum + toNumber(p?.amount), 0);
+  const totalPaid = toNumber(data?.totalPaid) || computedTotalPaid;
+  const fullAmount = toNumber(data?.fullAmount);
+  const remaining = Math.max(0, fullAmount - totalPaid);
+
+  // Empty state
+  if (sorted.length === 0) {
+    return `
+      <div style="margin-top:20px;">
+        <h4>Payment History</h4>
+        <p class="text-muted mb-0">No payment history available.</p>
+      </div>
+    `;
+  }
+
+  const rowsHtml = sorted
+    .map((p) => {
+      const gateway = p?.payment_gateway ? esc(p.payment_gateway) : 'Bank Transfer';
+      const date = formatDate(p?.created_at);
+      const amount = formatCurrency(p?.amount);
+      return `
+        <tr>
+          <td data-label="Date">${date}</td>
+          <td data-label="Payment Gateway">${gateway}</td>
+          <td class="text-end" data-label="Amount">${amount}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  return `
+    <div style="margin-top:20px;">
+      <h4 class="mb-2">Payment History</h4>
+      <table class="table table-bordered table-hover align-middle" style="margin-top:10px;">
+        <caption class="visually-hidden">Payments made toward this invoice</caption>
+        <thead class="table-light">
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Payment Gateway</th>
+            <th scope="col" class="text-end">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th scope="row" colspan="1" class="text-end">Total Paid</th>
+            <td colspan="1">${formatCurrency(totalPaid)}</td>
+            <td class="text-end"></td>
+          </tr>
+          <tr>
+            <th scope="row" colspan="1" class="text-end">Total Invoice</th>
+            <td colspan="1">${formatCurrency(fullAmount)}</td>
+            <td class="text-end"></td>
+          </tr>
+          <tr>
+            <th scope="row" colspan="1" class="text-end">Remaining</th>
+            <td colspan="1"><strong>${formatCurrency(remaining)}</strong></td>
+            <td class="text-end"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  `;
+}
+
+
 function validateBankTransferPayment(frm) {
 	frm.add_custom_button("Validate Bank Transfer Payment", async () => {
 		if (frm.doc.status === "Invoice paid" || frm.doc.status === "Completed" || frm.doc.status === "Cancelled") {
 			frappe.msgprint('The project is already paid, completed, or cancelled');
 			return;
 		}
+		const { aws_url } = await frappe.db.get_doc('Rest Config');
+		if (!aws_url) {
+			frappe.msgprint('AWS URL not found');
+			return;
+		}
+		// hacer un post a aws_url + '/validate-bank-transfer-payment' con el nombre del proyecto
+		const response = await fetch(`${aws_url}get-project-payment-history`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+
+			},
+			body: JSON.stringify({ name: frm.doc.name })
+		});
+		console.log("response: ",response);
+		if ("error" in response) {
+			frappe.msgprint(response.error);
+			return;
+		}
+		const data = await response.json();
+		console.log("data: ",data);
 		frappe.prompt([
 			{
 				label: 'Select Payment Type',
@@ -1238,6 +1394,7 @@ function validateBankTransferPayment(frm) {
 											<li>The project status will be updated to "Invoice Paid".</li>
 											<li>This action can <span style="font-weight: bold;">NOT</span> be undone.</li>
 									</ul>
+									${renderPaymentHistoryTable(data)}
 							`
 			}
 		],
