@@ -1145,77 +1145,122 @@ async function insertLoanCarButton(frm) {
 }
 
 function viewCustomerDetails(frm) {
-	frm.add_custom_button(__("View Customer Details"), async () => {
-		const customer = await frappe.db.get_doc('Customer', frm.doc.customer)
-		const linked_contacts_and_addresses = await frappe.db.get_list(
-			"Address",
-			{
-				filters: [
-					["disabled", "=", 0],
-					["address_type", "in", ["Billing", "Shipping"]],
-					["Dynamic Link", "link_doctype", "=", "Customer"],
-					["Dynamic Link", "link_name", "=", `${frm.doc.customer}`],
-					["Dynamic Link", "parenttype", "=", "Address"]
-				],
-				fields: ["address_line1", "address_line2", "country", "city", "pincode", "state", "address_type"]
-			}
-		);
+  frm.add_custom_button(__("View Customer Details"), async () => {
+    const customer = await frappe.db.get_doc('Customer', frm.doc.customer);
 
+    const linked_contacts_and_addresses = await frappe.db.get_list("Address", {
+      filters: [
+        ["disabled", "=", 0],
+        ["address_type", "in", ["Billing", "Shipping"]],
+        ["Dynamic Link", "link_doctype", "=", "Customer"],
+        ["Dynamic Link", "link_name", "=", `${frm.doc.customer}`],
+        ["Dynamic Link", "parenttype", "=", "Address"]
+      ],
+      fields: ["name", "address_line1", "address_line2", "country", "city", "pincode", "state", "address_type"]
+    });
 
-		let billingAddress = null;
-		let shippingAddress = null;
+    // Primer Billing y Shipping
+    let billingAddress = null;
+    let shippingAddress = null;
+    for (let address of linked_contacts_and_addresses) {
+      if (address.address_type === 'Billing' && !billingAddress) billingAddress = address;
+      else if (address.address_type === 'Shipping' && !shippingAddress) shippingAddress = address;
+      if (billingAddress && shippingAddress) break;
+    }
 
-		// Find the first Billing and Shipping address
-		for (let address of linked_contacts_and_addresses) {
-			if (address.address_type === 'Billing' && !billingAddress) {
-				billingAddress = address;
-			} else if (address.address_type === 'Shipping' && !shippingAddress) {
-				shippingAddress = address;
-			}
+    // Utilidades de UI
+    const escapeHtml = (val) => {
+      if (val === null || val === undefined) return '—';
+      if (frappe.utils && frappe.utils.escape_html) return frappe.utils.escape_html(String(val));
+      return String(val)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    };
 
-			// Exit the loop if both addresses are found
-			if (billingAddress && shippingAddress) {
-				break;
-			}
-		}
+    const phoneRaw = customer.phone || customer.phone_number || customer.mobile_no;
+    const phone = phoneRaw ? `<a href="tel:${escapeHtml(phoneRaw)}">${escapeHtml(phoneRaw)}</a>` : '—';
+    const email = customer.email_id ? `<a href="mailto:${escapeHtml(customer.email_id)}">${escapeHtml(customer.email_id)}</a>` : '—';
 
-		let addresses_info = '';
-		if (billingAddress) {
-			addresses_info += `
-						<br><b>Address Type: Billing</b><br>
-						Address Line 1: ${billingAddress.address_line1}<br>
-						Address Line 2: ${billingAddress.address_line2 || 'N/A'}<br>
-						Country: ${billingAddress.country}<br>
-						City: ${billingAddress.city}<br>
-						Postal Code: ${billingAddress.pincode || 'N/A'}<br>
-						State/Province: ${billingAddress.state}<br>
-					`;
-		}
+    const addrBlock = (label, a) => a ? `
+      <div class="cc-addr">
+        <div class="cc-badge">${escapeHtml(label)}</div>
+        <div class="cc-addr-lines">
+          ${escapeHtml(a.address_line1)}${a.address_line2 ? `<br>${escapeHtml(a.address_line2)}` : ''}
+          ${[a.city, a.state, a.pincode].some(Boolean) ? `<br>${[a.city, a.state, a.pincode].filter(Boolean).map(escapeHtml).join(', ')}` : ''}
+          ${a.country ? `<br>${escapeHtml(a.country)}` : ''}
+        </div>
+      </div>` : '';
 
-		if (shippingAddress) {
-			addresses_info += `
-						<br><b>Address Type: Shipping</b><br>
-						Address Line 1: ${shippingAddress.address_line1}<br>
-						Address Line 2: ${shippingAddress.address_line2 || 'N/A'}<br>
-						Country: ${shippingAddress.country}<br>
-						City: ${shippingAddress.city}<br>
-						Postal Code: ${shippingAddress.pincode || 'N/A'}<br>
-						State/Province: ${shippingAddress.state}<br>
-					`;
-		}
+    const card = (title, inner) => `
+      <div class="cc-card">
+        <div class="cc-card-title">${escapeHtml(title)}</div>
+        ${inner}
+      </div>`;
 
-		frappe.msgprint({
-			title: __('Customer Information'),
-			indicator: 'green',
-			message: __(
-				`Name: ${customer.name || 'No name provided'}<br>` +
-				`Phone: ${customer.phone_number || customer.mobile_no || 'No phone number provided'}<br>` +
-				`Email: ${customer.email_id || 'No email provided'}<br><br>` +
-				`Addresses: ${addresses_info || 'No addresses found'}`
-			)
-		});
-	})
+    const html = `
+      <style>
+        .cc-wrap { font-size: 13px; line-height: 1.45; }
+        .cc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .cc-title { font-weight: 600; font-size: 16px; }
+        .cc-meta { color: #6b7280; font-size: 12px; }
+        .cc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .cc-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; background: #fff; }
+        .cc-card-title { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+        .cc-kv { display: flex; align-items: center; margin: 6px 0; }
+        .cc-kv label { width: 110px; color: #6b7280; }
+        .cc-kv .val { flex: 1; }
+        .cc-addr { border: 1px dashed #e5e7eb; border-radius: 8px; padding: 10px; margin-top: 8px; }
+        .cc-badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #f3f4f6; color: #374151; margin-bottom: 6px; }
+        .cc-footer { margin-top: 12px; color: #6b7280; font-size: 12px; }
+        @media (max-width: 768px) {
+          .cc-grid { grid-template-columns: 1fr; }
+          .cc-kv label { width: 90px; }
+        }
+      </style>
+
+      <div class="cc-wrap">
+        <div class="cc-header">
+          <div class="cc-title">${escapeHtml(customer.customer_name || customer.name || __('Customer'))}</div>
+          <div class="cc-meta"><a href="/app/customer/${encodeURIComponent(customer.name)}">${__('Open customer card')}</a></div>
+        </div>
+
+        <div class="cc-grid">
+          ${card(__('Contact'), `
+            <div class="cc-kv"><label>${__('Phone')}</label><div class="val">${phone}</div></div>
+            <div class="cc-kv"><label>${__('Email')}</label><div class="val">${email}</div></div>
+            <div class="cc-kv"><label>${__('VAT')}</label><div class="val">${escapeHtml(customer.tax_id || '—')}</div></div>
+            <div class="cc-kv"><label>${__('Tax Category')}</label><div class="val">${escapeHtml(customer.tax_category || '—')}</div></div>
+          `)}
+
+          ${card(__('Addresses'), `
+            ${addrBlock(__('Billing'), billingAddress)}
+            ${addrBlock(__('Shipping'), shippingAddress)}
+            ${!billingAddress && !shippingAddress ? `<div class="cc-kv" style="margin:4px 0;color:#6b7280;">— ${__('There are no addresses linked')}</div>` : ''}
+          `)}
+        </div>
+
+        <div class="cc-footer">
+          ${__('Last update')}: ${frappe.datetime.str_to_user(customer.modified || customer.creation)}
+        </div>
+      </div>
+    `;
+
+    const d = new frappe.ui.Dialog({
+      title: __('Customer Information'),
+      fields: [{ fieldtype: 'HTML', fieldname: 'preview' }],
+      size: 'large',
+      primary_action_label: __('Cerrar'),
+      primary_action: () => d.hide()
+    });
+
+    d.show();
+    d.get_field('preview').$wrapper.html(html);
+  });
 }
+
 
 /**
  * Render a payment history table as an HTML string.

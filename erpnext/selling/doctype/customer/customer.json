@@ -227,6 +227,7 @@
   {
    "fieldname": "tax_id",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Tax ID"
   },
   {
@@ -628,7 +629,7 @@
    "link_fieldname": "party"
   }
  ],
- "modified": "2024-06-17 03:24:59.612974",
+ "modified": "2025-09-10 20:50:35.010612",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Customer",
@@ -706,6 +707,7 @@
   }
  ],
  "quick_entry": 1,
+ "row_format": "Dynamic",
  "search_fields": "customer_group,territory, mobile_no,primary_address",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
