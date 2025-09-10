@@ -2,7 +2,7 @@
 // License: GNU General Public License v3. See license.txt
 
 const TAX_CATEGORY = {
-	EU: '21% binnenland',
+	EU: 'Omzet Werkplaats (21%)',
 	Non_EU: 'Outside EU'
 }
 
