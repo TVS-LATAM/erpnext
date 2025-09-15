@@ -1,47 +1,33 @@
-# vat_declaration.py – Declaración de IVA compatible con Belastingdienst (Versión Mejorada y Auditada)
+# vat_declaration.py – Declaración de IVA compatible con Belastingdienst (2025)
+# Correcciones clave:
+# - 2a: base imponible (omzet) sin IVA
+# - 1c: sin "fallback 5%"; usar IVA real por línea / impuesto
+# - 4a/4b: IVA devengado por inversión a partir de impuestos/cuentas (no 21% fijo)
+# - 5a: suma de IVA devengado en 1a/1b/1c/1d + 4a/4b (excluye 1e y 2a)
+# - Dataset consistente con plantillas: incluye breakdown por tarifa (21/9/0) y rubrics con amount (neto) + vat
 
 import frappe
 from frappe import _
 from frappe.utils import getdate, flt
 from datetime import timedelta, date
 
-# Mapeo mejorado de categorías fiscales a rubrieken
-TAX_CATEGORY_MAPPING = {
-    "21% binnenland": "1a",
-    "9% binnenland": "1b",
-    "6% binnenland": "1b",  # Tarifa baja alternativa
-    "0% binnenland": "1e",
-    "vrijgesteld": "1e",
-    "eu customer": "3b",
-    "afstandsverkopen": "3c",
-    "privégebruik": "1d",
-    "private gebruik": "1d",
-    "diensten buiten eu": "4a",
-    "diensten eu": "4b",
-    "reverse charge": "2a",
-    "verlegd": "2a",
-    "verleggingsregeling": "2a",
-    "export": "3a"
-}
-
-# Incoterms que indican exportación
-EXPORT_INCOTERMS = ['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP']
-
-# Países de la UE para clasificación correcta
+# Países de la UE
 EU_COUNTRIES = [
     'Austria', 'Belgium', 'Bulgaria', 'Croatia', 'Cyprus', 'Czech Republic',
-    'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece', 
+    'Denmark', 'Estonia', 'Finland', 'France', 'Germany', 'Greece',
     'Hungary', 'Ireland', 'Italy', 'Latvia', 'Lithuania', 'Luxembourg',
     'Malta', 'Netherlands', 'Poland', 'Portugal', 'Romania', 'Slovakia',
     'Slovenia', 'Spain', 'Sweden'
 ]
 
+# Incoterms que suelen indicar exportación
+EXPORT_INCOTERMS = ['EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP']
 
 def execute(filters=None):
     if not filters:
         filters = {}
 
-    # Establecer rango de fechas por defecto al mes anterior
+    # Rango por defecto = mes anterior
     today = date.today()
     first_day_current = date(today.year, today.month, 1)
     last_day_last_month = first_day_current - timedelta(days=1)
@@ -49,393 +35,400 @@ def execute(filters=None):
 
     from_date = filters.get("from_date") or first_day_last_month.strftime('%Y-%m-%d')
     to_date = filters.get("to_date") or last_day_last_month.strftime('%Y-%m-%d')
-    
-    # Actualizar filtros con fechas procesadas
+
     filters.update({
         "from_date": from_date,
         "to_date": to_date,
         "from_date_str": getdate(from_date).strftime('%d-%m-%Y'),
         "to_date_str": getdate(to_date).strftime('%d-%m-%Y'),
-        "due_date": (getdate(to_date) + timedelta(days=30)).strftime('%d-%m-%Y')
     })
 
     columns = get_columns()
-    data = fetch_vat_data(filters)
-    
-    # Validar integridad de datos
+    data = build_report_data(filters)  # devuelve lista en el orden esperado por las plantillas
+
+    # Validaciones (no bloqueantes)
     validate_data_integrity(filters)
 
     return columns, data
 
 
-def fetch_vat_data(filters):
-    from_date = filters.get("from_date", "1900-01-01")
-    to_date = filters.get("to_date", "2100-12-31")
+# --------------------------------------------------------------------------------------
+# Construcción del dataset consistente con plantillas
+#   Orden de datos esperado por las plantillas:
+#   0..5  : Breakdown por tarifa: [21_net, 21_vat, 9_net, 9_vat, 0_net, 0_vat]
+#   6..10 : Rubriek 1 (1a..1e)  -> cada objeto trae amount (net) y vat
+#   11    : Rubriek 2a          -> amount (net) y vat = 0.0
+#   12..14: Rubriek 3 (3a..3c)  -> net; vat = 0.0
+#   15..16: Rubriek 4 (4a..4b)  -> net; vat = IVA devengado por inversión
+#   17..23: Rubriek 5 (5a..5f y total)  -> amounts calculados
+# --------------------------------------------------------------------------------------
+
+def build_report_data(filters):
+    from_date = filters.get("from_date")
+    to_date = filters.get("to_date")
     company = filters.get("company", "")
 
-    # Inicializar rubrieken
-    rubrics = {
+    # Totales por rubrica (netos) y IVA (donde aplique)
+    rubrics_net = {
         "1a": 0.0, "1b": 0.0, "1c": 0.0, "1d": 0.0, "1e": 0.0,
-        "2a": 0.0, "3a": 0.0, "3b": 0.0, "3c": 0.0,
-        "4a": 0.0, "4b": 0.0, "5a": 0.0, "5b": 0.0
+        "2a": 0.0,
+        "3a": 0.0, "3b": 0.0, "3c": 0.0,
+        "4a": 0.0, "4b": 0.0
     }
+    rubrics_vat = {k: 0.0 for k in rubrics_net.keys()}  # IVA por rubrica (solo donde aplique)
 
-    # === ANÁLISIS DE FACTURAS DE VENTA MEJORADO ===
+    # Breakdown por tarifa (ventas)
+    rate_breakdown_net = {"21": 0.0, "9": 0.0, "0": 0.0}
+    rate_breakdown_vat = {"21": 0.0, "9": 0.0, "0": 0.0}  # IVA a 0 no suma, pero se deja por consistencia
+
+    # ---------------------------
+    # VENTAS
+    # ---------------------------
+    # Tomamos líneas para distinguir bienes/servicios y extraer base/impuesto por tipo
     sales_query = """
         SELECT
-            si.name,
+            si.name as inv,
+            si.company,
             si.customer,
-            LOWER(TRIM(si.tax_category)) AS category,
-            UPPER(TRIM(si.incoterm)) AS incoterm,
-            si.base_net_total,
             si.customer_address,
             addr.country as customer_country,
-            stc.rate,
-            stc.base_tax_amount,
+            LOWER(TRIM(si.tax_category)) as tax_category,
+            UPPER(TRIM(si.incoterm)) as incoterm,
+            sii.item_code,
+            it.is_stock_item,
+            sii.base_net_amount as line_net,
+            stc.rate as tax_rate,
+            stc.base_tax_amount as line_vat,
             stc.account_head,
             stc.description,
             acc.account_type,
-            acc.account_name,
-            CASE 
-                WHEN addr.country = 'Netherlands' THEN 'domestic'
-                WHEN addr.country IN ({eu_countries}) THEN 'eu'
-                ELSE 'export'
-            END AS customer_type
+            acc.account_name
         FROM `tabSales Invoice` si
-        LEFT JOIN `tabSales Taxes and Charges` stc 
-            ON stc.parent = si.name AND stc.parenttype = 'Sales Invoice'
+        INNER JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
+        LEFT JOIN `tabSales Taxes and Charges` stc ON stc.parent = si.name AND stc.parenttype = 'Sales Invoice'
         LEFT JOIN `tabAccount` acc ON acc.name = stc.account_head
+        LEFT JOIN `tabItem` it ON it.name = sii.item_code
         LEFT JOIN `tabAddress` addr ON addr.name = si.customer_address
-        WHERE si.posting_date BETWEEN %(from_date)s AND %(to_date)s
-            AND si.docstatus = 1 
-            AND (%(company)s = '' OR si.company = %(company)s)
-        ORDER BY si.name, stc.idx
-    """.format(eu_countries="'" + "','".join(EU_COUNTRIES) + "'")
+        WHERE si.docstatus = 1
+          AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+          AND (%(company)s = '' OR si.company = %(company)s)
+    """
+    sales = frappe.db.sql(sales_query, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)
 
-    sales_rows = frappe.db.sql(sales_query, {
-        "from_date": from_date, 
-        "to_date": to_date, 
-        "company": company
-    }, as_dict=True)
-
-    # === ANÁLISIS DE FACTURAS DE COMPRA MEJORADO ===
-    purchase_query = """
-        SELECT
-            pi.name,
-            pi.supplier,
-            LOWER(TRIM(pi.tax_category)) AS category,
-            pi.base_net_total,
-            pi.supplier_address,
-            addr.country as supplier_country,
-            ptc.rate,
-            ptc.base_tax_amount,
-            ptc.account_head,
-            acc.account_type,
-            acc.account_name,
-            CASE 
-                WHEN addr.country = 'Netherlands' THEN 'domestic'
-                WHEN addr.country IN ({eu_countries}) THEN 'eu'
-                ELSE 'non_eu'
-            END AS supplier_type
-        FROM `tabPurchase Invoice` pi
-        LEFT JOIN `tabPurchase Taxes and Charges` ptc 
-            ON ptc.parent = pi.name AND ptc.parenttype = 'Purchase Invoice'
-        LEFT JOIN `tabAccount` acc ON acc.name = ptc.account_head
-        LEFT JOIN `tabAddress` addr ON addr.name = pi.supplier_address
-        WHERE pi.posting_date BETWEEN %(from_date)s AND %(to_date)s
-            AND pi.docstatus = 1 
-            AND (%(company)s = '' OR pi.company = %(company)s)
-        ORDER BY pi.name, ptc.idx
-    """.format(eu_countries="'" + "','".join(EU_COUNTRIES) + "'")
-
-    purchase_rows = frappe.db.sql(purchase_query, {
-        "from_date": from_date, 
-        "to_date": to_date, 
-        "company": company
-    }, as_dict=True)
-
-    # Procesar datos de ventas
-    processed_sales = {}
-    unknown_categories = set()
-    reverse_charge_total = 0.0
-    
-    for row in sales_rows:
-        invoice_name = row.name
-        if invoice_name not in processed_sales:
-            processed_sales[invoice_name] = {
-                "net_total": row.base_net_total or 0,
-                "category": row.category or "",
-                "incoterm": row.incoterm or "",
-                "customer_type": row.customer_type or "unknown",
-                "vat_amount": 0,
-                "reverse_charge": 0
-            }
-        
-        # Acumular IVA solo de cuentas de impuestos válidas
-        if row.account_type == "Tax" and "vat" in (row.account_name or "").lower():
-            processed_sales[invoice_name]["vat_amount"] += flt(row.base_tax_amount or 0)
-        
-        # Detectar reverse charge
-        if (row.account_head and ("verlegd" in row.account_head.lower() or "reverse" in row.account_head.lower()) or
-            row.description and "verlegd" in row.description.lower()):
-            processed_sales[invoice_name]["reverse_charge"] += flt(row.base_tax_amount or 0)
-            reverse_charge_total += flt(row.base_tax_amount or 0)
-
-    # Clasificar ventas en rubrieken
-    for invoice_name, data in processed_sales.items():
-        category = data["category"]
-        incoterm = data["incoterm"]
-        net_amount = data["net_total"]
-        customer_type = data["customer_type"]
-        vat_amount = data["vat_amount"]
-        
-        # Lógica de clasificación mejorada
-        rubric = None
-        
-        # 1. Prioridad a categoría fiscal para ventas nacionales
-        if category in TAX_CATEGORY_MAPPING:
-            rubric = TAX_CATEGORY_MAPPING[category]
-        
-        # 2. Verificar coherencia con tipo de cliente
-        if rubric in ["1a", "1b", "1e"] and customer_type != "domestic":
-            if customer_type == "eu":
-                rubric = "3b"
-            elif customer_type == "export":
-                rubric = "3a"
-        
-        # 3. Considerar exportación solo si no es venta nacional
-        elif not rubric and incoterm in EXPORT_INCOTERMS:
-            rubric = "3a"
-        
-        # 4. Fallback por tipo de cliente
-        elif not rubric:
-            if customer_type == "eu":
-                rubric = "3b"
-            elif customer_type == "export":
-                rubric = "3a"
-            else:
-                rubric = "1c"
-                unknown_categories.add(category)
-        
-        # Registrar en el rubrick correspondiente
-        if rubric in rubrics:
-            rubrics[rubric] += net_amount
-        
-        # Acumular IVA repercutido
-        rubrics["5a"] += vat_amount
-
-    # Añadir reverse charge
-    rubrics["2a"] = reverse_charge_total
-
-    # Procesar datos de compras
-    processed_purchases = {}
-    
-    for row in purchase_rows:
-        invoice_name = row.name
-        if invoice_name not in processed_purchases:
-            processed_purchases[invoice_name] = {
-                "net_total": row.base_net_total or 0,
-                "category": row.category or "",
-                "supplier_type": row.supplier_type or "unknown",
-                "input_vat": 0
-            }
-        
-        # Acumular IVA soportado solo de cuentas válidas
-        if (row.account_type == "Tax" and 
-            "vat" in (row.account_name or "").lower() and 
-            ("input" in (row.account_name or "").lower() or "soportado" in (row.account_name or "").lower())):
-            processed_purchases[invoice_name]["input_vat"] += flt(row.base_tax_amount or 0)
-
-    # Clasificar compras
-    for invoice_name, data in processed_purchases.items():
-        category = data["category"]
-        net_amount = data["net_total"]
-        supplier_type = data["supplier_type"]
-        
-        # Servicios de fuera de la UE
-        if category == "diensten buiten eu" or (supplier_type == "non_eu" and "dienst" in category):
-            rubrics["4a"] += net_amount
-        
-        # Servicios de dentro de la UE
-        elif category == "diensten eu" or (supplier_type == "eu" and "dienst" in category):
-            rubrics["4b"] += net_amount
-        
-        # Acumular IVA soportado
-        rubrics["5b"] += data["input_vat"]
-
-    # Calcular totales
-    net_total = rubrics["5a"] - rubrics["5b"]
-
-    # Mostrar advertencias
-    if unknown_categories:
-        frappe.msgprint(
-            _("Categorías fiscales desconocidas detectadas (sumadas a 1c):") + 
-            "<br>" + "<br>".join(sorted(unknown_categories)),
-            title=_("Advertencia de Mapeo de Categorías"),
-            indicator="orange"
+    for r in sales:
+        country = (r.customer_country or "").strip()
+        customer_type = (
+            "domestic" if country == "Netherlands"
+            else "eu" if country in EU_COUNTRIES
+            else "export"
         )
 
-    # Retornar datos estructurados
-    return [
-        {"rubric": "1a", "description": _("1a. Leveringen binnenland hoog tarief (21%)"), "amount": rubrics["1a"]},
-        {"rubric": "1b", "description": _("1b. Leveringen binnenland laag tarief (9%/6%)"), "amount": rubrics["1b"]},
-        {"rubric": "1c", "description": _("1c. Overige tarieven"), "amount": rubrics["1c"]},
-        {"rubric": "1d", "description": _("1d. Privégebruik"), "amount": rubrics["1d"]},
-        {"rubric": "1e", "description": _("1e. Leveringen tegen 0% of vrijgesteld"), "amount": rubrics["1e"]},
-        {"rubric": "2a", "description": _("2a. Verleggingsregeling binnenland"), "amount": rubrics["2a"]},
-        {"rubric": "3a", "description": _("3a. Export buiten de EU"), "amount": rubrics["3a"]},
-        {"rubric": "3b", "description": _("3b. Leveringen binnen de EU"), "amount": rubrics["3b"]},
-        {"rubric": "3c", "description": _("3c. Afstandsverkopen binnen de EU"), "amount": rubrics["3c"]},
-        {"rubric": "4a", "description": _("4a. Diensten uit landen buiten de EU"), "amount": rubrics["4a"]},
-        {"rubric": "4b", "description": _("4b. Diensten uit EU-landen"), "amount": rubrics["4b"]},
-        {"rubric": "", "description": "", "amount": ""},  # Separador
-        {"rubric": "5a", "description": _("5a. Verschuldigde omzetbelasting"), "amount": rubrics["5a"]},
-        {"rubric": "5b", "description": _("5b. Voorbelasting"), "amount": rubrics["5b"]},
-        {"rubric": "5c", "description": _("5c. Subtotaal (5a - 5b)"), "amount": net_total},
-        {"rubric": "5d", "description": _("5d. KOR vermindering"), "amount": 0.0},
-        {"rubric": "5e", "description": _("5e. Correctie vorige aangifte"), "amount": 0.0},
-        {"rubric": "5f", "description": _("5f. Schatting deze aangifte"), "amount": 0.0},
-        {"rubric": "Totaal", "description": _("Totaal te betalen of terug te vorderen"), "amount": net_total}
-    ]
+        # Clasificación base de rubricas para ventas (netas) + IVA repercutido
+        # 1a: 21%, 1b: 9%, 1c: otros tipos >0, 1e: 0%/exento; 3a/3b/3c según destino/operación
+        # NOTA: para simplicidad, si tax_rate es 21 o 9 y cliente no es UE/export se pone en 1a/1b
+        vat_rate = flt(r.tax_rate or 0.0)
+        net = flt(r.line_net or 0.0)
+        vat = 0.0
+
+        # IVA repercutido reconocido (solo si la fila de tax es VAT de venta)
+        if (r.account_type == "Tax") and ("vat" in (r.account_name or "").lower()):
+            vat = flt(r.line_vat or 0.0)
+
+        rubric = None
+
+        # Exportación por incoterms típicos o cliente "export"
+        if customer_type == "export" or (r.incoterm in EXPORT_INCOTERMS):
+            rubric = "3a"
+        # Intracomunitarias (3b) si cliente EU (≠ NL)
+        elif customer_type == "eu" and country != "Netherlands":
+            # Para el reporte VAT nacional, 3b neto y generalmente SIN IVA NL (0% / verlegd)
+            rubric = "3b"
+        else:
+            # Domésticas
+            if vat_rate == 21:
+                rubric = "1a"
+            elif vat_rate == 9:
+                rubric = "1b"
+            elif vat_rate == 0:
+                rubric = "1e"
+            else:
+                # otros tipos >0 => 1c
+                if vat_rate > 0:
+                    rubric = "1c"
+                else:
+                    # si no hay impuesto pero tampoco clasifica como EU/Export => 1e
+                    rubric = "1e"
+
+        # Acumular neto
+        rubrics_net[rubric] += net
+
+        # IVA repercutido solo cuenta en 1a/1b/1c/1d (si tuvieses privado-uso) — 1e y 2a no llevan IVA
+        if rubric in ("1a", "1b", "1c"):
+            rubrics_vat[rubric] += vat
+
+        # Breakdown por tarifa (ventas)
+        if vat_rate == 21:
+            rate_breakdown_net["21"] += net
+            rate_breakdown_vat["21"] += vat
+        elif vat_rate == 9:
+            rate_breakdown_net["9"] += net
+            rate_breakdown_vat["9"] += vat
+        elif vat_rate == 0:
+            rate_breakdown_net["0"] += net
+            # rate_breakdown_vat["0"] queda 0
+
+    # ---------------------------
+    # COMPRAS (para 4a/4b: IVA por inversión y bases)
+    # ---------------------------
+    # Objetivo: capturar adquisiciones de bienes/servicios desde fuera y dentro de la UE (no NL),
+    # y calcular el IVA devengado por inversión (que se declara en 4a/4b) según el tipo (9%/21%)
+    purchase_query = """
+        SELECT
+            pi.name as pinv,
+            pi.company,
+            pi.supplier,
+            pi.supplier_address,
+            addr.country as supplier_country,
+            LOWER(TRIM(pi.tax_category)) as tax_category,
+            pii.item_code,
+            it.is_stock_item,
+            pii.base_net_amount as line_net,
+            ptc.rate as tax_rate,
+            ptc.base_tax_amount as line_vat,   -- si hay VAT reflejado
+            ptc.account_head,
+            acc.account_type,
+            acc.account_name
+        FROM `tabPurchase Invoice` pi
+        INNER JOIN `tabPurchase Invoice Item` pii ON pii.parent = pi.name
+        LEFT JOIN `tabPurchase Taxes and Charges` ptc ON ptc.parent = pi.name AND ptc.parenttype = 'Purchase Invoice'
+        LEFT JOIN `tabAccount` acc ON acc.name = ptc.account_head
+        LEFT JOIN `tabItem` it ON it.name = pii.item_code
+        LEFT JOIN `tabAddress` addr ON addr.name = pi.supplier_address
+        WHERE pi.docstatus = 1
+          AND pi.posting_date BETWEEN %(from_date)s AND %(to_date)s
+          AND (%(company)s = '' OR pi.company = %(company)s)
+    """
+    purchases = frappe.db.sql(purchase_query, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)
+
+    for r in purchases:
+        scountry = (r.supplier_country or "").strip()
+        supplier_type = (
+            "domestic" if scountry == "Netherlands"
+            else "eu" if scountry in EU_COUNTRIES
+            else "non_eu"
+        )
+
+        net = flt(r.line_net or 0.0)
+        vat_rate = flt(r.tax_rate or 0.0)
+
+        # En compras desde el extranjero se puede devengar IVA por inversión:
+        # 4a: desde fuera de la UE (non_eu)
+        # 4b: desde países de la UE (eu)
+        if supplier_type == "non_eu":
+            rubrics_net["4a"] += net
+            # IVA devengado según naturaleza: 21/9 u otro — si no hay "rate" en ptc,
+            # deducirlo de la configuración de impuestos o deja 0 y avisa por validación.
+            if vat_rate in (9.0, 21.0):
+                rubrics_vat["4a"] += flt(net * (vat_rate / 100.0), 2)
+        elif supplier_type == "eu":
+            rubrics_net["4b"] += net
+            if vat_rate in (9.0, 21.0):
+                rubrics_vat["4b"] += flt(net * (vat_rate / 100.0), 2)
+        else:
+            # Compras domésticas: no afectan 4a/4b
+            pass
+
+        # Nota: el IVA soportado real (input VAT) se recoge para 5b con cuentas de tipo "Tax"
+        # que representen IVA de compra deducible (ver más abajo).
+
+    # ---------------------------
+    # DETECCIÓN DE VERLEGD (2a) EN VENTAS NACIONALES
+    # ---------------------------
+    # Para 2a, debe declararse la BASE (omzet) de operaciones nacionales con IVA verlegd (sin IVA a ingresar)
+    verlegd_query = """
+    SELECT
+        si.name as inv,
+        SUM(sii.base_net_amount) as net_base
+    FROM `tabSales Invoice` si
+    INNER JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
+    LEFT JOIN `tabAddress` addr ON addr.name = si.customer_address
+    LEFT JOIN `tabSales Taxes and Charges` stc ON stc.parent = si.name
+    LEFT JOIN `tabAccount` acc ON acc.name = stc.account_head
+    WHERE si.docstatus = 1
+      AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+      AND (%(company)s = '' OR si.company = %(company)s)
+      AND (addr.country = 'Netherlands' OR addr.country IS NULL)
+      AND (
+            LOWER(COALESCE(stc.description,'')) LIKE %(like_verlegd)s OR
+            LOWER(COALESCE(stc.account_head,'')) LIKE %(like_verlegd)s OR
+            LOWER(COALESCE(si.remarks,'')) LIKE %(like_verlegd)s
+          )
+    GROUP BY si.name
+    """
+    verlegd_rows = frappe.db.sql(
+        verlegd_query,
+        {
+            "from_date": from_date,
+            "to_date": to_date,
+            "company": company,
+            "like_verlegd": "%verlegd%"
+        },
+        as_dict=True
+    )
+    for v in verlegd_rows:
+        rubrics_net["2a"] += flt(v.net_base or 0.0)
+    rubrics_vat["2a"] = 0.0  # SIEMPRE 0 en 2a
+
+    # ---------------------------
+    # INPUT VAT (5b) – IVA soportado deducible en compras nacionales/import/intra-UE
+    # ---------------------------
+    input_vat_query = """
+    SELECT
+        SUM(ptc.base_tax_amount) as input_vat
+    FROM `tabPurchase Invoice` pi
+    LEFT JOIN `tabPurchase Taxes and Charges` ptc ON ptc.parent = pi.name
+    LEFT JOIN `tabAccount` acc ON acc.name = ptc.account_head
+    WHERE pi.docstatus = 1
+      AND pi.posting_date BETWEEN %(from_date)s AND %(to_date)s
+      AND (%(company)s = '' OR pi.company = %(company)s)
+      AND acc.account_type = 'Tax'
+      AND LOWER(acc.account_name) LIKE %(like_vat)s
+    """
+    input_vat = frappe.db.sql(
+        input_vat_query,
+        {
+            "from_date": from_date,
+            "to_date": to_date,
+            "company": company,
+            "like_vat": "%vat%"
+        },
+        as_dict=True
+    )[0].get("input_vat") or 0.0
+
+    input_vat = flt(input_vat, 2)
+
+    # ---------------------------
+    # 5a, 5b, 5c
+    # ---------------------------
+    # 5a: IVA devengado a ingresar
+    vat_due_1 = rubrics_vat["1a"] + rubrics_vat["1b"] + rubrics_vat["1c"]  # 1d se omite aquí salvo que lo calcules aparte
+    vat_due_4 = rubrics_vat["4a"] + rubrics_vat["4b"]
+    vat_due_total = flt(vat_due_1 + vat_due_4, 2)
+
+    # 5b: input VAT deducible
+    vat_input_total = input_vat
+
+    # 5c: subtotal
+    subtotal_5c = flt(vat_due_total - vat_input_total, 2)
+
+    # placeholders (ajustes manuales)
+    kor_reduction = 0.0   # 5d
+    prev_estimate = 0.0   # 5e
+    curr_estimate = 0.0   # 5f
+
+    total_payable = flt(subtotal_5c - kor_reduction - prev_estimate - curr_estimate, 2)
+
+    # ---------------------------
+    # Preparar dataset final (orden consistente con plantillas)
+    # ---------------------------
+
+    data = []
+
+    # 0..5 – Breakdown por tarifa (ventas)
+    #   [0]=21% net, [1]=21% VAT, [2]=9% net, [3]=9% VAT, [4]=0% net, [5]=0% VAT
+    data.append({"section": "rates", "rate": "21", "amount": flt(rate_breakdown_net["21"], 2), "vat": flt(rate_breakdown_vat["21"], 2)})
+    data.append({"section": "rates", "rate": "21_vat", "amount": flt(rate_breakdown_vat["21"], 2), "vat": 0.0})
+    data.append({"section": "rates", "rate": "9",  "amount": flt(rate_breakdown_net["9"], 2),  "vat": flt(rate_breakdown_vat["9"], 2)})
+    data.append({"section": "rates", "rate": "9_vat",  "amount": flt(rate_breakdown_vat["9"], 2),  "vat": 0.0})
+    data.append({"section": "rates", "rate": "0",  "amount": flt(rate_breakdown_net["0"], 2),  "vat": 0.0})
+    data.append({"section": "rates", "rate": "0_vat",  "amount": 0.0,  "vat": 0.0})
+
+    # 6..10 – Rubriek 1 (omzet + IVA) (1a..1e)
+    data.append({"rubric": "1a", "description": _("1a. Leveringen/diensten belast met hoog tarief"), "amount": flt(rubrics_net["1a"], 2), "vat": flt(rubrics_vat["1a"], 2)})
+    data.append({"rubric": "1b", "description": _("1b. Leveringen/diensten belast met laag tarief"), "amount": flt(rubrics_net["1b"], 2), "vat": flt(rubrics_vat["1b"], 2)})
+    data.append({"rubric": "1c", "description": _("1c. Leveringen/diensten belast met overige tarieven, behalve 0%"), "amount": flt(rubrics_net["1c"], 2), "vat": flt(rubrics_vat["1c"], 2)})
+    data.append({"rubric": "1d", "description": _("1d. Privégebruik"), "amount": flt(rubrics_net["1d"], 2), "vat": flt(rubrics_vat["1d"], 2)})
+    data.append({"rubric": "1e", "description": _("1e. Leveringen/diensten belast met 0% of niet bij u belast"), "amount": flt(rubrics_net["1e"], 2), "vat": 0.0})
+
+    # 11 – Rubriek 2a (base sin IVA)
+    data.append({"rubric": "2a", "description": _("2a. Leveringen waarop de verleggingsregeling van toepassing is"), "amount": flt(rubrics_net["2a"], 2), "vat": 0.0})
+
+    # 12..14 – Rubriek 3 (sin IVA)
+    data.append({"rubric": "3a", "description": _("3a. Leveringen naar landen buiten de EU (uitvoer)"), "amount": flt(rubrics_net["3a"], 2), "vat": 0.0})
+    data.append({"rubric": "3b", "description": _("3b. Leveringen naar of diensten in landen binnen de EU"), "amount": flt(rubrics_net["3b"], 2), "vat": 0.0})
+    data.append({"rubric": "3c", "description": _("3c. Installatie/afstandsverkopen binnen de EU"), "amount": flt(rubrics_net["3c"], 2), "vat": 0.0})
+
+    # 15..16 – Rubriek 4 (IVA por inversión incluido en "vat")
+    data.append({"rubric": "4a", "description": _("4a. Leveringen/diensten uit landen buiten de EU"), "amount": flt(rubrics_net["4a"], 2), "vat": flt(rubrics_vat["4a"], 2)})
+    data.append({"rubric": "4b", "description": _("4b. Leveringen/diensten uit landen binnen de EU"), "amount": flt(rubrics_net["4b"], 2), "vat": flt(rubrics_vat["4b"], 2)})
+
+    # 17..23 – Rubriek 5 (solo IVA en columnas)
+    data.append({"rubric": "5a", "description": _("5a. Verschuldigde omzetbelasting (rubriek 1 t/m 4)"), "amount": flt(vat_due_total, 2), "vat": 0.0})
+    data.append({"rubric": "5b", "description": _("5b. Voorbelasting"), "amount": flt(vat_input_total, 2), "vat": 0.0})
+    data.append({"rubric": "5c", "description": _("5c. Subtotaal (rubriek 5a min 5b)"), "amount": flt(subtotal_5c, 2), "vat": 0.0})
+    data.append({"rubric": "5d", "description": _("5d. Vermindering volgens de kleineondernemersregeling (KOR)"), "amount": flt(kor_reduction, 2), "vat": 0.0})
+    data.append({"rubric": "5e", "description": _("5e. Schatting vorige aangifte(n)"), "amount": flt(prev_estimate, 2), "vat": 0.0})
+    data.append({"rubric": "5f", "description": _("5f. Schatting deze aangifte"), "amount": flt(curr_estimate, 2), "vat": 0.0})
+    data.append({"rubric": "Totaal", "description": _("Totaal te betalen of terug te ontvangen"), "amount": flt(total_payable, 2), "vat": 0.0})
+
+    return data
 
 
 def validate_data_integrity(filters):
-    """Realizar verificaciones de integridad de datos"""
+    """Verificaciones no bloqueantes de integridad de datos."""
     from_date = filters["from_date"]
     to_date = filters["to_date"]
     company = filters.get("company", "")
-    
+
     issues = []
-    
-    # Verificar facturas sin direcciones
+
+    # Facturas de venta sin dirección (país desconocido)
     missing_address = frappe.db.sql("""
         SELECT COUNT(*) as count
         FROM `tabSales Invoice` si
         WHERE si.docstatus = 1
-            AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
-            AND (%(company)s = '' OR si.company = %(company)s)
-            AND (si.customer_address IS NULL OR si.customer_address = '')
+          AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+          AND (%(company)s = '' OR si.company = %(company)s)
+          AND (si.customer_address IS NULL OR si.customer_address = '')
     """, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)[0]
-    
-    if missing_address.count > 0:
-        issues.append(f"{missing_address.count} facturas de venta sin direcciones de cliente")
-    
-    # Verificar facturas sin categorías fiscales
+    if (missing_address.get("count") or 0) > 0:
+        issues.append(_("{0} facturas de venta sin dirección de cliente").format(missing_address.get("count")))
+
+    # Facturas de venta sin categoría fiscal
     missing_tax_category = frappe.db.sql("""
         SELECT COUNT(*) as count
         FROM `tabSales Invoice` si
         WHERE si.docstatus = 1
-            AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
-            AND (%(company)s = '' OR si.company = %(company)s)
-            AND (si.tax_category IS NULL OR si.tax_category = '')
+          AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+          AND (%(company)s = '' OR si.company = %(company)s)
+          AND (si.tax_category IS NULL OR si.tax_category = '')
     """, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)[0]
-    
-    if missing_tax_category.count > 0:
-        issues.append(f"{missing_tax_category.count} facturas de venta sin categorías fiscales")
-    
-    # Verificar facturas con Incoterms pero sin países
+    if (missing_tax_category.get("count") or 0) > 0:
+        issues.append(_("{0} facturas de venta sin categoría fiscal").format(missing_tax_category.get("count")))
+
+    # Incoterms de exportación sin país de destino
     export_without_country = frappe.db.sql("""
         SELECT COUNT(*) as count
         FROM `tabSales Invoice` si
         LEFT JOIN `tabAddress` addr ON addr.name = si.customer_address
         WHERE si.docstatus = 1
-            AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
-            AND (%(company)s = '' OR si.company = %(company)s)
-            AND si.incoterm IN ('EXW', 'FCA', 'FAS', 'FOB', 'CFR', 'CIF', 'CPT', 'CIP')
-            AND (addr.country IS NULL OR addr.country = '')
+          AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+          AND (%(company)s = '' OR si.company = %(company)s)
+          AND si.incoterm IN ('EXW','FCA','FAS','FOB','CFR','CIF','CPT','CIP')
+          AND (addr.country IS NULL OR addr.country = '')
     """, {"from_date": from_date, "to_date": to_date, "company": company}, as_dict=True)[0]
-    
-    if export_without_country.count > 0:
-        issues.append(f"{export_without_country.count} facturas con Incoterms de exportación pero sin país de destino")
-    
-    # Mostrar problemas de validación
+    if (export_without_country.get("count") or 0) > 0:
+        issues.append(_("{0} facturas con Incoterms de exportación pero sin país de destino").format(export_without_country.get("count")))
+
     if issues:
-        frappe.msgprint(
-            _("Problemas de integridad de datos encontrados:") + "<br>" + "<br>".join(issues),
-            title=_("Advertencia de Validación"),
-            indicator="red"
-        )
+        frappe.msgprint("<br>".join(issues), title=_("Advertencias de validación"), indicator="orange")
 
 
 def get_columns():
+    # Para la vista de tabla de ERPNext (el PDF/HTML usa la plantilla)
     return [
-        {"fieldname": "rubric", "label": _("Rubriek"), "fieldtype": "Data", "width": 80},
+        {"fieldname": "rubric", "label": _("Rubriek / Breakdown"), "fieldtype": "Data", "width": 250},
         {"fieldname": "description", "label": _("Omschrijving"), "fieldtype": "Data", "width": 400},
-        {"fieldname": "amount", "label": _("Bedrag (EUR)"), "fieldtype": "Currency", "width": 150}
+        {"fieldname": "amount", "label": _("Bedrag (EUR)"), "fieldtype": "Currency", "width": 150},
+        {"fieldname": "vat", "label": _("Btw (EUR)"), "fieldtype": "Currency", "width": 150}
     ]
-
-
-# === FUNCIONES ADICIONALES PARA ANÁLISIS DETALLADO ===
-
-def get_icp_details(filters):
-    """Generar reporte detallado de ICP (Intracommunautaire Prestaties)"""
-    from_date = filters["from_date"]
-    to_date = filters["to_date"]
-    company = filters.get("company", "")
-    
-    return frappe.db.sql("""
-        SELECT
-            si.customer,
-            si.customer_name,
-            addr.country,
-            cust.tax_id,
-            SUM(si.base_net_total) as total_amount,
-            COUNT(si.name) as invoice_count
-        FROM `tabSales Invoice` si
-        LEFT JOIN `tabAddress` addr ON addr.name = si.customer_address
-        LEFT JOIN `tabCustomer` cust ON cust.name = si.customer
-        WHERE si.docstatus = 1
-            AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
-            AND (%(company)s = '' OR si.company = %(company)s)
-            AND addr.country IN ({eu_countries})
-            AND addr.country != 'Netherlands'
-            AND (LOWER(si.tax_category) LIKE '%%eu%%' OR si.base_net_total > 0)
-        GROUP BY si.customer, addr.country
-        ORDER BY addr.country, si.customer_name
-    """.format(eu_countries="'" + "','".join(EU_COUNTRIES) + "'"), {
-        "from_date": from_date,
-        "to_date": to_date,
-        "company": company
-    }, as_dict=True)
-
-
-def validate_eu_vat_numbers(filters):
-    """Validar números de IVA de la UE para transacciones ICP"""
-    icp_details = get_icp_details(filters)
-    
-    invalid_vat = []
-    for customer in icp_details:
-        tax_id = customer.tax_id or ""
-        country_code = customer.country[:2].upper() if customer.country else ""
-        
-        # Validación básica de formato de número de IVA
-        if not tax_id or len(tax_id) < 8:
-            invalid_vat.append(f"{customer.customer_name} ({customer.country})")
-        elif not tax_id.startswith(country_code):
-            invalid_vat.append(f"{customer.customer_name} - Número de IVA no coincide con país")
-    
-    if invalid_vat:
-        frappe.msgprint(
-            _("Clientes de la UE con números de IVA no válidos:") + "<br>" + "<br>".join(invalid_vat),
-            title=_("Validación de Números de IVA"),
-            indicator="yellow"
-        )
-    
-    return invalid_vat
-
-
-def export_to_belastingdienst_format(filters):
-    """Exportar datos en formato compatible con Belastingdienst"""
-    data = fetch_vat_data(filters)
-    
-    # Formato específico para declaración electrónica
-    declaration_data = {}
-    for row in data:
-        if row["rubric"] and row["rubric"] != "":
-            declaration_data[row["rubric"]] = row["amount"]
-    
-    return {
-        "period": f"{filters['from_date_str']} - {filters['to_date_str']}",
-        "declaration_data": declaration_data,
-        "validation_passed": len(validate_eu_vat_numbers(filters)) == 0
-    }
