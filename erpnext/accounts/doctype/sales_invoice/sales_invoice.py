@@ -55,21 +55,16 @@ class SalesInvoice(SellingController):
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
-		from frappe.types import DF
-
 		from erpnext.accounts.doctype.payment_schedule.payment_schedule import PaymentSchedule
 		from erpnext.accounts.doctype.pricing_rule_detail.pricing_rule_detail import PricingRuleDetail
 		from erpnext.accounts.doctype.sales_invoice_advance.sales_invoice_advance import SalesInvoiceAdvance
 		from erpnext.accounts.doctype.sales_invoice_item.sales_invoice_item import SalesInvoiceItem
 		from erpnext.accounts.doctype.sales_invoice_payment.sales_invoice_payment import SalesInvoicePayment
-		from erpnext.accounts.doctype.sales_invoice_timesheet.sales_invoice_timesheet import (
-			SalesInvoiceTimesheet,
-		)
-		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
-			SalesTaxesandCharges,
-		)
+		from erpnext.accounts.doctype.sales_invoice_timesheet.sales_invoice_timesheet import SalesInvoiceTimesheet
+		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import SalesTaxesandCharges
 		from erpnext.selling.doctype.sales_team.sales_team import SalesTeam
 		from erpnext.stock.doctype.packed_item.packed_item import PackedItem
+		from frappe.types import DF
 
 		account_for_change_amount: DF.Link | None
 		additional_discount_account: DF.Link | None
@@ -114,6 +109,7 @@ class SalesInvoice(SellingController):
 		customer_group: DF.Link | None
 		customer_name: DF.SmallText | None
 		debit_to: DF.Link
+		description_title: DF.Data | None
 		disable_rounded_total: DF.Check
 		discount_amount: DF.Currency
 		dispatch_address: DF.SmallText | None
@@ -124,6 +120,7 @@ class SalesInvoice(SellingController):
 		group_same_items: DF.Check
 		ignore_default_payment_terms_template: DF.Check
 		ignore_pricing_rule: DF.Check
+		imported_from_external: DF.Check
 		in_words: DF.SmallText | None
 		incoterm: DF.Link | None
 		inter_company_invoice_reference: DF.Link | None
@@ -138,20 +135,26 @@ class SalesInvoice(SellingController):
 		items: DF.Table[SalesInvoiceItem]
 		language: DF.Data | None
 		letter_head: DF.Link | None
+		licence_plate: DF.Data | None
 		loyalty_amount: DF.Currency
 		loyalty_points: DF.Int
 		loyalty_program: DF.Link | None
 		loyalty_redemption_account: DF.Link | None
 		loyalty_redemption_cost_center: DF.Link | None
+		mileage: DF.Data | None
 		named_place: DF.Data | None
 		naming_series: DF.Literal["ACC-SINV-.YYYY.-", "ACC-SINV-RET-.YYYY.-"]
 		net_total: DF.Currency
+		notes: DF.TextEditor | None
 		only_include_allocated_payments: DF.Check
 		other_charges_calculation: DF.TextEditor | None
 		outstanding_amount: DF.Currency
 		packed_items: DF.Table[PackedItem]
 		paid_amount: DF.Currency
 		party_account_currency: DF.Link | None
+		payment_details: DF.Data | None
+		payment_gateway: DF.Data | None
+		payment_id: DF.Data | None
 		payment_schedule: DF.Table[PaymentSchedule]
 		payment_terms_template: DF.Link | None
 		payments: DF.Table[SalesInvoicePayment]
@@ -164,10 +167,12 @@ class SalesInvoice(SellingController):
 		price_list_currency: DF.Link
 		pricing_rules: DF.Table[PricingRuleDetail]
 		project: DF.Link | None
+		quotation_template: DF.Link | None
 		redeem_loyalty_points: DF.Check
 		remarks: DF.SmallText | None
 		represents_company: DF.Link | None
 		return_against: DF.Link | None
+		return_payment: DF.Check
 		rounded_total: DF.Currency
 		rounding_adjustment: DF.Currency
 		sales_partner: DF.Link | None
@@ -182,22 +187,7 @@ class SalesInvoice(SellingController):
 		shipping_address_name: DF.Link | None
 		shipping_rule: DF.Link | None
 		source: DF.Link | None
-		status: DF.Literal[
-			"",
-			"Draft",
-			"Return",
-			"Credit Note Issued",
-			"Submitted",
-			"Paid",
-			"Partly Paid",
-			"Unpaid",
-			"Unpaid and Discounted",
-			"Partly Paid and Discounted",
-			"Overdue and Discounted",
-			"Overdue",
-			"Cancelled",
-			"Internal Transfer",
-		]
+		status: DF.Literal["", "Draft", "Return", "Credit Note Issued", "Submitted", "Paid", "Partly Paid", "Unpaid", "Unpaid and Discounted", "Partly Paid and Discounted", "Overdue and Discounted", "Overdue", "Cancelled", "Internal Transfer"]
 		subscription: DF.Link | None
 		tax_category: DF.Link | None
 		tax_id: DF.Data | None

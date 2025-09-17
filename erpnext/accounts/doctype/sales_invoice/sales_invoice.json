@@ -38,10 +38,11 @@
   "amended_from",
   "accounting_dimensions_section",
   "cost_center",
-  "dimension_col_break",
   "project",
-  "payment_id",
   "payment_gateway",
+  "dimension_col_break",
+  "payment_id",
+  "payment_details",
   "currency_and_price_list",
   "currency",
   "conversion_rate",
@@ -2192,13 +2193,13 @@
    "label": "Update Billed Amount in Delivery Note"
   },
   {
-    "default": "0",
-    "depends_on": "eval: doc.is_return",
-    "fieldname": "return_payment",
-    "fieldtype": "Check",
-    "label": "Refund via Payout Link",
-    "description": "The client will receive a one-time payout link via WhatsApp to the registered phone number and choose how to receive the refund."
-  },     
+   "default": "0",
+   "depends_on": "eval: doc.is_return",
+   "description": "The client will receive a one-time payout link via WhatsApp to the registered phone number and choose how to receive the refund.",
+   "fieldname": "return_payment",
+   "fieldtype": "Check",
+   "label": "Refund via Payout Link"
+  },
   {
    "default": "1",
    "depends_on": "eval: doc.is_return && doc.return_against",
@@ -2253,6 +2254,11 @@
    "fieldtype": "Check",
    "label": "Imported From External",
    "read_only": 1
+  },
+  {
+   "fieldname": "payment_details",
+   "fieldtype": "Data",
+   "label": "Payment Details"
   }
  ],
  "grid_page_length": 50,
@@ -2266,7 +2272,7 @@
    "link_fieldname": "consolidated_invoice"
   }
  ],
- "modified": "2025-03-17 19:32:31.809658",
+ "modified": "2025-09-17 16:40:34.997015",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Sales Invoice",
