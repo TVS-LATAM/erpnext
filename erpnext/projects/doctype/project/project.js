@@ -1426,6 +1426,20 @@ function validateBankTransferPayment(frm) {
 		console.log("data: ",data);
 		frappe.prompt([
 			{
+				label: 'Confirm Method of Payment',
+				fieldname: 'payment_confirmation',
+				fieldtype: 'Select',
+				options: ['Bank Transfer', 'Cash', 'Credit Card', 'Other'],
+				reqd: 1
+			},
+			{
+				label: 'Payment Details',
+				fieldname: 'payment_details',
+				fieldtype: 'Small Text',
+				description: 'Add any relevant payment details (transaction ID, bank reference, etc.)',
+				reqd: 1
+			},
+			{
 				label: 'Select Payment Type',
 				fieldname: 'confirm_method',
 				fieldtype: 'Select',
@@ -1442,20 +1456,6 @@ function validateBankTransferPayment(frm) {
 									${renderPaymentHistoryTable(data)}
 							`
 			},
-			{
-				label: 'Confirm Method of Payment',
-				fieldname: 'payment_confirmation',
-				fieldtype: 'Select',
-				options: ['Bank Transfer', 'Cash', 'Credit Card', 'Other'],
-				reqd: 1
-			},
-			{
-				label: 'Payment Details',
-				fieldname: 'payment_details',
-				fieldtype: 'Small Text',
-				description: 'Add any relevant payment details (transaction ID, bank reference, etc.)',
-				reqd: 1
-			}
 		],
 			async (values) => {
 				frappe.confirm(
