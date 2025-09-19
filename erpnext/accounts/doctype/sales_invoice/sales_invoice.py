@@ -152,7 +152,7 @@ class SalesInvoice(SellingController):
 		packed_items: DF.Table[PackedItem]
 		paid_amount: DF.Currency
 		party_account_currency: DF.Link | None
-		payment_details: DF.Data | None
+		payment_details: DF.TextEditor | None
 		payment_gateway: DF.Data | None
 		payment_id: DF.Data | None
 		payment_schedule: DF.Table[PaymentSchedule]
@@ -2914,3 +2914,19 @@ def check_if_return_invoice_linked_with_payment_entry(self):
 			message += " " + ", ".join(payment_entries_link) + " "
 			message += _("to unallocate the amount of this Return Invoice before cancelling it.")
 			frappe.throw(message)
+
+
+@frappe.whitelist()
+def update_payment_details(name, payment_details):
+	"""
+	Update payment details for a Sales Invoice in the database.
+	Validates that payment details are provided before updating.
+	"""
+	if not name or not payment_details:
+		frappe.throw(_("Payment details and Sales Invoice name are required"))
+	# Clean up payment details
+	payment_details = payment_details.strip()
+	# Update the database record
+	frappe.db.set_value("Sales Invoice", name, "payment_details", payment_details)
+	frappe.db.commit()
+	return {"success": True, "message": _("Payment details updated successfully")}
