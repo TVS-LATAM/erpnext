@@ -1,23 +1,61 @@
 {
- "add_total_row": 0,
+ "add_total_row": 1,
  "add_translate_data": 0,
  "columns": [],
  "creation": "2025-09-26 19:04:58.327812",
  "disabled": 0,
  "docstatus": 0,
  "doctype": "Report",
- "filters": [],
+ "filters": [
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "mandatory": 1,
+   "options": "Company",
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "mandatory": 1,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "mandatory": 1,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "mandatory": 0,
+   "options": "Customer",
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "payment_gateway",
+   "fieldtype": "Select",
+   "label": "Payment Gateway",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  }
+ ],
  "idx": 0,
  "is_standard": "Yes",
  "letter_head": "TVS",
  "letterhead": null,
- "modified": "2025-09-26 19:04:58.327812",
+ "modified": "2025-09-26 21:01:34.182261",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Payout Report",
  "owner": "Administrator",
  "prepared_report": 0,
- "ref_doctype": "Report",
+ "ref_doctype": "Sales Invoice",
  "report_name": "Payout Report",
  "report_type": "Script Report",
  "roles": [

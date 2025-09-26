@@ -1,0 +1,306 @@
+<div class="payout-report" style="width: 100%;">
+    <h2>{{ __("Payout Report") }}</h2>
+    <p class="text-muted">{{ __("Sales Invoices with Payments and Payment Gateways") }}</p>
+    
+    <div class="report-summary" style="width: 100%;">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="summary-item">
+                    <span class="summary-label">{{ __("Company") }}:</span>
+                    <span class="summary-value">{{ filters.company }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="summary-item">
+                    <span class="summary-label">{{ __("Period") }}:</span>
+                    <span class="summary-value">{{ frappe.format(filters.from_date, {fieldtype: "Date"}) }} - {{ frappe.format(filters.to_date, {fieldtype: "Date"}) }}</span>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="summary-item">
+                    <span class="summary-label">{{ __("Customer") }}:</span>
+                    <span class="summary-value">{{ filters.customer or __("All Customers") }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-4">
+                <div class="summary-item">
+                    <span class="summary-label">{{ __("Payment Gateway") }}:</span>
+                    <span class="summary-value">{{ filters.payment_gateway or __("All Payment Gateways") }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <hr>
+    
+    <div class="table-responsive" style="width: 100%;">
+        <table class="table table-bordered payout-table" style="width: 100% !important; table-layout: fixed;">
+            <thead>
+                <tr>
+                    {% for col in columns %}
+                    <th class="{% if col.fieldtype == 'Currency' %}text-right{% endif %}" style="{% if col.width %}width: {{ col.width }}px;{% endif %}">{{ col.label }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data %}
+                {% if not row.is_total_row %}
+                <tr>
+                    {% for col in columns %}
+                    <td class="{% if col.fieldtype == 'Currency' %}text-right{% endif %}">
+                        {% if col.fieldtype == "Currency" %}
+                        <span>{{ frappe.format(row[col.fieldname], {fieldtype: "Currency"}) }}</span>
+                        {% elif col.fieldtype == "Date" and row[col.fieldname] %}
+                        <span>{{ frappe.format(row[col.fieldname], {fieldtype: "Date"}) }}</span>
+                        {% elif col.fieldtype == "Link" and row[col.fieldname] %}
+                        <a href="/app/{{ col.options | lower }}/{{ row[col.fieldname] }}">{{ row[col.fieldname] }}</a>
+                        {% else %}
+                        {{ row[col.fieldname] or "" }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+            {% if data|length %}
+            <tfoot>
+                <!-- Fila vacía para crear espacio entre datos y totales -->
+                <tr class="empty-row">
+                    {% for col in columns %}
+                    <td>&nbsp;</td>
+                    {% endfor %}
+                </tr>
+                <tr class="total-row">
+                    <th>{{ __("Total") }}</th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th class="text-right">
+                        {% set total_invoice = 0 %}
+                        {% for row in data %}
+                        {% if not row.is_total_row %}
+                        {% set total_invoice = total_invoice + row["invoice_amount"]|float %}
+                        {% endif %}
+                        {% endfor %}
+                        {{ frappe.format(total_invoice, {fieldtype: "Currency"}) }}
+                    </th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th class="text-right">
+                        {% set total_paid = 0 %}
+                        {% for row in data %}
+                        {% if not row.is_total_row %}
+                        {% set total_paid = total_paid + row["paid_amount"]|float %}
+                        {% endif %}
+                        {% endfor %}
+                        {{ frappe.format(total_paid, {fieldtype: "Currency"}) }}
+                    </th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+                <tr class="summary-row">
+                    <th colspan="4">{{ __("Payment Summary") }}</th>
+                    <th class="text-right">{{ frappe.format(total_invoice, {fieldtype: "Currency"}) }}</th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th class="text-right">{{ frappe.format(total_paid, {fieldtype: "Currency"}) }}</th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+                <tr class="summary-row">
+                    <th colspan="4">{{ __("Pending Amount") }}</th>
+                    <th class="text-right">{{ frappe.format(total_invoice - total_paid, {fieldtype: "Currency"}) }}</th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+            </tfoot>
+            {% endif %}
+        </table>
+    </div>
+    
+    <!-- Payment Gateway Summary -->
+    {% if data|length %}
+    <div class="gateway-summary">
+        <h3>{{ __("Payment Gateway Summary") }}</h3>
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>{{ __("Payment Gateway") }}</th>
+                    <th class="text-right">{{ __("Number of Payments") }}</th>
+                    <th class="text-right">{{ __("Total Amount") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set gateways = {} %}
+                {% for row in data %}
+                {% if row.payment_gateway and row.paid_amount %}
+                {% if row.payment_gateway in gateways %}
+                {% set _ = gateways.update({row.payment_gateway: {
+                    "count": gateways[row.payment_gateway].count + 1,
+                    "amount": gateways[row.payment_gateway].amount + row.paid_amount|float
+                }}) %}
+                {% else %}
+                {% set _ = gateways.update({row.payment_gateway: {
+                    "count": 1,
+                    "amount": row.paid_amount|float
+                }}) %}
+                {% endif %}
+                {% endif %}
+                {% endfor %}
+                
+                {% for gateway, values in gateways.items() %}
+                <tr>
+                    <td>{{ gateway }}</td>
+                    <td class="text-right">{{ values.count }}</td>
+                    <td class="text-right">{{ frappe.format(values.amount, {fieldtype: "Currency"}) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    /* Estilos para la visualización web */
+    .payout-report {
+        padding: 15px;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        width: 100%;
+    }
+    
+    .report-summary {
+        background-color: #f8f9fa;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+        width: 100%;
+    }
+    
+    .summary-item {
+        margin-bottom: 10px;
+    }
+    
+    .summary-label {
+        font-weight: bold;
+        margin-right: 5px;
+    }
+    
+    .summary-value {
+        font-weight: normal;
+    }
+    
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+    }
+    
+    .payout-table {
+        width: 100% !important;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        table-layout: fixed;
+    }
+    
+    .payout-table th {
+        background-color: #f2f2f2;
+        padding: 10px;
+        border: 1px solid #ddd;
+        font-weight: bold;
+    }
+    
+    .payout-table td {
+        padding: 8px 10px;
+        border: 1px solid #ddd;
+        word-wrap: break-word;
+    }
+    
+    .payout-table .text-right {
+        text-align: right;
+    }
+    
+    .empty-row td {
+        border-left-color: transparent;
+        border-right-color: transparent;
+        height: 20px;
+    }
+    
+    .total-row {
+        background-color: #f9f9f9;
+    }
+    
+    .total-row th {
+        font-weight: bold;
+    }
+    
+    .summary-row {
+        background-color: #e9ecef;
+    }
+    
+    .gateway-summary {
+        margin-top: 30px;
+        margin-bottom: 30px;
+    }
+    
+    /* Estilos específicos para PDF */
+    @media print {
+        .payout-report {
+            padding: 0;
+            width: 100%;
+        }
+        
+        .report-summary {
+            border: 1px solid #ddd;
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        
+        .table-responsive {
+            width: 100%;
+        }
+        
+        .payout-table {
+            width: 100% !important;
+            table-layout: fixed;
+        }
+        
+        .payout-table th {
+            background-color: #eee !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        
+        .empty-row td {
+            border-left-color: transparent !important;
+            border-right-color: transparent !important;
+            height: 20px;
+        }
+        
+        .total-row {
+            background-color: #f5f5f5 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        
+        .summary-row {
+            background-color: #e9ecef !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+    }
+</style>
