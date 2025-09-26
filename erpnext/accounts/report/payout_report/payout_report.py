@@ -50,7 +50,7 @@ def fetch_payout_data(filters):
 			si.base_grand_total AS invoice_amount,
 			si.status AS invoice_status,
 			
-			-- Customer Information
+			-- Customer Information (customer ID field is kept for filtering but not displayed)
 			si.customer AS customer,
 			si.customer_name AS customer_name,
 			
@@ -63,11 +63,11 @@ def fetch_payout_data(filters):
 				ELSE pe.status 
 			END AS payment_status,
 			
-			-- Payment Gateway Information
+			-- Payment Gateway Information (payment_type is kept for reference but not displayed)
 			IFNULL(si.payment_gateway, mop.name) AS payment_gateway,
 			mop.type AS payment_type,
 			
-			-- Reference Information
+			-- Reference Information (kept for reference but not displayed)
 			pe.reference_no AS reference_no,
 			pe.reference_date AS reference_date,
 			pe.mode_of_payment AS mode_of_payment
@@ -158,32 +158,12 @@ def get_columns():
 			"width": 150
 		},
 		{
-			"fieldname": "payment_date", 
-			"label": _("Payment\nDate"), 
-			"fieldtype": "Date", 
-			"width": 110
-		},
-		{
 			"fieldname": "paid_amount", 
 			"label": _("Paid\nAmount"), 
 			"fieldtype": "Currency", 
 			"width": 130
 		},
-		{
-			"fieldname": "payment_status", 
-			"label": _("Payment\nStatus"), 
-			"fieldtype": "Data", 
-			"width": 120,
-			"align": "center"
-		},
 		# Customer Information
-		{
-			"fieldname": "customer", 
-			"label": _("Customer\nID"), 
-			"fieldtype": "Link", 
-			"options": "Customer",
-			"width": 120
-		},
 		{
 			"fieldname": "customer_name", 
 			"label": _("Customer\nName"), 
@@ -196,19 +176,6 @@ def get_columns():
 			"label": _("Payment\nGateway"), 
 			"fieldtype": "Data", 
 			"width": 150
-		},
-		{
-			"fieldname": "payment_type", 
-			"label": _("Payment\nType"), 
-			"fieldtype": "Data", 
-			"width": 120
-		},
-		# Reference Information
-		{
-			"fieldname": "reference_no", 
-			"label": _("Reference\nNo"), 
-			"fieldtype": "Data", 
-			"width": 130
 		}
 	]
 

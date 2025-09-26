@@ -230,16 +230,19 @@ frappe.query_reports["Payout Report"] = {
 			// Set specific widths for important columns
 			if (column.fieldname === 'invoice_number') column.width = 140;
 			if (column.fieldname === 'invoice_date') column.width = 110;
-			if (column.fieldname === 'customer') column.width = 120;
 			if (column.fieldname === 'customer_name') column.width = 180;
 			if (column.fieldname === 'invoice_amount') column.width = 130;
 			if (column.fieldname === 'payment_entry') column.width = 150;
-			if (column.fieldname === 'payment_date') column.width = 110;
 			if (column.fieldname === 'paid_amount') column.width = 130;
 			if (column.fieldname === 'payment_gateway') column.width = 150;
-			if (column.fieldname === 'payment_status') {
-				column.width = 120;
-				column.align = 'center';
+			
+			// Hide columns that we don't want to display
+			if (column.fieldname === 'customer' || 
+				column.fieldname === 'payment_type' || 
+				column.fieldname === 'reference_no' ||
+				column.fieldname === 'payment_status' ||
+				column.fieldname === 'payment_date') {
+				column.hidden = true;
 			}
 		});
 		
