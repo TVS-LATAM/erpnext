@@ -92,9 +92,11 @@ def fetch_payout_data(filters):
 			END AS payment_status,
 			
 			-- Payment Gateway Information (payment_type is kept for reference but not displayed)
+			-- First try to get payment_gateway from sales invoice, then from mode of payment
 			-- Use LOWER to normalize case and NULLIF to convert empty strings to NULL
 			CASE
-				WHEN NULLIF(LOWER(IFNULL(si.payment_gateway, mop.name)), '') IS NOT NULL THEN LOWER(IFNULL(si.payment_gateway, mop.name))
+				WHEN NULLIF(LOWER(si.payment_gateway), '') IS NOT NULL THEN LOWER(si.payment_gateway) 
+				WHEN NULLIF(LOWER(mop.name), '') IS NOT NULL THEN LOWER(mop.name)
 				ELSE NULL
 			END AS payment_gateway,
 			mop.type AS payment_type,
@@ -144,7 +146,8 @@ def fetch_payout_data(filters):
 		if not row.payment_entry:
 			row.paid_amount = 0
 			row.payment_date = None
-			row.payment_gateway = None
+			# Don't reset payment_gateway to None as it may come directly from sales_invoice
+			# row.payment_gateway = None
 			row.payment_status = "Unpaid"
 		
 		# Normalize payment gateway values
