@@ -85,12 +85,12 @@ frappe.query_reports["Payout Report"] = {
 					}
 				}
 				
-				// Add View button to show payment details
-				const viewButton = `<button class="btn btn-xs btn-default view-payment-details" 
+				// Add View button to show payment details - smaller size
+				const viewButton = `<button class="btn btn-xs btn-link view-payment-details" 
 					data-invoice="${invoice_number}" 
 					data-payment-details="${encodeURIComponent(data.payment_details || '')}" 
 					data-payment-id="${encodeURIComponent(data.payment_id || '')}"
-					style="margin-left: 5px;">View</button>`;
+					style="margin-left: 3px; padding: 2px 5px; font-size: 11px; background-color: #e7e7e7">View</button>`;
 				
 				value = "<span style='font-family: monospace; font-weight: 500;'>" + value + "</span>" + viewButton;
 			}
@@ -130,19 +130,88 @@ frappe.query_reports["Payout Report"] = {
 						const paymentIdFromInvoice = invoice.payment_id || '';
 						const paymentGateway = invoice.payment_gateway || '';
 						
+						// Formatear los payment details para que se vean más ordenados
+						let formattedPaymentDetails = paymentDetailsFromInvoice;
+						
+						// Intentar formatear los payment details si tienen el formato esperado
+						try {
+							// Verificar si los payment details tienen el formato esperado
+							if (paymentDetailsFromInvoice.includes('Payment #')) {
+								// Dividir los payment details por "Payment #"
+								const payments = paymentDetailsFromInvoice.split(/Payment #\d+:/);
+								
+								// Formatear cada pago
+								let formattedPayments = [];
+								
+								// Procesar cada pago (ignorar el primer elemento si está vacío)
+								for (let i = 0; i < payments.length; i++) {
+									if (payments[i].trim()) {
+										const paymentNumber = i > 0 ? i : 1; // Asegurar que el número de pago comience en 1
+										const paymentDetails = payments[i];
+										
+										// Extraer información del pago
+										const gatewayMatch = paymentDetails.match(/Gateway:\s*([^\n]+)/);
+										const amountMatch = paymentDetails.match(/Amount:\s*([^\n]+)/);
+										const requestIdMatch = paymentDetails.match(/Request ID:\s*([^\n]+)/);
+										const transactionIdMatch = paymentDetails.match(/Transaction ID:\s*([^\n]+)/);
+										const dateMatch = paymentDetails.match(/Date:\s*([^\n]+)/);
+										
+										// Crear HTML formateado para este pago
+										formattedPayments.push(`
+											<div class="payment-item" style="margin-bottom: 15px; padding: 10px; background-color: #f5f7fa; border-radius: 4px;">
+												<h5 style="margin-top: 0; font-weight: bold; color: #1a73e8;">Payment #${paymentNumber}</h5>
+												<table class="table table-condensed" style="margin-bottom: 0;">
+													<tbody>
+														<tr>
+															<td style="width: 150px; font-weight: bold; border-top: none;">Gateway:</td>
+															<td style="border-top: none;">${gatewayMatch ? gatewayMatch[1].trim() : ''}</td>
+														</tr>
+														<tr>
+															<td style="font-weight: bold;">Amount:</td>
+															<td>${amountMatch ? amountMatch[1].trim() : ''}</td>
+														</tr>
+														<tr>
+															<td style="font-weight: bold;">Request ID:</td>
+															<td>${requestIdMatch ? requestIdMatch[1].trim() : ''}</td>
+														</tr>
+														<tr>
+															<td style="font-weight: bold;">Transaction ID:</td>
+															<td>${transactionIdMatch ? transactionIdMatch[1].trim() : ''}</td>
+														</tr>
+														<tr>
+															<td style="font-weight: bold;">Date:</td>
+															<td>${dateMatch ? dateMatch[1].trim() : ''}</td>
+														</tr>
+													</tbody>
+												</table>
+											</div>
+										`);
+									}
+								}
+								
+								// Unir los pagos formateados
+								formattedPaymentDetails = formattedPayments.join('');
+							} else {
+								// Si no tiene el formato esperado, mostrar como texto pre-formateado
+								formattedPaymentDetails = `<pre style="white-space: pre-wrap; margin: 0;">${paymentDetailsFromInvoice}</pre>`;
+							}
+						} catch (e) {
+							console.error('Error formatting payment details:', e);
+							// En caso de error, mostrar los payment details originales
+							formattedPaymentDetails = `<pre style="white-space: pre-wrap; margin: 0;">${paymentDetailsFromInvoice}</pre>`;
+						}
+						
 						// Crear el contenido del diálogo
 						let dialogContent = `
 							<div class="payment-details-dialog">
 								<div class="row">
 									<div class="col-xs-12">
-										<div class="payment-info">
-											<h4>Invoice: ${invoiceNumber}</h4>
-											<p><strong>Payment Gateway:</strong> ${paymentGateway}</p>
-											<p><strong>Payment ID:</strong> ${paymentIdFromInvoice}</p>
+										<div class="payment-info" style="margin-bottom: 15px;">
+											<p><strong>Project:</strong> ${paymentIdFromInvoice}</p>
 										</div>
 										<div class="payment-details">
-											<h4>Payment Details:</h4>
-											<div style="white-space: pre-wrap; background-color: #f5f7fa; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto;">${paymentDetailsFromInvoice}</div>
+											<h4 style="margin-top: 0;">Payment Details:</h4>
+											<div style="max-height: 400px; overflow-y: auto;">${formattedPaymentDetails}</div>
 										</div>
 									</div>
 								</div>
