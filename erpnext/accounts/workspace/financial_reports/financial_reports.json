@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"nKKr6fjgjb\",\"type\":\"card\",\"data\":{\"card_name\":\"Ledgers\",\"col\":4}},{\"id\":\"p7NY6MHe2Y\",\"type\":\"card\",\"data\":{\"card_name\":\"Financial Statements\",\"col\":4}},{\"id\":\"3AK1Zf0oew\",\"type\":\"card\",\"data\":{\"card_name\":\"Profitability\",\"col\":4}},{\"id\":\"Q_hBCnSeJY\",\"type\":\"card\",\"data\":{\"card_name\":\"Other Reports\",\"col\":4}},{\"id\":\"MqlHlIyyCA\",\"type\":\"card\",\"data\":{\"card_name\":\"Fiscal Reporting Overview\",\"col\":4}},{\"id\":\"lRZbQ2Fy5n\",\"type\":\"paragraph\",\"data\":{\"text\":\"<b>Custom Reports</b>\",\"col\":4}}]",
+ "content": "[{\"id\":\"nKKr6fjgjb\",\"type\":\"card\",\"data\":{\"card_name\":\"Ledgers\",\"col\":4}},{\"id\":\"p7NY6MHe2Y\",\"type\":\"card\",\"data\":{\"card_name\":\"Financial Statements\",\"col\":4}},{\"id\":\"3AK1Zf0oew\",\"type\":\"card\",\"data\":{\"card_name\":\"Profitability\",\"col\":4}},{\"id\":\"Q_hBCnSeJY\",\"type\":\"card\",\"data\":{\"card_name\":\"Other Reports\",\"col\":4}},{\"id\":\"MqlHlIyyCA\",\"type\":\"card\",\"data\":{\"card_name\":\"Fiscal Reporting Overview\",\"col\":4}}]",
  "creation": "2024-01-05 16:09:16.766939",
  "custom_blocks": [],
  "docstatus": 0,
@@ -297,9 +297,20 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Payout Report",
+   "link_count": 0,
+   "link_to": "Payout Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "report_ref_doctype": "Report",
+   "type": "Link"
   }
  ],
- "modified": "2025-09-26 18:58:44.255124",
+ "modified": "2025-09-26 19:07:33.137942",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Financial Reports",
