@@ -47,7 +47,17 @@ frappe.query_reports["Payout Report"] = {
 		// Safety checks
 		if (!column) return value;
 		
-		// Apply default formatter safely
+		// For currency fields, format directly to avoid double currency symbols
+		if (column.fieldtype === "Currency" && value !== undefined && value !== null) {
+			// Format with max 3 decimals
+			let numValue = flt(value, 3);
+			// Use format_currency with explicit currency symbol to avoid duplicates
+			value = format_currency(numValue, frappe.boot.sysdefaults.currency);
+			value = "<span style='font-weight: bold;'>" + value + "</span>";
+			return value;
+		}
+		
+		// For non-currency fields, use default formatter
 		try {
 			value = default_formatter(value, row, column, data);
 		} catch (e) {
@@ -56,26 +66,6 @@ frappe.query_reports["Payout Report"] = {
 		
 		// If value is undefined or null, return empty string
 		if (value === undefined || value === null) return '';
-		
-		// Apply custom formatting for amounts with max 3 decimals
-		if (column.fieldtype === "Currency") {
-			// Try to extract the numeric value
-			let numValue = value;
-			if (typeof value === 'string') {
-				// Extract numeric value if it's wrapped in HTML
-				const match = value.match(/[\d,]+\.?\d*/g);
-				if (match && match.length) {
-					numValue = parseFloat(match[0].replace(/,/g, ''));
-					// Format with max 3 decimals
-					if (!isNaN(numValue)) {
-						numValue = flt(numValue, 3);
-						// Replace the number in the original string
-						value = value.replace(/[\d,]+\.?\d*/g, format_currency(numValue));
-					}
-				}
-			}
-			value = "<span style='font-weight: bold;'>" + value + "</span>";
-		}
 		
 		// Add special formatting for invoice number to make it more readable and open links in new tab
 		if (column.fieldname === "invoice_number" || column.fieldname === "payment_entry") {
@@ -261,7 +251,8 @@ frappe.query_reports["Payout Report"] = {
 			// Función para formatear montos
 			function formatAmount(amount) {
 				if (amount === undefined || amount === null) return "-";
-				return frappe.format(amount, {fieldtype: 'Currency'});
+				// Usar format_currency con símbolo explícito para evitar duplicados
+				return format_currency(flt(amount, 3), frappe.boot.sysdefaults.currency);
 			}
 			
 			// Verificar si hay datos disponibles
