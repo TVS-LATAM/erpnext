@@ -2,51 +2,7 @@
 // For license information, please see license.txt
 
 frappe.query_reports["Payout Report"] = {
-	// Helper function to add totals row
-	addTotalsRow: function(datatable) {
-		// Check if datatable and its properties exist
-		if (!datatable || !datatable.datamanager || !datatable.datamanager.data) return;
-		
-		const data = datatable.datamanager.data;
-		if (!data || !data.length) return;
-		
-		// Calculate totals
-		let totalInvoiceAmount = 0;
-		let totalPaidAmount = 0;
-		
-		data.forEach(function(row) {
-			if (row) {
-				totalInvoiceAmount += flt(row.invoice_amount || 0);
-				totalPaidAmount += flt(row.paid_amount || 0);
-			}
-		});
-		
-		// Check if tfoot exists
-		if (!datatable.$tfoot) return;
-		
-		// Create a totals row
-		const totalsRow = datatable.$tfoot.find('.dt-row-totals');
-		if (totalsRow && totalsRow.length) {
-			// Find the cells for invoice_amount and paid_amount
-			if (datatable.columns) {
-				datatable.columns.forEach(function(column, i) {
-					if (column && column.fieldname === 'invoice_amount') {
-						const cell = totalsRow.find(`.dt-cell--col-${i}`);
-						if (cell && cell.length) {
-							cell.html(`<span style="font-weight: bold; color: #1a73e8;">${format_currency(totalInvoiceAmount)}</span>`);
-						}
-					}
-					if (column && column.fieldname === 'paid_amount') {
-						const cell = totalsRow.find(`.dt-cell--col-${i}`);
-						if (cell && cell.length) {
-							cell.html(`<span style="font-weight: bold; color: #34a853;">${format_currency(totalPaidAmount)}</span>`);
-						}
-					}
-				});
-			}
-		}
-	},
-	filters: [
+		filters: [
 		{
 			fieldname: "company",
 			label: __("Company"),
@@ -100,34 +56,43 @@ frappe.query_reports["Payout Report"] = {
 	],
 	// Formatter to customize data display
 	formatter: function(value, row, column, data, default_formatter) {
-		value = default_formatter(value, row, column, data);
+		// Safety checks
+		if (!column) return value;
+		
+		// Apply default formatter safely
+		try {
+			value = default_formatter(value, row, column, data);
+		} catch (e) {
+			console.warn('Error in default formatter:', e);
+		}
+		
+		// If value is undefined or null, return empty string
+		if (value === undefined || value === null) return '';
 		
 		// Apply custom formatting for amounts
-		if (column.fieldtype == "Currency" && value) {
+		if (column.fieldtype === "Currency") {
 			value = "<span style='font-weight: bold;'>" + value + "</span>";
 		}
 		
-		// Highlight payment status
-		if (column.fieldname == "payment_status" && data && data.payment_status) {
-			if (data.payment_status == "Paid") {
-				value = "<span style='color: #38A169; font-weight: bold; background-color: #E6FFEA; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
-			} else if (data.payment_status == "Unpaid") {
-				value = "<span style='color: #E53E3E; font-weight: bold; background-color: #FFF5F5; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
-			} else {
-				value = "<span style='color: #718096; font-weight: bold; background-color: #F7FAFC; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
+		// Add special formatting for invoice number to make it more readable and open links in new tab
+		if (column.fieldname === "invoice_number" || column.fieldname === "payment_entry") {
+			// Check if the value contains an anchor tag
+			if (value && typeof value === 'string' && value.includes('<a')) {
+				// Add target="_blank" to the anchor tag
+				value = value.replace(/<a /g, '<a target="_blank" ');
+			}
+			
+			if (column.fieldname === "invoice_number") {
+				value = "<span style='font-family: monospace; font-weight: 500;'>" + value + "</span>";
 			}
 		}
 		
-		// Add special formatting for invoice number to make it more readable
-		if (column.fieldname == "invoice_number" && value) {
-			value = "<span style='font-family: monospace; font-weight: 500;'>" + value + "</span>";
-		}
-		
-		// Format invoice status
-		if (column.fieldname == "invoice_status" && data && data.invoice_status) {
-			if (data.invoice_status == "Paid") {
+		// Format invoice status - only if data and data.invoice_status exist
+		if (column.fieldname === "invoice_status" && data && typeof data === 'object') {
+			const status = data.invoice_status;
+			if (status === "Paid") {
 				value = "<span style='color: #38A169; font-weight: 500;'>" + value + "</span>";
-			} else if (data.invoice_status == "Unpaid") {
+			} else if (status === "Unpaid") {
 				value = "<span style='color: #E53E3E; font-weight: 500;'>" + value + "</span>";
 			}
 		}
@@ -138,14 +103,28 @@ frappe.query_reports["Payout Report"] = {
 	onload: function(report) {
 		// Apply styles to make the table take up 100% of the width
 		setTimeout(function() {
-			// Select the data table and apply styles
+			// Select the data table and apply styles for full width
 			$('.datatable').css({
+				'width': '100%',
+				'max-width': '100%',
+				'table-layout': 'fixed'
+			});
+			
+			// Adjust the table container for full width
+			$('.dt-scrollable').css({
+				'width': '100%',
+				'max-width': '100%',
+				'overflow-x': 'auto'
+			});
+			
+			// Make sure the table body takes full width
+			$('.dt-body').css({
 				'width': '100%',
 				'max-width': '100%'
 			});
 			
-			// Adjust the table container
-			$('.dt-scrollable').css({
+			// Make sure the table wrapper takes full width
+			$('.datatable-wrapper').css({
 				'width': '100%',
 				'max-width': '100%'
 			});
@@ -207,10 +186,20 @@ frappe.query_reports["Payout Report"] = {
 			if (report.datatable) {
 				report.datatable.refresh();
 				
-				// Reajustar anchos
-				$('.datatable, .dt-scrollable, .report-wrapper, .dt-header').css({
+				// Reajustar anchos para asegurar que la tabla ocupe el 100% del contenedor
+				$('.datatable, .dt-scrollable, .report-wrapper, .dt-header, .dt-body, .datatable-wrapper').css({
 					'width': '100%',
 					'max-width': '100%'
+				});
+				
+				// Ensure table takes full width with fixed layout
+				$('.datatable').css({
+					'table-layout': 'fixed'
+				});
+				
+				// Make sure horizontal scrolling works if needed
+				$('.dt-scrollable').css({
+					'overflow-x': 'auto'
 				});
 			}
 		});
@@ -260,8 +249,10 @@ frappe.query_reports["Payout Report"] = {
 		options.checkboxColumn = false; // Remove checkbox column
 		options.inlineFilters = true; // Enable inline filters
 		options.dynamicRowHeight = true; // Allow rows to expand if needed
-		options.showTotalRow = true; // Show total row
+		options.showTotalRow = false; // Hide total row
 		options.treeView = false; // Disable tree view
+		
+		// We've disabled the total row, so no need for a custom getTotalRow function
 		
 		// Set specific column widths for better alignment
 		if (!options.columns) options.columns = [];
@@ -293,45 +284,70 @@ frappe.query_reports["Payout Report"] = {
 	
 	// Function that runs after rendering the table
 	after_datatable_render: function(datatable) {
-		// Additional customization after the table is rendered
-		datatable.$container.find('.dt-scrollable').css({
-			'max-height': '500px' // Limit the height of the scrollable area
-		});
-
-		// Add zebra striping for better readability
-		datatable.$container.find('.dt-row:nth-child(even)').css({
-			'background-color': '#f9f9f9'
-		});
-
-		// Add hover effect
-		datatable.$container.find('.dt-row').hover(
-			function() { $(this).css('background-color', '#f0f4f8'); },
-			function() { 
-				if ($(this).index() % 2 === 0) {
-					$(this).css('background-color', ''); 
-				} else {
-					$(this).css('background-color', '#f9f9f9'); 
-				}
+		// Safety check for datatable and its container
+		if (!datatable || !datatable.$container) return;
+		
+		try {
+			// Additional customization after the table is rendered
+			const $scrollable = datatable.$container.find('.dt-scrollable');
+			if ($scrollable && $scrollable.length) {
+				$scrollable.css({
+					'max-height': '500px' // Limit the height of the scrollable area
+				});
 			}
-		);
-
-		// Fix header alignment
-		setTimeout(function() {
-			// Ensure header text is properly aligned
-			datatable.$container.find('.dt-cell--header').each(function() {
-				const $header = $(this);
-				const fieldname = $header.data('fieldname');
-				
-				// Center align certain headers
-				if (fieldname === 'payment_status' || fieldname === 'invoice_status') {
-					$header.css('text-align', 'center');
-					$header.find('.dt-cell__content').css('text-align', 'center');
+	
+			// Add zebra striping for better readability
+			const $evenRows = datatable.$container.find('.dt-row:nth-child(even)');
+			if ($evenRows && $evenRows.length) {
+				$evenRows.css({
+					'background-color': '#f9f9f9'
+				});
+			}
+	
+			// Add hover effect
+			const $rows = datatable.$container.find('.dt-row');
+			if ($rows && $rows.length) {
+				$rows.hover(
+					function() { $(this).css('background-color', '#f0f4f8'); },
+					function() { 
+						if ($(this).index() % 2 === 0) {
+							$(this).css('background-color', ''); 
+						} else {
+							$(this).css('background-color', '#f9f9f9'); 
+						}
+					}
+				);
+			}
+	
+			// Fix header alignment
+			setTimeout(function() {
+				try {
+					// Ensure header text is properly aligned
+					const $headers = datatable.$container.find('.dt-cell--header');
+					if ($headers && $headers.length) {
+						$headers.each(function() {
+							const $header = $(this);
+							const fieldname = $header.data('fieldname');
+							
+							// Center align certain headers
+							if (fieldname === 'payment_status' || fieldname === 'invoice_status') {
+								$header.css('text-align', 'center');
+								const $content = $header.find('.dt-cell__content');
+								if ($content && $content.length) {
+									$content.css('text-align', 'center');
+								}
+							}
+						});
+					}
+					
+					// Total row has been disabled
+				} catch (e) {
+					console.warn('Error in header alignment or totals row:', e);
 				}
-			});
-			
-			// Add custom totals row at the bottom
-			frappe.query_reports["Payout Report"].addTotalsRow(datatable);
-		}, 100);
+			}, 100);
+		} catch (e) {
+			console.warn('Error in after_datatable_render:', e);
+		}
 	},
 	
 	// Add custom summary section at the bottom of the report
@@ -344,50 +360,107 @@ frappe.query_reports["Payout Report"] = {
 			report.summary_area = $('<div class="summary-section">').appendTo(report.page.main.find('.report-wrapper'));
 		}
 		
-		// Calculate totals
+		// Get totals from the backend
 		let totalInvoiceAmount = 0;
 		let totalPaidAmount = 0;
 		
-		// Safely iterate through data
-		if (report.data && Array.isArray(report.data)) {
-			report.data.forEach(function(row) {
-				if (row) {
-					totalInvoiceAmount += flt(row.invoice_amount || 0);
-					totalPaidAmount += flt(row.paid_amount || 0);
+		// First try to get totals from custom properties in the first row
+		if (report.data && report.data.length > 0 && report.data[0]) {
+			if (report.data[0].total_invoices_amount !== undefined) {
+				totalInvoiceAmount = flt(report.data[0].total_invoices_amount);
+			}
+			if (report.data[0].total_payments_amount !== undefined) {
+				totalPaidAmount = flt(report.data[0].total_payments_amount);
+			}
+			console.log("=====> Using totals from data: ", totalInvoiceAmount, totalPaidAmount);
+		} 
+		// Fallback to report_summary if available
+		else if (report.report_summary && Array.isArray(report.report_summary)) {
+			// Find values by label in the report_summary array
+			report.report_summary.forEach(function(item) {
+				if (item.label === "Total Invoices") {
+					totalInvoiceAmount = flt(item.value || 0);
+				} else if (item.label === "Total Payments") {
+					totalPaidAmount = flt(item.value || 0);
 				}
 			});
+			console.log("=====> Using totals from report_summary: ", totalInvoiceAmount, totalPaidAmount);
+		} 
+		// Last resort: calculate from data
+		else {
+			// Only calculate paid amount as we can't reliably calculate invoice amount here
+			if (report.data && Array.isArray(report.data)) {
+				report.data.forEach(function(row) {
+					if (row) {
+						totalPaidAmount += flt(row.paid_amount || 0);
+					}
+				});
+			}
+			console.log("=====> Using fallback calculation for totals");
 		}
 		
-		// Format the summary HTML
-		const summaryHtml = `
-			<div class="summary-box" style="margin-top: 20px; padding: 15px; background-color: #f5f7fa; border: 1px solid #d1d8dd; border-radius: 5px;">
-				<h4 style="margin-top: 0; margin-bottom: 10px; font-size: 16px; font-weight: bold;">${__('Summary')}</h4>
-				<div style="display: flex; justify-content: space-between;">
-					<div style="flex: 1;">
-						<div style="margin-bottom: 8px;">
-							<span style="font-weight: bold;">${__('Total Invoice Amount')}:</span>
-							<span style="font-size: 16px; color: #1a73e8; margin-left: 10px;">${format_currency(totalInvoiceAmount)}</span>
+		// Format the summary HTML with error handling
+		try {
+			// Ensure format_currency is available
+			const formatCurrency = typeof format_currency === 'function' ? format_currency : function(val) { return val.toFixed(2); };
+			
+			// Calculate derived values safely
+			const pendingAmount = totalInvoiceAmount - totalPaidAmount;
+			const pendingColor = pendingAmount > 0 ? '#ea4335' : '#34a853';
+			const completionPercentage = totalInvoiceAmount > 0 ? ((totalPaidAmount / totalInvoiceAmount) * 100).toFixed(2) : '0.00';
+			
+			const summaryHtml = `
+				<div class="summary-box" style="margin-top: 20px; padding: 15px; background-color: #f5f7fa; border: 1px solid #d1d8dd; border-radius: 5px;">
+					<h4 style="margin-top: 0; margin-bottom: 10px; font-size: 16px; font-weight: bold;">${__('Summary')}</h4>
+					<div style="display: flex; justify-content: space-between; flex-wrap: wrap;">
+						<div style="flex: 1; min-width: 250px;">
+							<div style="margin-bottom: 8px;">
+								<span style="font-weight: bold;">${__('Total Invoices')}:</span>
+								<span style="font-size: 16px; color: #1a73e8; margin-left: 10px;">${formatCurrency(totalInvoiceAmount)}</span>
+							</div>
+							<div>
+								<span style="font-weight: bold;">${__('Total Payments')}:</span>
+								<span style="font-size: 16px; color: #34a853; margin-left: 10px;">${formatCurrency(totalPaidAmount)}</span>
+							</div>
 						</div>
-						<div>
-							<span style="font-weight: bold;">${__('Total Paid Amount')}:</span>
-							<span style="font-size: 16px; color: #34a853; margin-left: 10px;">${format_currency(totalPaidAmount)}</span>
-						</div>
-					</div>
-					<div style="flex: 1;">
-						<div style="margin-bottom: 8px;">
-							<span style="font-weight: bold;">${__('Pending Amount')}:</span>
-							<span style="font-size: 16px; color: ${totalInvoiceAmount - totalPaidAmount > 0 ? '#ea4335' : '#34a853'}; margin-left: 10px;">${format_currency(totalInvoiceAmount - totalPaidAmount)}</span>
-						</div>
-						<div>
-							<span style="font-weight: bold;">${__('Payment Completion')}:</span>
-							<span style="font-size: 16px; margin-left: 10px;">${totalInvoiceAmount ? ((totalPaidAmount / totalInvoiceAmount) * 100).toFixed(2) : 0}%</span>
+						<div style="flex: 1; min-width: 250px;">
+							<div style="margin-bottom: 8px;">
+								<span style="font-weight: bold;">${__('Pending Amount')}:</span>
+								<span style="font-size: 16px; color: ${pendingColor}; margin-left: 10px;">${formatCurrency(pendingAmount)}</span>
+							</div>
+							<div>
+								<span style="font-weight: bold;">${__('Payment Completion')}:</span>
+								<span style="font-size: 16px; margin-left: 10px;">${completionPercentage}%</span>
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-		`;
-		
-		// Update the summary area
-		report.summary_area.html(summaryHtml);
+			`;
+			
+			// Update the summary area if it exists
+			if (report.summary_area && typeof report.summary_area.html === 'function') {
+				report.summary_area.html(summaryHtml);
+			}
+		} catch (e) {
+			console.warn('Error generating summary HTML:', e);
+			// Provide a simple fallback summary if there's an error
+			if (report.summary_area && typeof report.summary_area.html === 'function') {
+				report.summary_area.html(`
+					<div class="summary-box" style="margin-top: 20px; padding: 15px; background-color: #f5f7fa; border: 1px solid #d1d8dd; border-radius: 5px;">
+						<h4 style="margin-top: 0; margin-bottom: 10px; font-size: 16px; font-weight: bold;">${__('Summary')}</h4>
+						<div>
+							<div style="margin-bottom: 8px;">
+								<span style="font-weight: bold;">${__('Total Invoices')}:</span>
+								<span style="margin-left: 10px;">${totalInvoiceAmount}</span>
+							</div>
+							<div>
+								<span style="font-weight: bold;">${__('Total Payments')}:</span>
+								<span style="margin-left: 10px;">${totalPaidAmount}</span>
+							</div>
+						</div>
+					</div>
+				`);
+			}
+		}
 	}
 };

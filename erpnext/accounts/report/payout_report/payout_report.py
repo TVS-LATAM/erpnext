@@ -19,7 +19,30 @@ def execute(filters=None):
 	columns = get_columns()
 	data = fetch_payout_data(filters)
 	
-	return columns, data
+	# Calculate totals without duplicates
+	totals = get_report_totals(filters)
+	
+	# Add totals to the report data as a custom property
+	# Format the report summary as expected by Frappe
+	report_summary = [
+		{
+			"label": _("Total Invoices"),
+			"value": totals.get("total_invoices", 0),
+			"indicator": "Blue"
+		},
+		{
+			"label": _("Total Payments"),
+			"value": totals.get("total_payments", 0),
+			"indicator": "Green"
+		},
+		{
+			"label": _("Pending Amount"),
+			"value": totals.get("total_invoices", 0) - totals.get("total_payments", 0),
+			"indicator": "Red" if totals.get("total_invoices", 0) > totals.get("total_payments", 0) else "Green"
+		}
+	]
+	
+	return columns, data, None, None, report_summary
 
 def validate_filters(filters):
 	"""
@@ -116,6 +139,14 @@ def fetch_payout_data(filters):
 		
 		processed_data.append(row)
 
+	# Calculate totals for table footer
+	totals = get_report_totals(filters)
+	
+	# Add a custom property to the first row to pass totals to frontend
+	if processed_data:
+		processed_data[0].total_invoices_amount = totals.get("total_invoices", 0)
+		processed_data[0].total_payments_amount = totals.get("total_payments", 0)
+
 	return processed_data
 
 def get_columns():
@@ -178,6 +209,75 @@ def get_columns():
 			"width": 150
 		}
 	]
+
+def get_report_totals(filters):
+	"""
+	Calculate report totals without duplicates
+	- Total Invoices: Sum of grand_total from distinct invoices
+	- Total Payments: Sum of paid_amount from payment entries
+	"""
+	from_date = filters.get("from_date")
+	to_date = filters.get("to_date")
+	company = filters.get("company")
+	customer = filters.get("customer")
+	payment_gateway = filters.get("payment_gateway")
+	
+	# Query to get total invoice amount (grand_total) without duplicates
+	invoice_query = """
+		SELECT 
+			SUM(base_grand_total) as total_invoices
+		FROM 
+			`tabSales Invoice` si
+		WHERE 
+			si.docstatus = 1
+			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+			AND si.company = %(company)s
+	"""
+	
+	# Query to get total payments
+	payment_query = """
+		SELECT 
+			SUM(pe.paid_amount) as total_payments
+		FROM 
+			`tabSales Invoice` si
+		LEFT JOIN 
+			`tabPayment Entry Reference` per ON per.reference_name = si.name
+		LEFT JOIN 
+			`tabPayment Entry` pe ON pe.name = per.parent
+		LEFT JOIN 
+			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
+		WHERE 
+			si.docstatus = 1
+			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+			AND si.company = %(company)s
+			AND pe.name IS NOT NULL
+	"""
+	
+	# Add optional filters
+	if customer:
+		invoice_query += " AND si.customer = %(customer)s"
+		payment_query += " AND si.customer = %(customer)s"
+	
+	if payment_gateway:
+		invoice_query += " AND (si.payment_gateway = %(payment_gateway)s)"
+		payment_query += " AND (si.payment_gateway = %(payment_gateway)s OR mop.name = %(payment_gateway)s)"
+	
+	# Execute queries
+	params = {
+		"from_date": from_date,
+		"to_date": to_date,
+		"company": company,
+		"customer": customer,
+		"payment_gateway": payment_gateway
+	}
+	
+	total_invoices = frappe.db.sql(invoice_query, params, as_dict=True)
+	total_payments = frappe.db.sql(payment_query, params, as_dict=True)
+	
+	return {
+		"total_invoices": flt(total_invoices[0].total_invoices if total_invoices else 0),
+		"total_payments": flt(total_payments[0].total_payments if total_payments else 0)
+	}
 
 @frappe.whitelist()
 def get_payment_gateways():
