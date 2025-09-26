@@ -44,21 +44,33 @@ def fetch_payout_data(filters):
 	# Query to get sales invoices with their payments and payment gateways
 	query = """
 		SELECT 
+			-- Invoice Information
 			si.name AS invoice_number,
 			si.posting_date AS invoice_date,
-			si.customer AS customer,
-			si.customer_name AS customer_name,
 			si.base_grand_total AS invoice_amount,
 			si.status AS invoice_status,
+			
+			-- Customer Information
+			si.customer AS customer,
+			si.customer_name AS customer_name,
+			
+			-- Payment Information
 			pe.name AS payment_entry,
 			pe.posting_date AS payment_date,
 			pe.paid_amount AS paid_amount,
+			CASE 
+				WHEN pe.status IS NULL THEN 'Unpaid'
+				ELSE pe.status 
+			END AS payment_status,
+			
+			-- Payment Gateway Information
+			IFNULL(si.payment_gateway, mop.name) AS payment_gateway,
+			mop.type AS payment_type,
+			
+			-- Reference Information
 			pe.reference_no AS reference_no,
 			pe.reference_date AS reference_date,
-			pe.mode_of_payment AS mode_of_payment,
-			mop.type AS payment_type,
-			IFNULL(pg.gateway_service_provider, mop.name) AS payment_gateway,
-			pe.status AS payment_status
+			pe.mode_of_payment AS mode_of_payment
 		FROM 
 			`tabSales Invoice` si
 		LEFT JOIN 
@@ -67,8 +79,6 @@ def fetch_payout_data(filters):
 			`tabPayment Entry` pe ON pe.name = per.parent
 		LEFT JOIN 
 			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
-		LEFT JOIN 
-			`tabPayment Gateway` pg ON pg.name = mop.payment_gateway
 		WHERE 
 			si.docstatus = 1
 			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
@@ -80,7 +90,7 @@ def fetch_payout_data(filters):
 		query += " AND si.customer = %(customer)s"
 	
 	if payment_gateway:
-		query += " AND (pg.gateway_service_provider = %(payment_gateway)s OR mop.name = %(payment_gateway)s)"
+		query += " AND (si.payment_gateway = %(payment_gateway)s OR mop.name = %(payment_gateway)s)"
 
 	# Order by invoice date and then payment date
 	query += " ORDER BY si.posting_date, pe.posting_date"
@@ -113,12 +123,13 @@ def get_columns():
 	Define columns for Payout Report
 	"""
 	return [
+		# Invoice Information
 		{
 			"fieldname": "invoice_number", 
 			"label": _("Invoice Number"), 
 			"fieldtype": "Link", 
 			"options": "Sales Invoice",
-			"width": 130
+			"width": 140
 		},
 		{
 			"fieldname": "invoice_date", 
@@ -126,6 +137,19 @@ def get_columns():
 			"fieldtype": "Date", 
 			"width": 100
 		},
+		{
+			"fieldname": "invoice_amount", 
+			"label": _("Invoice Amount"), 
+			"fieldtype": "Currency", 
+			"width": 130
+		},
+		{
+			"fieldname": "invoice_status", 
+			"label": _("Invoice Status"), 
+			"fieldtype": "Data", 
+			"width": 110
+		},
+		# Customer Information
 		{
 			"fieldname": "customer", 
 			"label": _("Customer"), 
@@ -139,24 +163,13 @@ def get_columns():
 			"fieldtype": "Data", 
 			"width": 180
 		},
-		{
-			"fieldname": "invoice_amount", 
-			"label": _("Invoice Amount"), 
-			"fieldtype": "Currency", 
-			"width": 120
-		},
-		{
-			"fieldname": "invoice_status", 
-			"label": _("Invoice Status"), 
-			"fieldtype": "Data", 
-			"width": 100
-		},
+		# Payment Information
 		{
 			"fieldname": "payment_entry", 
 			"label": _("Payment Entry"), 
 			"fieldtype": "Link", 
 			"options": "Payment Entry",
-			"width": 130
+			"width": 150
 		},
 		{
 			"fieldname": "payment_date", 
@@ -168,14 +181,16 @@ def get_columns():
 			"fieldname": "paid_amount", 
 			"label": _("Paid Amount"), 
 			"fieldtype": "Currency", 
-			"width": 120
+			"width": 130
 		},
 		{
-			"fieldname": "reference_no", 
-			"label": _("Reference No"), 
+			"fieldname": "payment_status", 
+			"label": _("Payment Status"), 
 			"fieldtype": "Data", 
-			"width": 120
+			"width": 120,
+			"align": "center"
 		},
+		# Payment Gateway Information
 		{
 			"fieldname": "payment_gateway", 
 			"label": _("Payment Gateway"), 
@@ -186,13 +201,14 @@ def get_columns():
 			"fieldname": "payment_type", 
 			"label": _("Payment Type"), 
 			"fieldtype": "Data", 
-			"width": 100
+			"width": 120
 		},
+		# Reference Information
 		{
-			"fieldname": "payment_status", 
-			"label": _("Payment Status"), 
+			"fieldname": "reference_no", 
+			"label": _("Reference No"), 
 			"fieldtype": "Data", 
-			"width": 100
+			"width": 130
 		}
 	]
 
@@ -201,11 +217,11 @@ def get_payment_gateways():
 	"""
 	Get list of payment gateways for filter
 	"""
-	# Get payment gateways from Payment Gateway table
+	# Get payment gateways from Sales Invoice table
 	payment_gateways = frappe.db.sql("""
-		SELECT DISTINCT gateway_service_provider 
-		FROM `tabPayment Gateway` 
-		WHERE gateway_service_provider IS NOT NULL
+		SELECT DISTINCT payment_gateway 
+		FROM `tabSales Invoice` 
+		WHERE payment_gateway IS NOT NULL
 	""", as_dict=True)
 	
 	# Get modes of payment that might be used as gateways
@@ -218,7 +234,7 @@ def get_payment_gateways():
 	# Combine both lists
 	gateways = []
 	for pg in payment_gateways:
-		gateways.append(pg.gateway_service_provider)
+		gateways.append(pg.payment_gateway)
 	
 	for mop in modes_of_payment:
 		if mop.name not in gateways:

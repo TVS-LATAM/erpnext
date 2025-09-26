@@ -55,16 +55,16 @@ frappe.query_reports["Payout Report"] = {
 		}
 	],
 	
-	// Formateador para personalizar la visualización de los datos
+	// Formatter to customize data display
 	formatter: function(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 		
-		// Aplicar formato personalizado para montos
+		// Apply custom formatting for amounts
 		if (column.fieldtype == "Currency") {
 			value = "<span style='font-weight: bold;'>" + value + "</span>";
 		}
 		
-		// Resaltar el estado de pago
+		// Highlight payment status
 		if (column.fieldname == "payment_status") {
 			if (data.payment_status == "Paid") {
 				value = "<span style='color: green; font-weight: bold;'>" + value + "</span>";
@@ -72,39 +72,58 @@ frappe.query_reports["Payout Report"] = {
 				value = "<span style='color: red; font-weight: bold;'>" + value + "</span>";
 			}
 		}
+
+		// Add special formatting for invoice number to make it more readable
+		if (column.fieldname == "invoice_number") {
+			value = "<span style='font-family: monospace;'>" + value + "</span>";
+		}
 		
 		return value;
 	},
 	
-	// Función que se ejecuta al cargar el reporte
+	// Function executed when the report loads
 	onload: function(report) {
-		// Aplicar estilos para que la tabla ocupe el 100% del ancho
+		// Apply styles to make the table take up 100% of the width
 		setTimeout(function() {
-			// Seleccionar la tabla de datos y aplicar estilos
+			// Select the data table and apply styles
 			$('.datatable').css({
 				'width': '100%',
 				'max-width': '100%'
 			});
 			
-			// Ajustar el contenedor de la tabla
+			// Adjust the table container
 			$('.dt-scrollable').css({
 				'width': '100%',
 				'max-width': '100%'
 			});
 			
-			// Ajustar el contenedor principal del reporte
+			// Adjust the main report container
 			$('.report-wrapper').css({
 				'width': '100%',
 				'max-width': '100%'
 			});
 			
-			// Asegurar que la tabla de encabezado también tenga ancho completo
+			// Ensure the header table also has full width
 			$('.dt-header').css({
 				'width': '100%',
 				'max-width': '100%'
 			});
+
+			// Improve cell padding and alignment
+			$('.dt-cell').css({
+				'padding': '8px 12px',
+				'white-space': 'nowrap',
+				'overflow': 'hidden',
+				'text-overflow': 'ellipsis'
+			});
+
+			// Improve header styling
+			$('.dt-cell--header').css({
+				'font-weight': 'bold',
+				'background-color': '#f5f7fa'
+			});
 			
-			// Forzar recálculo de anchos de columnas
+			// Force recalculation of column widths
 			if (report.datatable) {
 				report.datatable.refresh();
 			}
@@ -159,20 +178,54 @@ frappe.query_reports["Payout Report"] = {
 		});
 	},
 	
-	// Configuración para la tabla de datos
+	// Configuration for the data table
 	get_datatable_options: function(options) {
-		// Modificar opciones de la tabla de datos
-		options.layout = 'fluid'; // Cambiar de 'fixed' a 'fluid'
-		options.cellHeight = 40; // Aumentar altura de celda para mejor visualización
+		// Modify data table options
+		options.layout = 'fluid'; // Change from 'fixed' to 'fluid'
+		options.cellHeight = 40; // Increase cell height for better visualization
+		options.serialNoColumn = true; // Add serial number column
+		options.checkboxColumn = false; // Remove checkbox column
+		options.inlineFilters = true; // Enable inline filters
+		
+		// Set specific column widths for better alignment
+		if (!options.columns) options.columns = [];
+		options.columns.forEach(function(column) {
+			if (column.fieldname === 'invoice_number') column.width = 130;
+			if (column.fieldname === 'invoice_date') column.width = 100;
+			if (column.fieldname === 'customer') column.width = 120;
+			if (column.fieldname === 'customer_name') column.width = 180;
+			if (column.fieldname === 'invoice_amount') column.width = 120;
+			if (column.fieldname === 'payment_entry') column.width = 150;
+			if (column.fieldname === 'payment_date') column.width = 100;
+			if (column.fieldname === 'paid_amount') column.width = 120;
+			if (column.fieldname === 'payment_gateway') column.width = 150;
+		});
 		
 		return options;
 	},
 	
-	// Función que se ejecuta después de renderizar la tabla
+	// Function that runs after rendering the table
 	after_datatable_render: function(datatable) {
-		// Personalización adicional después de que se renderiza la tabla
+		// Additional customization after the table is rendered
 		datatable.$container.find('.dt-scrollable').css({
-			'max-height': '500px' // Limitar la altura del área desplazable
+			'max-height': '500px' // Limit the height of the scrollable area
 		});
+
+		// Add zebra striping for better readability
+		datatable.$container.find('.dt-row:nth-child(even)').css({
+			'background-color': '#f9f9f9'
+		});
+
+		// Add hover effect
+		datatable.$container.find('.dt-row').hover(
+			function() { $(this).css('background-color', '#f0f4f8'); },
+			function() { 
+				if ($(this).index() % 2 === 0) {
+					$(this).css('background-color', ''); 
+				} else {
+					$(this).css('background-color', '#f9f9f9'); 
+				}
+			}
+		);
 	}
 };
