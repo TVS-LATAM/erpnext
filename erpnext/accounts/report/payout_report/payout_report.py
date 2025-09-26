@@ -139,18 +139,73 @@ def fetch_payout_data(filters):
 		"payment_gateway": payment_gateway
 	}, as_dict=True)
 
-	# Process the data to handle invoices without payments
+	# Process the data to handle invoices without payments and group multiple payments for the same invoice
 	processed_data = []
+	
+	# Create a dictionary to group by invoice_number
+	invoice_map = {}
+	
 	for row in result:
-		# If no payment entry exists, still show the invoice
-		if not row.payment_entry:
-			row.paid_amount = 0
-			row.payment_date = None
-			# Don't reset payment_gateway to None as it may come directly from sales_invoice
-			# row.payment_gateway = None
-			row.payment_status = "Unpaid"
+		# If this is the first time we see this invoice, initialize it
+		if row.invoice_number not in invoice_map:
+			invoice_map[row.invoice_number] = {
+				"invoice_number": row.invoice_number,
+				"invoice_date": row.invoice_date,
+				"invoice_amount": row.invoice_amount,
+				"invoice_status": row.invoice_status,
+				"customer": row.customer,
+				"customer_name": row.customer_name,
+				"payment_gateway": row.payment_gateway,
+				"payments": [],
+				"total_paid": 0
+			}
 		
-		# Normalize payment gateway values
+		# If there's a payment entry, add it to the payments list
+		if row.payment_entry:
+			invoice_map[row.invoice_number]["payments"].append({
+				"payment_entry": row.payment_entry,
+				"payment_date": row.payment_date,
+				"paid_amount": row.paid_amount,
+				"payment_status": row.payment_status
+			})
+			invoice_map[row.invoice_number]["total_paid"] += flt(row.paid_amount)
+			
+		# Update payment gateway if it exists in this row and not in the invoice map
+		if row.payment_gateway and not invoice_map[row.invoice_number]["payment_gateway"]:
+			invoice_map[row.invoice_number]["payment_gateway"] = row.payment_gateway
+	
+	# Convert the grouped data back to rows
+	for invoice_number, invoice_data in invoice_map.items():
+		# Create a base row with invoice information
+		base_row = frappe._dict({
+			"invoice_number": invoice_data["invoice_number"],
+			"invoice_date": invoice_data["invoice_date"],
+			"invoice_amount": invoice_data["invoice_amount"],
+			"invoice_status": invoice_data["invoice_status"],
+			"customer": invoice_data["customer"],
+			"customer_name": invoice_data["customer_name"],
+			"payment_gateway": invoice_data["payment_gateway"]
+		})
+		
+		# If there are no payments, add a single row with 0 paid amount
+		if not invoice_data["payments"]:
+			base_row.payment_entry = None
+			base_row.payment_date = None
+			base_row.paid_amount = 0
+			base_row.payment_status = "Unpaid"
+			processed_data.append(base_row)
+		else:
+			# Add a row for each payment
+			for payment in invoice_data["payments"]:
+				payment_row = frappe._dict(base_row.copy())
+				payment_row.payment_entry = payment["payment_entry"]
+				payment_row.payment_date = payment["payment_date"]
+				payment_row.paid_amount = payment["paid_amount"]
+				payment_row.payment_status = payment["payment_status"]
+				processed_data.append(payment_row)
+	
+	# Normalize payment gateway values
+	for row in processed_data:
 		if row.payment_gateway:
 			# Convert to lowercase for consistency
 			row.payment_gateway = row.payment_gateway.lower()
@@ -164,8 +219,6 @@ def fetch_payout_data(filters):
 				row.payment_gateway = "stripe"
 			elif row.payment_gateway == "manual":
 				row.payment_gateway = "manual"
-		
-		processed_data.append(row)
 
 	# Calculate totals for table footer
 	totals = get_report_totals(filters)
@@ -252,21 +305,20 @@ def get_report_totals(filters):
 	payment_gateway = filters.get("payment_gateway")
 	
 	# Query to get total invoice amount (grand_total) without duplicates
+	# Use DISTINCT to ensure we only sum each invoice once
 	invoice_query = """
 		SELECT 
 			SUM(base_grand_total) as total_invoices
 		FROM 
-			`tabSales Invoice` si
-		LEFT JOIN 
-			`tabPayment Entry Reference` per ON per.reference_name = si.name
-		LEFT JOIN 
-			`tabPayment Entry` pe ON pe.name = per.parent
-		LEFT JOIN 
-			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
-		WHERE 
-			si.docstatus = 1
-			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
-			AND si.company = %(company)s
+			(SELECT DISTINCT si.name, si.base_grand_total
+			FROM `tabSales Invoice` si
+			WHERE 
+				si.docstatus = 1
+				AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
+				AND si.company = %(company)s
+				{customer_condition}
+				{payment_gateway_condition}
+			) as unique_invoices
 	"""
 	
 	# Query to get total payments
@@ -288,16 +340,33 @@ def get_report_totals(filters):
 			AND pe.name IS NOT NULL
 	"""
 	
-	# Add optional filters
+	# Prepare filter conditions as format strings
+	customer_condition = ""
+	payment_gateway_condition = ""
+	
 	if customer:
-		invoice_query += " AND si.customer = %(customer)s"
-		payment_query += " AND si.customer = %(customer)s"
+		customer_condition = "AND si.customer = %(customer)s"
 	
 	if payment_gateway:
 		# Use a simpler filter for payment_gateway to avoid SQL errors
-		# and ensure we're only looking at the payment_gateway field in si
-		invoice_query += " AND LOWER(si.payment_gateway) = LOWER(%(payment_gateway)s)"
-		payment_query += " AND LOWER(si.payment_gateway) = LOWER(%(payment_gateway)s)"
+		payment_gateway_condition = "AND LOWER(si.payment_gateway) = LOWER(%(payment_gateway)s)"
+	
+	# Format the query with conditions
+	invoice_query = invoice_query.format(
+		customer_condition=customer_condition,
+		payment_gateway_condition=payment_gateway_condition
+	)
+	
+	# Add optional filters for payment query
+	payment_query_conditions = []
+	if customer:
+		payment_query_conditions.append("si.customer = %(customer)s")
+	
+	if payment_gateway:
+		payment_query_conditions.append("LOWER(si.payment_gateway) = LOWER(%(payment_gateway)s)")
+	
+	if payment_query_conditions:
+		payment_query += " AND " + " AND ".join(payment_query_conditions)
 	
 	# Execute queries
 	params = {
