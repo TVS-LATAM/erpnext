@@ -126,87 +126,87 @@ def get_columns():
 		# Invoice Information
 		{
 			"fieldname": "invoice_number", 
-			"label": _("Invoice Number"), 
+			"label": _("Invoice\nNumber"), 
 			"fieldtype": "Link", 
 			"options": "Sales Invoice",
 			"width": 140
 		},
 		{
 			"fieldname": "invoice_date", 
-			"label": _("Invoice Date"), 
+			"label": _("Invoice\nDate"), 
 			"fieldtype": "Date", 
-			"width": 100
+			"width": 110
 		},
 		{
 			"fieldname": "invoice_amount", 
-			"label": _("Invoice Amount"), 
+			"label": _("Invoice\nAmount"), 
 			"fieldtype": "Currency", 
 			"width": 130
 		},
 		{
 			"fieldname": "invoice_status", 
-			"label": _("Invoice Status"), 
+			"label": _("Invoice\nStatus"), 
 			"fieldtype": "Data", 
 			"width": 110
-		},
-		# Customer Information
-		{
-			"fieldname": "customer", 
-			"label": _("Customer"), 
-			"fieldtype": "Link", 
-			"options": "Customer",
-			"width": 120
-		},
-		{
-			"fieldname": "customer_name", 
-			"label": _("Customer Name"), 
-			"fieldtype": "Data", 
-			"width": 180
 		},
 		# Payment Information
 		{
 			"fieldname": "payment_entry", 
-			"label": _("Payment Entry"), 
+			"label": _("Payment\nEntry"), 
 			"fieldtype": "Link", 
 			"options": "Payment Entry",
 			"width": 150
 		},
 		{
 			"fieldname": "payment_date", 
-			"label": _("Payment Date"), 
+			"label": _("Payment\nDate"), 
 			"fieldtype": "Date", 
-			"width": 100
+			"width": 110
 		},
 		{
 			"fieldname": "paid_amount", 
-			"label": _("Paid Amount"), 
+			"label": _("Paid\nAmount"), 
 			"fieldtype": "Currency", 
 			"width": 130
 		},
 		{
 			"fieldname": "payment_status", 
-			"label": _("Payment Status"), 
+			"label": _("Payment\nStatus"), 
 			"fieldtype": "Data", 
 			"width": 120,
 			"align": "center"
 		},
+		# Customer Information
+		{
+			"fieldname": "customer", 
+			"label": _("Customer\nID"), 
+			"fieldtype": "Link", 
+			"options": "Customer",
+			"width": 120
+		},
+		{
+			"fieldname": "customer_name", 
+			"label": _("Customer\nName"), 
+			"fieldtype": "Data", 
+			"width": 180
+		},
 		# Payment Gateway Information
 		{
 			"fieldname": "payment_gateway", 
-			"label": _("Payment Gateway"), 
+			"label": _("Payment\nGateway"), 
 			"fieldtype": "Data", 
 			"width": 150
 		},
 		{
 			"fieldname": "payment_type", 
-			"label": _("Payment Type"), 
+			"label": _("Payment\nType"), 
 			"fieldtype": "Data", 
 			"width": 120
 		},
 		# Reference Information
 		{
 			"fieldname": "reference_no", 
-			"label": _("Reference No"), 
+			"label": _("Reference\nNo"), 
 			"fieldtype": "Data", 
 			"width": 130
 		}

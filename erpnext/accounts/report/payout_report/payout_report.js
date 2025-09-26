@@ -67,15 +67,26 @@ frappe.query_reports["Payout Report"] = {
 		// Highlight payment status
 		if (column.fieldname == "payment_status") {
 			if (data.payment_status == "Paid") {
-				value = "<span style='color: green; font-weight: bold;'>" + value + "</span>";
+				value = "<span style='color: #38A169; font-weight: bold; background-color: #E6FFEA; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
 			} else if (data.payment_status == "Unpaid") {
-				value = "<span style='color: red; font-weight: bold;'>" + value + "</span>";
+				value = "<span style='color: #E53E3E; font-weight: bold; background-color: #FFF5F5; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
+			} else {
+				value = "<span style='color: #718096; font-weight: bold; background-color: #F7FAFC; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
 			}
 		}
 
 		// Add special formatting for invoice number to make it more readable
 		if (column.fieldname == "invoice_number") {
-			value = "<span style='font-family: monospace;'>" + value + "</span>";
+			value = "<span style='font-family: monospace; font-weight: 500;'>" + value + "</span>";
+		}
+
+		// Format invoice status
+		if (column.fieldname == "invoice_status") {
+			if (data.invoice_status == "Paid") {
+				value = "<span style='color: #38A169; font-weight: 500;'>" + value + "</span>";
+			} else if (data.invoice_status == "Unpaid") {
+				value = "<span style='color: #E53E3E; font-weight: 500;'>" + value + "</span>";
+			}
 		}
 		
 		return value;
@@ -114,13 +125,33 @@ frappe.query_reports["Payout Report"] = {
 				'padding': '8px 12px',
 				'white-space': 'nowrap',
 				'overflow': 'hidden',
-				'text-overflow': 'ellipsis'
+				'text-overflow': 'ellipsis',
+				'min-width': '100px'
 			});
 
 			// Improve header styling
 			$('.dt-cell--header').css({
 				'font-weight': 'bold',
-				'background-color': '#f5f7fa'
+				'background-color': '#f5f7fa',
+				'padding': '10px 12px',
+				'height': 'auto',
+				'line-height': '1.5',
+				'border-bottom': '2px solid #d1d8dd'
+			});
+			
+			// Make sure text in headers is visible and properly formatted
+			$('.dt-cell__content').css({
+				'white-space': 'normal',
+				'overflow': 'visible',
+				'text-overflow': 'clip'
+			});
+
+			// Improve header text display
+			$('.dt-cell--header .dt-cell__content').css({
+				'font-weight': 'bold',
+				'text-align': 'center',
+				'white-space': 'pre-line',
+				'line-height': '1.2'
 			});
 			
 			// Force recalculation of column widths
@@ -181,24 +212,35 @@ frappe.query_reports["Payout Report"] = {
 	// Configuration for the data table
 	get_datatable_options: function(options) {
 		// Modify data table options
-		options.layout = 'fluid'; // Change from 'fixed' to 'fluid'
+		options.layout = 'fixed'; // Use fixed layout for better column control
 		options.cellHeight = 40; // Increase cell height for better visualization
 		options.serialNoColumn = true; // Add serial number column
 		options.checkboxColumn = false; // Remove checkbox column
 		options.inlineFilters = true; // Enable inline filters
+		options.dynamicRowHeight = true; // Allow rows to expand if needed
+		options.showTotalRow = false; // Don't show total row
+		options.treeView = false; // Disable tree view
 		
 		// Set specific column widths for better alignment
 		if (!options.columns) options.columns = [];
 		options.columns.forEach(function(column) {
-			if (column.fieldname === 'invoice_number') column.width = 130;
-			if (column.fieldname === 'invoice_date') column.width = 100;
+			// Set minimum width for all columns
+			column.minWidth = 100;
+			
+			// Set specific widths for important columns
+			if (column.fieldname === 'invoice_number') column.width = 140;
+			if (column.fieldname === 'invoice_date') column.width = 110;
 			if (column.fieldname === 'customer') column.width = 120;
 			if (column.fieldname === 'customer_name') column.width = 180;
-			if (column.fieldname === 'invoice_amount') column.width = 120;
+			if (column.fieldname === 'invoice_amount') column.width = 130;
 			if (column.fieldname === 'payment_entry') column.width = 150;
-			if (column.fieldname === 'payment_date') column.width = 100;
-			if (column.fieldname === 'paid_amount') column.width = 120;
+			if (column.fieldname === 'payment_date') column.width = 110;
+			if (column.fieldname === 'paid_amount') column.width = 130;
 			if (column.fieldname === 'payment_gateway') column.width = 150;
+			if (column.fieldname === 'payment_status') {
+				column.width = 120;
+				column.align = 'center';
+			}
 		});
 		
 		return options;
@@ -227,5 +269,20 @@ frappe.query_reports["Payout Report"] = {
 				}
 			}
 		);
+
+		// Fix header alignment
+		setTimeout(function() {
+			// Ensure header text is properly aligned
+			datatable.$container.find('.dt-cell--header').each(function() {
+				const $header = $(this);
+				const fieldname = $header.data('fieldname');
+				
+				// Center align certain headers
+				if (fieldname === 'payment_status' || fieldname === 'invoice_status') {
+					$header.css('text-align', 'center');
+					$header.find('.dt-cell__content').css('text-align', 'center');
+				}
+			});
+		}, 100);
 	}
 };
