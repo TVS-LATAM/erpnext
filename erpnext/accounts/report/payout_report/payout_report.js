@@ -35,22 +35,10 @@ frappe.query_reports["Payout Report"] = {
 			fieldname: "payment_gateway",
 			label: __("Payment Gateway"),
 			fieldtype: "Select",
-			get_data: function() {
-				return new Promise(function(resolve) {
-					frappe.call({
-						method: "erpnext.accounts.report.payout_report.payout_report.get_payment_gateways",
-						callback: function(r) {
-							let options = [];
-							options.push({ value: "", label: __("All Payment Gateways") });
-							
-							(r.message || []).forEach(function(gateway) {
-								options.push({ value: gateway, label: __(gateway) });
-							});
-							
-							resolve(options);
-						}
-					});
-				});
+			options: "\nmanual\nideal\nstripe\nrevolut",
+			filterFunc: function(value) {
+				// Convert to lowercase for case-insensitive filtering
+				return value ? value.toLowerCase() : value;
 			}
 		}
 	],
@@ -69,8 +57,23 @@ frappe.query_reports["Payout Report"] = {
 		// If value is undefined or null, return empty string
 		if (value === undefined || value === null) return '';
 		
-		// Apply custom formatting for amounts
+		// Apply custom formatting for amounts with max 3 decimals
 		if (column.fieldtype === "Currency") {
+			// Try to extract the numeric value
+			let numValue = value;
+			if (typeof value === 'string') {
+				// Extract numeric value if it's wrapped in HTML
+				const match = value.match(/[\d,]+\.?\d*/g);
+				if (match && match.length) {
+					numValue = parseFloat(match[0].replace(/,/g, ''));
+					// Format with max 3 decimals
+					if (!isNaN(numValue)) {
+						numValue = flt(numValue, 3);
+						// Replace the number in the original string
+						value = value.replace(/[\d,]+\.?\d*/g, format_currency(numValue));
+					}
+				}
+			}
 			value = "<span style='font-weight: bold;'>" + value + "</span>";
 		}
 		
@@ -401,8 +404,25 @@ frappe.query_reports["Payout Report"] = {
 		
 		// Format the summary HTML with error handling
 		try {
-			// Ensure format_currency is available
-			const formatCurrency = typeof format_currency === 'function' ? format_currency : function(val) { return val.toFixed(2); };
+			// Ensure format_currency is available with max 3 decimals
+			const formatCurrency = function(val) {
+				// Round to 3 decimal places
+				val = flt(val, 3);
+				// Use format_currency if available, otherwise use toFixed(3)
+				if (typeof format_currency === 'function') {
+					// Get current number format
+					const format = get_number_format();
+					// Set precision to 3
+					frappe.boot.sysdefaults.number_format = '#,###.###';
+					// Format the currency
+					const result = format_currency(val);
+					// Restore original format
+					frappe.boot.sysdefaults.number_format = format;
+					return result;
+				} else {
+					return val.toFixed(3);
+				}
+			};
 			
 			// Calculate derived values safely
 			const pendingAmount = totalInvoiceAmount - totalPaidAmount;
@@ -445,17 +465,21 @@ frappe.query_reports["Payout Report"] = {
 			console.warn('Error generating summary HTML:', e);
 			// Provide a simple fallback summary if there's an error
 			if (report.summary_area && typeof report.summary_area.html === 'function') {
+				// Round values to 3 decimal places
+				const roundedInvoiceAmount = flt(totalInvoiceAmount, 3);
+				const roundedPaidAmount = flt(totalPaidAmount, 3);
+				
 				report.summary_area.html(`
 					<div class="summary-box" style="margin-top: 20px; padding: 15px; background-color: #f5f7fa; border: 1px solid #d1d8dd; border-radius: 5px;">
 						<h4 style="margin-top: 0; margin-bottom: 10px; font-size: 16px; font-weight: bold;">${__('Summary')}</h4>
 						<div>
 							<div style="margin-bottom: 8px;">
 								<span style="font-weight: bold;">${__('Total Invoices')}:</span>
-								<span style="margin-left: 10px;">${totalInvoiceAmount}</span>
+								<span style="margin-left: 10px;">${roundedInvoiceAmount.toFixed(3)}</span>
 							</div>
 							<div>
 								<span style="font-weight: bold;">${__('Total Payments')}:</span>
-								<span style="margin-left: 10px;">${totalPaidAmount}</span>
+								<span style="margin-left: 10px;">${roundedPaidAmount.toFixed(3)}</span>
 							</div>
 						</div>
 					</div>

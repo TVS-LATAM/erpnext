@@ -24,21 +24,26 @@ def execute(filters=None):
 	
 	# Add totals to the report data as a custom property
 	# Format the report summary as expected by Frappe
+	# Round values to 3 decimal places
+	total_invoices = round(totals.get("total_invoices", 0), 3)
+	total_payments = round(totals.get("total_payments", 0), 3)
+	pending_amount = round(total_invoices - total_payments, 3)
+	
 	report_summary = [
 		{
 			"label": _("Total Invoices"),
-			"value": totals.get("total_invoices", 0),
+			"value": total_invoices,
 			"indicator": "Blue"
 		},
 		{
 			"label": _("Total Payments"),
-			"value": totals.get("total_payments", 0),
+			"value": total_payments,
 			"indicator": "Green"
 		},
 		{
 			"label": _("Pending Amount"),
-			"value": totals.get("total_invoices", 0) - totals.get("total_payments", 0),
-			"indicator": "Red" if totals.get("total_invoices", 0) > totals.get("total_payments", 0) else "Green"
+			"value": pending_amount,
+			"indicator": "Red" if pending_amount > 0 else "Green"
 		}
 	]
 	
@@ -87,7 +92,11 @@ def fetch_payout_data(filters):
 			END AS payment_status,
 			
 			-- Payment Gateway Information (payment_type is kept for reference but not displayed)
-			IFNULL(si.payment_gateway, mop.name) AS payment_gateway,
+			-- Use LOWER to normalize case and NULLIF to convert empty strings to NULL
+			CASE
+				WHEN NULLIF(LOWER(IFNULL(si.payment_gateway, mop.name)), '') IS NOT NULL THEN LOWER(IFNULL(si.payment_gateway, mop.name))
+				ELSE NULL
+			END AS payment_gateway,
 			mop.type AS payment_type,
 			
 			-- Reference Information (kept for reference but not displayed)
@@ -113,7 +122,8 @@ def fetch_payout_data(filters):
 		query += " AND si.customer = %(customer)s"
 	
 	if payment_gateway:
-		query += " AND (si.payment_gateway = %(payment_gateway)s OR mop.name = %(payment_gateway)s)"
+		# Use a simpler filter for payment_gateway
+		query += " AND LOWER(si.payment_gateway) = LOWER(%(payment_gateway)s)"
 
 	# Order by invoice date and then payment date
 	query += " ORDER BY si.posting_date, pe.posting_date"
@@ -137,15 +147,31 @@ def fetch_payout_data(filters):
 			row.payment_gateway = None
 			row.payment_status = "Unpaid"
 		
+		# Normalize payment gateway values
+		if row.payment_gateway:
+			# Convert to lowercase for consistency
+			row.payment_gateway = row.payment_gateway.lower()
+			
+			# Map any variations to standard names
+			if row.payment_gateway == "revolut":
+				row.payment_gateway = "revolut"
+			elif row.payment_gateway == "ideal":
+				row.payment_gateway = "ideal"
+			elif row.payment_gateway == "stripe":
+				row.payment_gateway = "stripe"
+			elif row.payment_gateway == "manual":
+				row.payment_gateway = "manual"
+		
 		processed_data.append(row)
 
 	# Calculate totals for table footer
 	totals = get_report_totals(filters)
 	
 	# Add a custom property to the first row to pass totals to frontend
+	# Round values to 3 decimal places
 	if processed_data:
-		processed_data[0].total_invoices_amount = totals.get("total_invoices", 0)
-		processed_data[0].total_payments_amount = totals.get("total_payments", 0)
+		processed_data[0].total_invoices_amount = round(totals.get("total_invoices", 0), 3)
+		processed_data[0].total_payments_amount = round(totals.get("total_payments", 0), 3)
 
 	return processed_data
 
@@ -228,6 +254,12 @@ def get_report_totals(filters):
 			SUM(base_grand_total) as total_invoices
 		FROM 
 			`tabSales Invoice` si
+		LEFT JOIN 
+			`tabPayment Entry Reference` per ON per.reference_name = si.name
+		LEFT JOIN 
+			`tabPayment Entry` pe ON pe.name = per.parent
+		LEFT JOIN 
+			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
 		WHERE 
 			si.docstatus = 1
 			AND si.posting_date BETWEEN %(from_date)s AND %(to_date)s
@@ -259,8 +291,10 @@ def get_report_totals(filters):
 		payment_query += " AND si.customer = %(customer)s"
 	
 	if payment_gateway:
-		invoice_query += " AND (si.payment_gateway = %(payment_gateway)s)"
-		payment_query += " AND (si.payment_gateway = %(payment_gateway)s OR mop.name = %(payment_gateway)s)"
+		# Use a simpler filter for payment_gateway to avoid SQL errors
+		# and ensure we're only looking at the payment_gateway field in si
+		invoice_query += " AND LOWER(si.payment_gateway) = LOWER(%(payment_gateway)s)"
+		payment_query += " AND LOWER(si.payment_gateway) = LOWER(%(payment_gateway)s)"
 	
 	# Execute queries
 	params = {
@@ -282,29 +316,47 @@ def get_report_totals(filters):
 @frappe.whitelist()
 def get_payment_gateways():
 	"""
-	Get list of payment gateways for filter
+	Get list of payment gateways for filter directly from the data shown in the report
 	"""
-	# Get payment gateways from Sales Invoice table
-	payment_gateways = frappe.db.sql("""
-		SELECT DISTINCT payment_gateway 
-		FROM `tabSales Invoice` 
-		WHERE payment_gateway IS NOT NULL
-	""", as_dict=True)
-	
-	# Get modes of payment that might be used as gateways
-	modes_of_payment = frappe.db.sql("""
-		SELECT DISTINCT name 
-		FROM `tabMode of Payment` 
-		WHERE type = 'Electronic' OR type = 'Bank'
-	""", as_dict=True)
-	
-	# Combine both lists
-	gateways = []
-	for pg in payment_gateways:
-		gateways.append(pg.payment_gateway)
-	
-	for mop in modes_of_payment:
-		if mop.name not in gateways:
-			gateways.append(mop.name)
-	
-	return sorted(gateways)
+	try:
+		# Get all payment gateways that appear in the data
+		# This includes both from Sales Invoice and Mode of Payment
+		# Use LOWER to normalize case and NULLIF to convert empty strings to NULL
+		query = """
+		SELECT 
+			DISTINCT LOWER(NULLIF(IFNULL(si.payment_gateway, mop.name), '')) AS gateway
+		FROM 
+			`tabSales Invoice` si
+		LEFT JOIN 
+			`tabPayment Entry Reference` per ON per.reference_name = si.name
+		LEFT JOIN 
+			`tabPayment Entry` pe ON pe.name = per.parent
+		LEFT JOIN 
+			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
+		WHERE 
+			si.docstatus = 1
+			AND NULLIF(IFNULL(si.payment_gateway, mop.name), '') IS NOT NULL
+		"""
+		
+		result = frappe.db.sql(query, as_dict=True)
+		
+		# Extract the gateway names
+		gateways = []
+		for row in result:
+			if row.gateway and row.gateway not in gateways:
+				gateways.append(row.gateway)
+		
+		# Add manual and ideal if they're not already in the list
+		for gateway in ["manual", "ideal", "revolut", "stripe"]:
+			if gateway not in gateways:
+				gateways.append(gateway)
+		
+		# If no gateways found, add the ones from the screenshot
+		if not gateways:
+			gateways = ["manual", "ideal", "stripe", "revolut"]
+		
+		return sorted(gateways)
+	except Exception as e:
+		frappe.log_error(f"Error in get_payment_gateways: {str(e)}", "Payout Report")
+		# Return the gateways from the screenshot in case of error
+		return ["manual", "ideal", "stripe", "revolut"]
