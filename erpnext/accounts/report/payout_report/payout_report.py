@@ -101,6 +101,10 @@ def fetch_payout_data(filters):
 			END AS payment_gateway,
 			mop.type AS payment_type,
 			
+			-- Payment Details from Sales Invoice
+			si.payment_details AS payment_details,
+			si.payment_id AS payment_id,
+			
 			-- Reference Information (kept for reference but not displayed)
 			pe.reference_no AS reference_no,
 			pe.reference_date AS reference_date,

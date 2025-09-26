@@ -76,7 +76,23 @@ frappe.query_reports["Payout Report"] = {
 			}
 			
 			if (column.fieldname === "invoice_number") {
-				value = "<span style='font-family: monospace; font-weight: 500;'>" + value + "</span>";
+				// Extract invoice number from the link if it exists
+				let invoice_number = data.invoice_number;
+				if (typeof value === 'string' && value.includes('<a')) {
+					const match = value.match(/data-name="([^"]+)"/i);
+					if (match && match[1]) {
+						invoice_number = match[1];
+					}
+				}
+				
+				// Add View button to show payment details
+				const viewButton = `<button class="btn btn-xs btn-default view-payment-details" 
+					data-invoice="${invoice_number}" 
+					data-payment-details="${encodeURIComponent(data.payment_details || '')}" 
+					data-payment-id="${encodeURIComponent(data.payment_id || '')}"
+					style="margin-left: 5px;">View</button>`;
+				
+				value = "<span style='font-family: monospace; font-weight: 500;'>" + value + "</span>" + viewButton;
 			}
 		}
 		
@@ -94,7 +110,62 @@ frappe.query_reports["Payout Report"] = {
 	},
 	// Function executed when the report loads
 	onload: function(report) {
-		// Apply styles to make the table take up 100% of the width
+		// Manejar el clic en el botón "View" para mostrar los payment details
+		$(document).on('click', '.view-payment-details', function() {
+			const invoiceNumber = $(this).data('invoice');
+			const paymentDetails = decodeURIComponent($(this).data('payment-details') || '');
+			const paymentId = decodeURIComponent($(this).data('payment-id') || '');
+			
+			// Obtener payment details adicionales si es necesario
+			frappe.call({
+				method: "frappe.client.get",
+				args: {
+					doctype: "Sales Invoice",
+					name: invoiceNumber
+				},
+				callback: function(r) {
+					if (r.message) {
+						const invoice = r.message;
+						const paymentDetailsFromInvoice = invoice.payment_details || '';
+						const paymentIdFromInvoice = invoice.payment_id || '';
+						const paymentGateway = invoice.payment_gateway || '';
+						
+						// Crear el contenido del diálogo
+						let dialogContent = `
+							<div class="payment-details-dialog">
+								<div class="row">
+									<div class="col-xs-12">
+										<div class="payment-info">
+											<h4>Invoice: ${invoiceNumber}</h4>
+											<p><strong>Payment Gateway:</strong> ${paymentGateway}</p>
+											<p><strong>Payment ID:</strong> ${paymentIdFromInvoice}</p>
+										</div>
+										<div class="payment-details">
+											<h4>Payment Details:</h4>
+											<div style="white-space: pre-wrap; background-color: #f5f7fa; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto;">${paymentDetailsFromInvoice}</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						`;
+						
+						// Mostrar el diálogo
+						const d = new frappe.ui.Dialog({
+							title: `Payment Details - ${invoiceNumber}`,
+							fields: [{
+								fieldname: 'payment_details_html',
+								fieldtype: 'HTML',
+								options: dialogContent
+							}]
+						});
+						
+						d.show();
+					}
+				}
+			});
+		});
+		
+		// Aplicar estilos para que la tabla ocupe el 100% del ancho
 		setTimeout(function() {
 			// Select the data table and apply styles for full width
 			$('.datatable').css({
