@@ -2,7 +2,7 @@
 // For license information, please see license.txt
 
 frappe.query_reports["Payout Report"] = {
-		filters: [
+	filters: [
 		{
 			fieldname: "company",
 			label: __("Company"),
@@ -255,8 +255,206 @@ frappe.query_reports["Payout Report"] = {
 				frappe.datetime.str_to_user(filters.from_date) + " - " + 
 				frappe.datetime.str_to_user(filters.to_date);
 			
-			// Abrir la vista de impresión del reporte
-			frappe.render_pdf(report);
+			// Preparar datos para la plantilla HTML
+			const reportData = report.data;
+			
+			// Función para formatear montos
+			function formatAmount(amount) {
+				if (amount === undefined || amount === null) return "-";
+				return frappe.format(amount, {fieldtype: 'Currency'});
+			}
+			
+			// Verificar si hay datos disponibles
+			let rows_html = '';
+			let total_invoices = 0;
+			let total_payments = 0;
+			let pending_amount = 0;
+			
+			if (reportData && reportData.length) {
+				// Obtener totales del primer registro si están disponibles
+				if (reportData[0].total_invoices_amount !== undefined) {
+					total_invoices = flt(reportData[0].total_invoices_amount);
+				}
+				if (reportData[0].total_payments_amount !== undefined) {
+					total_payments = flt(reportData[0].total_payments_amount);
+				}
+				pending_amount = total_invoices - total_payments;
+				
+				// Generar filas HTML
+				reportData.forEach(row => {
+					rows_html += `
+					<tr>
+						<td>${row.invoice_number || ""}</td>
+						<td>${frappe.datetime.str_to_user(row.invoice_date) || ""}</td>
+						<td class="text-right">${formatAmount(row.invoice_amount)}</td>
+						<td class="${row.invoice_status === 'Paid' ? 'text-success' : 'text-danger'}">${row.invoice_status || ""}</td>
+						<td>${row.payment_entry || ""}</td>
+						<td class="text-right">${formatAmount(row.paid_amount)}</td>
+						<td>${row.customer_name || ""}</td>
+						<td>${row.payment_gateway || ""}</td>
+					</tr>
+					`;
+				});
+			}
+			
+			// Crear HTML basado en el template mejorado
+			const html = `
+			<div class="payout-report" style="width: 100%;">
+				<!-- Encabezado del reporte -->
+				<div class="report-header" style="text-align: center; margin-bottom: 20px;">
+					<h2 style="margin-bottom: 5px;">${__("Payout Report")}</h2>
+					<h4 style="margin-top: 0; color: #666;">${frappe.datetime.str_to_user(filters.from_date)} - ${frappe.datetime.str_to_user(filters.to_date)}</h4>
+				</div>
+				
+				<!-- Resumen del reporte -->
+				<div class="summary-section" style="margin-bottom: 20px; padding: 15px; background-color: #f5f7fa; border: 1px solid #d1d8dd; border-radius: 5px;">
+					<h4 style="margin-top: 0; margin-bottom: 10px;">${__("Summary")}</h4>
+					<div style="display: flex; flex-wrap: wrap;">
+						<div style="flex: 1; min-width: 200px; margin-bottom: 10px;">
+							<div><strong>${__("Total Invoices")}:</strong> <span style="color: #1a73e8;">${formatAmount(total_invoices)}</span></div>
+						</div>
+						<div style="flex: 1; min-width: 200px; margin-bottom: 10px;">
+							<div><strong>${__("Total Payments")}:</strong> <span style="color: #34a853;">${formatAmount(total_payments)}</span></div>
+						</div>
+						<div style="flex: 1; min-width: 200px; margin-bottom: 10px;">
+							<div><strong>${__("Pending Amount")}:</strong> <span style="color: ${pending_amount > 0 ? '#ea4335' : '#34a853'};">${formatAmount(pending_amount)}</span></div>
+						</div>
+					</div>
+				</div>
+				
+				<!-- Tabla de datos -->
+				<div class="table-responsive" style="width: 100%;">
+					<table class="table table-bordered payout-table" style="width: 100% !important; table-layout: fixed;">
+						<thead>
+							<tr>
+								<th style="width: 12%;">${__("Invoice Number")}</th>
+								<th style="width: 10%;">${__("Invoice Date")}</th>
+								<th style="width: 12%;" class="text-right">${__("Invoice Amount")}</th>
+								<th style="width: 10%;">${__("Invoice Status")}</th>
+								<th style="width: 14%;">${__("Payment Entry")}</th>
+								<th style="width: 12%;" class="text-right">${__("Paid Amount")}</th>
+								<th style="width: 18%;">${__("Customer Name")}</th>
+								<th style="width: 12%;">${__("Payment Gateway")}</th>
+							</tr>
+						</thead>
+						<tbody>
+							${rows_html}
+						</tbody>
+					</table>
+				</div>
+			</div>
+			`;
+			
+			// Estilos para el PDF
+			const styles = `
+			<style>
+.payout-report {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 13px;
+  padding: 15px;
+  width: 100%;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.payout-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+.payout-table th {
+  background-color: #f5f5f5;
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  text-align: left;
+  font-weight: 600;
+}
+
+.payout-table td {
+  padding: 6px 8px;
+  border: 1px solid #ccc;
+  vertical-align: top;
+}
+
+.payout-table .text-right {
+  text-align: right;
+}
+
+.text-danger {
+  color: #dc3545;
+}
+
+.text-success {
+  color: #28a745;
+}
+
+@media print {
+  .payout-report {
+    padding: 0;
+    width: 100%;
+  }
+
+  .payout-table th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-danger,
+  .text-success {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
+</style>
+			`;
+			
+			// Crear ventana de impresión
+			const w = window.open('', '_blank');
+			
+			// Contenido HTML para la ventana
+			const htmlContent = `
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<title>${title}</title>
+					${styles}
+				</head>
+				<body>
+					<div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+						<div class="no-print" style="margin-bottom: 20px; text-align: center;">
+							<h2 style="margin-bottom: 5px;">${title}</h2>
+							<button id="printButton" style="padding: 8px 15px; background-color: black; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;">Print</button>
+							<p style="color: #666; font-size: 12px; margin-top: 10px;">This window will remain open after printing so you can review it or print it again.</p>
+						</div>
+						${html}
+					</div>
+				</body>
+				</html>
+			`;
+			
+			// Escribir el contenido en la ventana
+			w.document.open();
+			w.document.write(htmlContent);
+			w.document.close();
+			
+			// Agregar el evento de impresión después de que el documento esté completamente cargado
+			w.onload = function() {
+				const printButton = w.document.getElementById('printButton');
+				if (printButton) {
+					printButton.addEventListener('click', function() {
+						w.print();
+					});
+				}
+			};
 		});
 		
 		// Agregar botón para exportar a Excel
