@@ -2,6 +2,50 @@
 // For license information, please see license.txt
 
 frappe.query_reports["Payout Report"] = {
+	// Helper function to add totals row
+	addTotalsRow: function(datatable) {
+		// Check if datatable and its properties exist
+		if (!datatable || !datatable.datamanager || !datatable.datamanager.data) return;
+		
+		const data = datatable.datamanager.data;
+		if (!data || !data.length) return;
+		
+		// Calculate totals
+		let totalInvoiceAmount = 0;
+		let totalPaidAmount = 0;
+		
+		data.forEach(function(row) {
+			if (row) {
+				totalInvoiceAmount += flt(row.invoice_amount || 0);
+				totalPaidAmount += flt(row.paid_amount || 0);
+			}
+		});
+		
+		// Check if tfoot exists
+		if (!datatable.$tfoot) return;
+		
+		// Create a totals row
+		const totalsRow = datatable.$tfoot.find('.dt-row-totals');
+		if (totalsRow && totalsRow.length) {
+			// Find the cells for invoice_amount and paid_amount
+			if (datatable.columns) {
+				datatable.columns.forEach(function(column, i) {
+					if (column && column.fieldname === 'invoice_amount') {
+						const cell = totalsRow.find(`.dt-cell--col-${i}`);
+						if (cell && cell.length) {
+							cell.html(`<span style="font-weight: bold; color: #1a73e8;">${format_currency(totalInvoiceAmount)}</span>`);
+						}
+					}
+					if (column && column.fieldname === 'paid_amount') {
+						const cell = totalsRow.find(`.dt-cell--col-${i}`);
+						if (cell && cell.length) {
+							cell.html(`<span style="font-weight: bold; color: #34a853;">${format_currency(totalPaidAmount)}</span>`);
+						}
+					}
+				});
+			}
+		}
+	},
 	filters: [
 		{
 			fieldname: "company",
@@ -54,18 +98,17 @@ frappe.query_reports["Payout Report"] = {
 			}
 		}
 	],
-	
 	// Formatter to customize data display
 	formatter: function(value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
 		
 		// Apply custom formatting for amounts
-		if (column.fieldtype == "Currency") {
+		if (column.fieldtype == "Currency" && value) {
 			value = "<span style='font-weight: bold;'>" + value + "</span>";
 		}
 		
 		// Highlight payment status
-		if (column.fieldname == "payment_status") {
+		if (column.fieldname == "payment_status" && data && data.payment_status) {
 			if (data.payment_status == "Paid") {
 				value = "<span style='color: #38A169; font-weight: bold; background-color: #E6FFEA; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
 			} else if (data.payment_status == "Unpaid") {
@@ -74,14 +117,14 @@ frappe.query_reports["Payout Report"] = {
 				value = "<span style='color: #718096; font-weight: bold; background-color: #F7FAFC; padding: 3px 8px; border-radius: 4px;'>" + value + "</span>";
 			}
 		}
-
+		
 		// Add special formatting for invoice number to make it more readable
-		if (column.fieldname == "invoice_number") {
+		if (column.fieldname == "invoice_number" && value) {
 			value = "<span style='font-family: monospace; font-weight: 500;'>" + value + "</span>";
 		}
-
+		
 		// Format invoice status
-		if (column.fieldname == "invoice_status") {
+		if (column.fieldname == "invoice_status" && data && data.invoice_status) {
 			if (data.invoice_status == "Paid") {
 				value = "<span style='color: #38A169; font-weight: 500;'>" + value + "</span>";
 			} else if (data.invoice_status == "Unpaid") {
@@ -91,7 +134,6 @@ frappe.query_reports["Payout Report"] = {
 		
 		return value;
 	},
-	
 	// Function executed when the report loads
 	onload: function(report) {
 		// Apply styles to make the table take up 100% of the width
@@ -218,7 +260,7 @@ frappe.query_reports["Payout Report"] = {
 		options.checkboxColumn = false; // Remove checkbox column
 		options.inlineFilters = true; // Enable inline filters
 		options.dynamicRowHeight = true; // Allow rows to expand if needed
-		options.showTotalRow = false; // Don't show total row
+		options.showTotalRow = true; // Show total row
 		options.treeView = false; // Disable tree view
 		
 		// Set specific column widths for better alignment
@@ -286,6 +328,66 @@ frappe.query_reports["Payout Report"] = {
 					$header.find('.dt-cell__content').css('text-align', 'center');
 				}
 			});
+			
+			// Add custom totals row at the bottom
+			frappe.query_reports["Payout Report"].addTotalsRow(datatable);
 		}, 100);
+	},
+	
+	// Add custom summary section at the bottom of the report
+	onload_post_render: function(report) {
+		// Check if report exists
+		if (!report || !report.page || !report.page.main) return;
+		
+		// Add a summary section after the table
+		if (!report.summary_area) {
+			report.summary_area = $('<div class="summary-section">').appendTo(report.page.main.find('.report-wrapper'));
+		}
+		
+		// Calculate totals
+		let totalInvoiceAmount = 0;
+		let totalPaidAmount = 0;
+		
+		// Safely iterate through data
+		if (report.data && Array.isArray(report.data)) {
+			report.data.forEach(function(row) {
+				if (row) {
+					totalInvoiceAmount += flt(row.invoice_amount || 0);
+					totalPaidAmount += flt(row.paid_amount || 0);
+				}
+			});
+		}
+		
+		// Format the summary HTML
+		const summaryHtml = `
+			<div class="summary-box" style="margin-top: 20px; padding: 15px; background-color: #f5f7fa; border: 1px solid #d1d8dd; border-radius: 5px;">
+				<h4 style="margin-top: 0; margin-bottom: 10px; font-size: 16px; font-weight: bold;">${__('Summary')}</h4>
+				<div style="display: flex; justify-content: space-between;">
+					<div style="flex: 1;">
+						<div style="margin-bottom: 8px;">
+							<span style="font-weight: bold;">${__('Total Invoice Amount')}:</span>
+							<span style="font-size: 16px; color: #1a73e8; margin-left: 10px;">${format_currency(totalInvoiceAmount)}</span>
+						</div>
+						<div>
+							<span style="font-weight: bold;">${__('Total Paid Amount')}:</span>
+							<span style="font-size: 16px; color: #34a853; margin-left: 10px;">${format_currency(totalPaidAmount)}</span>
+						</div>
+					</div>
+					<div style="flex: 1;">
+						<div style="margin-bottom: 8px;">
+							<span style="font-weight: bold;">${__('Pending Amount')}:</span>
+							<span style="font-size: 16px; color: ${totalInvoiceAmount - totalPaidAmount > 0 ? '#ea4335' : '#34a853'}; margin-left: 10px;">${format_currency(totalInvoiceAmount - totalPaidAmount)}</span>
+						</div>
+						<div>
+							<span style="font-weight: bold;">${__('Payment Completion')}:</span>
+							<span style="font-size: 16px; margin-left: 10px;">${totalInvoiceAmount ? ((totalPaidAmount / totalInvoiceAmount) * 100).toFixed(2) : 0}%</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		`;
+		
+		// Update the summary area
+		report.summary_area.html(summaryHtml);
 	}
 };
