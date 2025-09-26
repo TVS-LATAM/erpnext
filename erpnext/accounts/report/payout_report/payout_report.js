@@ -143,6 +143,24 @@ frappe.query_reports["Payout Report"] = {
 				'width': '100%',
 				'max-width': '100%'
 			});
+			
+			// Fix the container width issue
+			$('.dt-scrollable .dt-body').css({
+				'min-width': '100%'
+			});
+			
+			// Ensure the table container expands fully
+			$('.dt-scrollable .dt-body table').css({
+				'width': '100%',
+				'min-width': '100%'
+			});
+			
+			// Fix the parent container
+			$('.report-container').css({
+				'width': '100%',
+				'max-width': '100%',
+				'overflow-x': 'hidden'
+			});
 
 			// Improve cell padding and alignment
 			$('.dt-cell').css({
@@ -195,14 +213,34 @@ frappe.query_reports["Payout Report"] = {
 					'max-width': '100%'
 				});
 				
-				// Ensure table takes full width with fixed layout
+				// Ensure table takes full width with fluid layout
 				$('.datatable').css({
-					'table-layout': 'fixed'
+					'table-layout': 'auto',
+					'width': '100%'
 				});
 				
 				// Make sure horizontal scrolling works if needed
 				$('.dt-scrollable').css({
-					'overflow-x': 'auto'
+					'overflow-x': 'auto',
+					'width': '100%'
+				});
+				
+				// Fix the container width issue
+				$('.dt-scrollable .dt-body').css({
+					'min-width': '100%'
+				});
+				
+				// Ensure the table container expands fully
+				$('.dt-scrollable .dt-body table').css({
+					'width': '100%',
+					'min-width': '100%'
+				});
+				
+				// Fix the parent container
+				$('.report-container').css({
+					'width': '100%',
+					'max-width': '100%',
+					'overflow-x': 'hidden'
 				});
 			}
 		});
@@ -246,7 +284,7 @@ frappe.query_reports["Payout Report"] = {
 	// Configuration for the data table
 	get_datatable_options: function(options) {
 		// Modify data table options
-		options.layout = 'fixed'; // Use fixed layout for better column control
+		options.layout = 'fluid'; // Use fluid layout for better distribution
 		options.cellHeight = 40; // Increase cell height for better visualization
 		options.serialNoColumn = true; // Add serial number column
 		options.checkboxColumn = false; // Remove checkbox column
@@ -254,11 +292,24 @@ frappe.query_reports["Payout Report"] = {
 		options.dynamicRowHeight = true; // Allow rows to expand if needed
 		options.showTotalRow = false; // Hide total row
 		options.treeView = false; // Disable tree view
+		options.fullWidth = true; // Ensure table takes full width
+		options.autoWidth = true; // Auto adjust column widths
 		
 		// We've disabled the total row, so no need for a custom getTotalRow function
 		
 		// Set specific column widths for better alignment
 		if (!options.columns) options.columns = [];
+		
+		// Calculate total width for visible columns
+		let visibleColumns = options.columns.filter(col => {
+			return !(col.fieldname === 'customer' || 
+				col.fieldname === 'payment_type' || 
+				col.fieldname === 'reference_no' ||
+				col.fieldname === 'payment_status' ||
+				col.fieldname === 'payment_date');
+		});
+		
+		// Distribute column widths proportionally
 		options.columns.forEach(function(column) {
 			// Set minimum width for all columns
 			column.minWidth = 100;
@@ -271,6 +322,9 @@ frappe.query_reports["Payout Report"] = {
 			if (column.fieldname === 'payment_entry') column.width = 150;
 			if (column.fieldname === 'paid_amount') column.width = 130;
 			if (column.fieldname === 'payment_gateway') column.width = 150;
+			
+			// Add flex property for better distribution
+			column.flex = 1;
 			
 			// Hide columns that we don't want to display
 			if (column.fieldname === 'customer' || 
@@ -295,7 +349,27 @@ frappe.query_reports["Payout Report"] = {
 			const $scrollable = datatable.$container.find('.dt-scrollable');
 			if ($scrollable && $scrollable.length) {
 				$scrollable.css({
-					'max-height': '500px' // Limit the height of the scrollable area
+					'max-height': '500px', // Limit the height of the scrollable area
+					'width': '100%',
+					'max-width': '100%'
+				});
+			}
+			
+			// Ensure the table takes full width
+			const $table = datatable.$container.find('.dt-scrollable table');
+			if ($table && $table.length) {
+				$table.css({
+					'width': '100%',
+					'min-width': '100%'
+				});
+			}
+			
+			// Make sure the body takes full width
+			const $body = datatable.$container.find('.dt-body');
+			if ($body && $body.length) {
+				$body.css({
+					'width': '100%',
+					'min-width': '100%'
 				});
 			}
 	
