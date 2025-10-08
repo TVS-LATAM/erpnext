@@ -3589,3 +3589,24 @@ def make_payment_order(source_name, target_doc=None):
 @erpnext.allow_regional
 def add_regional_gl_entries(gl_entries, doc):
 	return
+
+@frappe.whitelist()
+def set_payment_fee():
+	data = frappe.request.get_json()
+	if not data:
+		data = frappe.local.form_dict
+		
+	payment_name = data.get("name")
+	fee = data.get("fee")
+	
+	if not payment_name or fee is None:
+		frappe.throw(_("Payment name and fee are required"))
+		
+	# Verificar que el payment entry existe
+	if not frappe.db.exists("Payment Entry", payment_name):
+		frappe.throw(_("Payment Entry {0} does not exist").format(payment_name))
+		
+	# Actualizar el payment entry
+	frappe.db.set_value("Payment Entry", payment_name, "payment_gateway_fee", fee)
+	
+	return {"status": "success", "message": _("Payment fee updated successfully")}

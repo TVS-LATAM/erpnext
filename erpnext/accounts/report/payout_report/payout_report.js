@@ -391,8 +391,11 @@ frappe.query_reports["Payout Report"] = {
 			// Función para formatear montos
 			function formatAmount(amount) {
 				if (amount === undefined || amount === null) return "-";
-				// Usar format_currency con símbolo explícito para evitar duplicados
-				return format_currency(flt(amount, 3), frappe.boot.sysdefaults.currency);
+				// Formatear con símbolo de euro y formato específico
+				return "€ " + format_number(flt(amount, 2), {
+					decimals: 2,
+					number_format: "#,###.##"
+				});
 			}
 			
 			// Verificar si hay datos disponibles
@@ -442,13 +445,13 @@ frappe.query_reports["Payout Report"] = {
 					<h4 style="margin-top: 0; margin-bottom: 10px;">${__("Summary")}</h4>
 					<div style="display: flex; flex-wrap: wrap;">
 						<div style="flex: 1; min-width: 200px; margin-bottom: 10px;">
-							<div><strong>${__("Total Invoices")}:</strong> <span style="color: #1a73e8;">${formatAmount(total_invoices)}</span></div>
+							<div><strong>${"Total Invoices"}:</strong> <span style="color: #1a73e8;">${formatAmount(total_invoices)}</span></div>
 						</div>
 						<div style="flex: 1; min-width: 200px; margin-bottom: 10px;">
-							<div><strong>${__("Total Payments")}:</strong> <span style="color: #34a853;">${formatAmount(total_payments)}</span></div>
+							<div><strong>${"Total Payments"}:</strong> <span style="color: #34a853;">${formatAmount(total_payments)}</span></div>
 						</div>
 						<div style="flex: 1; min-width: 200px; margin-bottom: 10px;">
-							<div><strong>${__("Pending Amount")}:</strong> <span style="color: ${pending_amount > 0 ? '#ea4335' : '#34a853'};">${formatAmount(pending_amount)}</span></div>
+							<div><strong>${"Pending Amount"}:</strong> <span style="color: ${pending_amount > 0 ? '#ea4335' : '#34a853'};">${formatAmount(pending_amount)}</span></div>
 						</div>
 					</div>
 				</div>

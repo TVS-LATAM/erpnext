@@ -1329,9 +1329,8 @@ function renderPaymentHistoryTable(data, opts = {}) {
   });
 
   // Totals
-  const computedTotalPaid = sorted.reduce((sum, p) => sum + toNumber(p?.amount), 0);
-  const totalPaid = toNumber(data?.totalPaid) || computedTotalPaid;
-  const fullAmount = toNumber(data?.fullAmount);
+  const totalPaid = toNumber(data?.totalPaid);
+  const fullAmount = toNumber(data?.totalToPaid);
   const remaining = Math.max(0, fullAmount - totalPaid);
 
   // Empty state
@@ -1387,7 +1386,7 @@ function renderPaymentHistoryTable(data, opts = {}) {
           </tr>
           <tr>
             <th scope="row" colspan="1" class="text-end">Remaining</th>
-            <td colspan="1"><strong>${formatCurrency(remaining)}</strong></td>
+            <td colspan="1"><strong style="${remaining > 0 ? 'color: red;' : ''}">${formatCurrency(remaining)}</strong></td>
             <td class="text-end"></td>
           </tr>
         </tfoot>
@@ -1409,7 +1408,7 @@ function validateBankTransferPayment(frm) {
 			return;
 		}
 		// hacer un post a aws_url + '/validate-bank-transfer-payment' con el nombre del proyecto
-		const response = await fetch(`${aws_url}get-project-payment-history`, {
+		const response = await fetch(`${aws_url}manual-reconcile-payments`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',

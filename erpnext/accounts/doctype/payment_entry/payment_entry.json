@@ -77,6 +77,7 @@
   "deductions",
   "transaction_references",
   "reference_no",
+  "payment_gateway_fee",
   "column_break_23",
   "reference_date",
   "clearance_date",
@@ -796,6 +797,13 @@
    "label": "Advance Reconciliation Takes Effect On",
    "no_copy": 1,
    "options": "Advance Payment Date\nOldest Of Invoice Or Advance\nReconciliation Date"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "payment_gateway_fee",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Payment Gateway Fee"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -809,7 +817,7 @@
    "table_fieldname": "payment_entries"
   }
  ],
- "modified": "2025-03-24 16:18:19.920701",
+ "modified": "2025-10-03 17:12:28.271005",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Payment Entry",
@@ -849,6 +857,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
