@@ -24,25 +24,32 @@ def execute(filters=None):
 	
 	# Add totals to the report data as a custom property
 	# Format the report summary as expected by Frappe
-	# Round values to 3 decimal places
-	total_invoices = round(totals.get("total_invoices", 0), 3)
-	total_payments = round(totals.get("total_payments", 0), 3)
-	pending_amount = round(total_invoices - total_payments, 3)
+	# Round values to 2 decimal places
+	total_invoices = round(totals.get("total_invoices", 0), 2)
+	total_payments = round(totals.get("total_payments", 0), 2)
+	pending_amount = round(total_invoices - total_payments, 2)
+	
+	# Formatear los valores con el símbolo del euro y el formato deseado
+	def format_with_euro(amount):
+		# Formatear con símbolo de euro y separadores de miles
+		from frappe.utils import fmt_money
+		# Usar el formato #,###.## que usa coma para miles y punto para decimales
+		return "€ " + fmt_money(amount, precision=2, format="#,###.##")
 	
 	report_summary = [
 		{
 			"label": _("Total Invoices"),
-			"value": total_invoices,
+			"value": format_with_euro(total_invoices),
 			"indicator": "Blue"
 		},
 		{
 			"label": _("Total Payments"),
-			"value": total_payments,
+			"value": format_with_euro(total_payments),
 			"indicator": "Green"
 		},
 		{
 			"label": _("Pending Amount"),
-			"value": pending_amount,
+			"value": format_with_euro(pending_amount),
 			"indicator": "Red" if pending_amount > 0 else "Green"
 		}
 	]
