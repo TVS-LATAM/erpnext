@@ -75,7 +75,7 @@ function renderPaymentDetailsRows(payments) {
     const date = formatDate(payment.created_at);
     
     return `
-      <tr>
+      <tr data-payment-id="${id}">
         <td>${gateway}</td>
         <td>${amount}</td>
         <td>${id}</td>
@@ -93,7 +93,7 @@ function renderPaymentDetailsRows(payments) {
  */
 function renderPaymentRows(payments, historyIds = []) {
   if (!Array.isArray(payments) || payments.length === 0) {
-    return '<tr><td colspan="3">No payment history available</td></tr>';
+    return '<tr><td colspan="4">No payment history available</td></tr>';
   }
   
   // Convert historyIds to a Set for faster lookups
@@ -136,12 +136,16 @@ function renderPaymentRows(payments, historyIds = []) {
     // Check if this payment ID exists in the history IDs
     const isMatched = historyIdSet.has(id);
     const rowStyle = isMatched ? 'background-color: #d4edda;' : ''; // Light green background for matching rows
+    const checked = isMatched ? 'checked' : ''; // Checkbox checked if matched
     
     return `
-      <tr style="${rowStyle}">
+      <tr style="${rowStyle}" data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}">
         <td>${date}</td>
         <td>${gateway}</td>
         <td class="text-right">${amount}</td>
+        <td class="text-center">
+          <input type="checkbox" class="payment-checkbox" ${checked} data-payment-id="${id}" onchange="window.togglePaymentSelection(this)">
+        </td>
       </tr>
     `;
   }).join('');
@@ -308,6 +312,13 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 </select>
               </div>
               <div class="form-group">
+                <label class="control-label">Select Payment Type *</label>
+                <select class="form-control" id="confirm_method">
+                  <option value="workshop">workshop</option>
+                  <option value="loan car">loan car</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label class="control-label">Payment Details *</label>
                 <div class="payment-details-table">
                   <table class="table table-bordered table-hover">
@@ -341,13 +352,6 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 <input type="hidden" id="payment_details" value="${manual_payment_details}">
                 <small class="text-muted">Payment details are displayed in the table above</small>
               </div>
-              <div class="form-group">
-                <label class="control-label">Select Payment Type *</label>
-                <select class="form-control" id="confirm_method">
-                  <option value="workshop">workshop</option>
-                  <option value="loan car">loan car</option>
-                </select>
-              </div>
               <ul style="color: #d14343; padding-left: 20px;">
                 <li>Approved quotations will be marked as paid.</li>
                 <li>An invoice will be generated.</li>
@@ -367,10 +371,11 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                       <th>Date</th>
                       <th>Payment Gateway</th>
                       <th class="text-right">Amount</th>
+                      <th class="text-center">Options</th>
                     </tr>
                   </thead>
                   <tbody id="payment-history-tbody">
-                    ${data && data.response ? renderPaymentRows(data.response, data.history ? data.history.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="3">No payment history available</td></tr>'}
+                    ${data && data.response ? renderPaymentRows(data.response, data.history ? data.history.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="4">No payment history available</td></tr>'}
                   </tbody>
                 </table>
               </div>
@@ -579,6 +584,68 @@ $(document).ready(function() {
     console.log("Payment validation functions are available");
   }
 });
+
+// Función para manejar la selección/deselección de pagos
+window.togglePaymentSelection = function(checkbox) {
+  const paymentId = checkbox.getAttribute('data-payment-id');
+  const row = checkbox.closest('tr');
+  const amount = row.getAttribute('data-amount');
+  const gateway = row.getAttribute('data-gateway');
+  const date = row.getAttribute('data-date');
+  
+  // Obtener la tabla de detalles de pago
+  const paymentDetailsTable = document.getElementById('payment-details-tbody');
+  
+  if (checkbox.checked) {
+    // Si está marcado, agregar a la tabla de detalles de pago si no existe
+    if (!document.querySelector(`#payment-details-tbody tr[data-payment-id="${paymentId}"]`)) {
+      const formattedDate = new Date(date).toLocaleString('de-DE', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      
+      const formattedAmount = parseFloat(amount).toLocaleString('de-DE', {
+        style: 'currency',
+        currency: 'EUR'
+      });
+      
+      const newRow = document.createElement('tr');
+      newRow.setAttribute('data-payment-id', paymentId);
+      newRow.innerHTML = `
+        <td>${gateway}</td>
+        <td>${formattedAmount}</td>
+        <td>${paymentId}</td>
+        <td>${formattedDate}</td>
+      `;
+      
+      paymentDetailsTable.appendChild(newRow);
+      
+      // Actualizar el estilo de la fila para marcarla como seleccionada
+      row.style.backgroundColor = '#d4edda';
+    }
+  } else {
+    // Si está desmarcado, eliminar de la tabla de detalles de pago
+    const detailRow = document.querySelector(`#payment-details-tbody tr[data-payment-id="${paymentId}"]`);
+    if (detailRow) {
+      detailRow.remove();
+    }
+    
+    // Actualizar el estilo de la fila para marcarla como no seleccionada
+    row.style.backgroundColor = '';
+  }
+  
+  // Actualizar totales si es necesario
+  updatePaymentTotals();
+};
+
+// Función para actualizar los totales de pago
+function updatePaymentTotals() {
+  // Implementar si es necesario actualizar los totales dinámicamente
+  console.log('Updating payment totals');
+}
 
 // Exportar las funciones globalmente de nuevo para asegurarse
 window.erpnext = window.erpnext || {};

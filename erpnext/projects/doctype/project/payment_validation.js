@@ -308,6 +308,13 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 </select>
               </div>
               <div class="form-group">
+                <label class="control-label">Select Payment Type *</label>
+                <select class="form-control" id="confirm_method">
+                  <option value="workshop">workshop</option>
+                  <option value="loan car">loan car</option>
+                </select>
+              </div>
+              <div class="form-group">
                 <label class="control-label">Payment Details *</label>
                 <div class="payment-details-table">
                   <table class="table table-bordered table-hover">
@@ -340,13 +347,6 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 </div>
                 <input type="hidden" id="payment_details" value="${manual_payment_details}">
                 <small class="text-muted">Payment details are displayed in the table above</small>
-              </div>
-              <div class="form-group">
-                <label class="control-label">Select Payment Type *</label>
-                <select class="form-control" id="confirm_method">
-                  <option value="workshop">workshop</option>
-                  <option value="loan car">loan car</option>
-                </select>
               </div>
               <ul style="color: #d14343; padding-left: 20px;">
                 <li>Approved quotations will be marked as paid.</li>
