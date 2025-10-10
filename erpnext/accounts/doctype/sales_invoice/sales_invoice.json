@@ -256,11 +256,10 @@
    "allow_on_submit": 1,
    "description": "Enter payment details such as transaction reference",
    "fieldname": "payment_details",
-   "fieldtype": "Text Editor",
+   "fieldtype": "Markdown Editor",
    "in_filter": 1,
    "in_list_view": 1,
-   "label": "Payment Details",
-   "translatable": 1
+   "label": "Payment Details"
   },
   {
    "fieldname": "payment_gateway",
@@ -2277,7 +2276,7 @@
    "link_fieldname": "consolidated_invoice"
   }
  ],
- "modified": "2025-10-03 17:13:29.247631",
+ "modified": "2025-10-10 18:55:36.624613",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Sales Invoice",
