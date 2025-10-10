@@ -1481,18 +1481,18 @@ function validateBankTransferPayment(frm) {
 		if (data && data.history && data.history.length > 0) {
 			const rawItems = data.history;
 			const paymentDetails = rawItems.map((it, i) => {
-				let payment = `Payment #${i + 1}\n\n`;
-				payment += `- Gateway: ${it.payment_gateway || '-'}\n\n`;
-				payment += `- Amount: ${it.amount ? it.amount.toFixed(2) : '0.00'} €\n\n`;
-				payment += `- Request ID: ${it.id || '-'}\n\n`;
-				payment += `- Transaction ID: ${it.id || '-'}\n\n`;
+				let payment = `Payment #${i + 1}\n`;
+				payment += `- Gateway: ${it.payment_gateway || '-'}\n`;
+				payment += `- Amount: ${it.amount ? it.amount.toFixed(2) : '0.00'} €\n`;
+				payment += `- Request ID: ${it.id || '-'}\n`;
+				payment += `- Transaction ID: ${it.id || '-'}\n`;
 				payment += `- Date: ${it.created_at || '-'}`;
 				if (it.details) {
-					payment += `\n\n- Details: ${it.details}`;
+					payment += `\n- Details: ${it.details}`;
 				}
 				return payment;
 			});
-			manual_payment_details = paymentDetails.join('\n\n');
+			manual_payment_details = paymentDetails.join('\n');
 		}
 		
 		let d = new frappe.ui.Dialog({
