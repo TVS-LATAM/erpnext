@@ -226,7 +226,7 @@ function renderPaymentHistoryTable(data, opts = {}) {
   if (sorted.length === 0) {
     return `
       <div style="margin-top:20px;">
-        <h4>Payment History</h4>
+        <h4>Revolut Payments List</h4>
         <p class="text-muted mb-0">No payment history available.</p>
       </div>
     `;
@@ -319,8 +319,8 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 </select>
               </div>
               <div class="form-group">
-                <label class="control-label">Payment Details *</label>
-                <div class="payment-details-table">
+                <label class="control-label">Payment Details (Payments detected for this project)</label>
+                <div class="payment-details-table" style="max-height: 300px; overflow-y: auto;">
                   <table class="table table-bordered table-hover">
                     <thead>
                       <tr>
@@ -350,7 +350,6 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                   </table>
                 </div>
                 <input type="hidden" id="payment_details" value="${manual_payment_details}">
-                <small class="text-muted">Payment details are displayed in the table above</small>
               </div>
               <ul style="color: #d14343; padding-left: 20px;">
                 <li>Approved quotations will be marked as paid.</li>
@@ -363,8 +362,8 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
             
             <!-- Right Column - Payment History Table -->
             <div class="col-md-6">
-              <h4>Payment History</h4>
-              <div class="payment-history-table">
+              <h4>Revolut Payments <small style="font-size: 0.8rem;" class="text-danger text-sm">(Select a payment to link to this project)</small></h4>
+              <div class="payment-history-table" style="max-height: 55vh; overflow-y: auto;">
                 <table class="table table-bordered table-hover">
                   <thead>
                     <tr>
@@ -614,6 +613,7 @@ window.togglePaymentSelection = function(checkbox) {
       
       const newRow = document.createElement('tr');
       newRow.setAttribute('data-payment-id', paymentId);
+      newRow.setAttribute('data-amount', amount); // Guardar el monto para cálculos futuros
       newRow.innerHTML = `
         <td>${gateway}</td>
         <td>${formattedAmount}</td>
@@ -625,12 +625,15 @@ window.togglePaymentSelection = function(checkbox) {
       
       // Actualizar el estilo de la fila para marcarla como seleccionada
       row.style.backgroundColor = '#d4edda';
+      
+      console.log(`Added payment ${paymentId} with amount ${amount} to details table`);
     }
   } else {
     // Si está desmarcado, eliminar de la tabla de detalles de pago
     const detailRow = document.querySelector(`#payment-details-tbody tr[data-payment-id="${paymentId}"]`);
     if (detailRow) {
       detailRow.remove();
+      console.log(`Removed payment ${paymentId} with amount ${amount} from details table`);
     }
     
     // Actualizar el estilo de la fila para marcarla como no seleccionada
@@ -643,8 +646,52 @@ window.togglePaymentSelection = function(checkbox) {
 
 // Función para actualizar los totales de pago
 function updatePaymentTotals() {
-  // Implementar si es necesario actualizar los totales dinámicamente
-  console.log('Updating payment totals');
+  // Obtener todas las filas seleccionadas en la tabla de historial de pagos
+  const selectedCheckboxes = document.querySelectorAll('.payment-checkbox:checked');
+  
+  // Calcular el total pagado sumando los montos de las filas seleccionadas
+  let totalPaid = 0;
+  selectedCheckboxes.forEach(checkbox => {
+    const row = checkbox.closest('tr');
+    const amount = parseFloat(row.getAttribute('data-amount')) || 0;
+    totalPaid += amount;
+  });
+  
+  // Obtener el valor del total de la factura (que es innamovible)
+  // Buscamos el elemento que contiene el texto "Total Invoice" y luego obtenemos su celda de valor
+  const totalInvoiceRow = Array.from(document.querySelectorAll('tfoot tr')).find(row => 
+    row.textContent.includes('Total Invoice')
+  );
+  const totalInvoiceElement = totalInvoiceRow?.querySelector('td');
+  const totalInvoiceText = totalInvoiceElement?.textContent || '0';
+  const totalInvoice = parseFloat(totalInvoiceText.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+  
+  // Calcular el restante
+  const remaining = totalInvoice - totalPaid;
+  
+  // Actualizar los elementos en la tabla
+  // Buscamos las filas que contienen los textos "Total Paid" y "Remaining"
+  const totalPaidRow = Array.from(document.querySelectorAll('tfoot tr')).find(row => 
+    row.textContent.includes('Total Paid')
+  );
+  const remainingRow = Array.from(document.querySelectorAll('tfoot tr')).find(row => 
+    row.textContent.includes('Remaining')
+  );
+  
+  const totalPaidElement = totalPaidRow?.querySelector('td');
+  const remainingElement = remainingRow?.querySelector('td strong') || remainingRow?.querySelector('td');
+  
+  if (totalPaidElement) {
+    totalPaidElement.textContent = formatCurrencyValue(totalPaid);
+  }
+  
+  if (remainingElement) {
+    remainingElement.textContent = formatCurrencyValue(remaining);
+    // Actualizar el color del texto según si hay saldo pendiente o no
+    remainingElement.style.color = remaining > 0 ? 'red' : '';
+  }
+  
+  console.log('Updated payment totals:', { totalPaid, totalInvoice, remaining });
 }
 
 // Exportar las funciones globalmente de nuevo para asegurarse
