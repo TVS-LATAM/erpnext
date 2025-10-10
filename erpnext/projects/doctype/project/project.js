@@ -1411,8 +1411,7 @@ function validateBankTransferPayment(frm) {
 		const response = await fetch(`${aws_url}manual-reconcile-payments`, {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json',
-
+				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({ name: frm.doc.name })
 		});
@@ -1423,6 +1422,25 @@ function validateBankTransferPayment(frm) {
 		}
 		const data = await response.json();
 		console.log("data: ",data);
+		
+		// Format payment details if history exists
+		let manual_payment_details = '';
+		if (data && data.history && data.history.length > 0) {
+			const rawItems = data.history;
+			const paymentDetails = rawItems.map((it, i) => {
+				let payment = `Payment #${i + 1}\n`;
+				payment += `- Gateway: ${it.payment_gateway || '-'}\n`;
+				payment += `- Amount: ${it.amount ? it.amount.toFixed(2) : '0.00'} €\n`;
+				payment += `- Request ID: ${it.id || '-'}\n`;
+				payment += `- Transaction ID: ${it.id || '-'}\n`;
+				payment += `- Date: ${it.created_at || '-'}`;
+				if (it.details) {
+					payment += `\n- Details: ${it.details}`;
+				}
+				return payment;
+			});
+			manual_payment_details = paymentDetails.join('\n');
+		}
 		frappe.prompt([
 			{
 				label: 'Confirm Method of Payment',
@@ -1436,7 +1454,8 @@ function validateBankTransferPayment(frm) {
 				fieldname: 'payment_details',
 				fieldtype: 'Small Text',
 				description: 'Add any relevant payment details (transaction ID, bank reference, etc.)',
-				reqd: 1
+				reqd: 1,
+				default: manual_payment_details
 			},
 			{
 				label: 'Select Payment Type',
@@ -1486,13 +1505,14 @@ function validateBankTransferPayment(frm) {
 									payment_gateway: "manual",
 									total: totalAmount,
 									payment_confirmation: values.payment_confirmation,
-									payment_details: values.payment_details || ''
+									payment_details: values.payment_details || '',
+									manual_payment_details: values.payment_details || ''
 								};
 
 								const apiResponse = await fetch(`${aws_url}manual-confirm-payment`, {
 									method: 'POST',
 									headers: {
-										'Content-Type': 'application/json',
+										'Content-Type': 'application/json'
 									},
 									body: JSON.stringify(paymentData)
 								});
@@ -1508,7 +1528,11 @@ function validateBankTransferPayment(frm) {
 									throw new Error('API call failed');
 								}
 							} else {
-								frappe.msgprint('No quotations found for this project');
+								frappe.msgprint({
+									title: 'Error',
+									indicator: 'red',
+									message: 'No quotations found for this project'
+								});
 							}
 						} catch (error) {
 							frappe.msgprint({
