@@ -1279,6 +1279,59 @@ function viewCustomerDetails(frm) {
  * @param {Intl.DateTimeFormatOptions} [opts.dateOptions] - Override date display options
  * @returns {string} HTML string
  */
+/**
+ * Renders individual payment rows for the payment history table
+ * @param {Array} payments - Array of payment objects
+ * @returns {string} HTML string with table rows
+ */
+function renderPaymentRows(payments) {
+  if (!Array.isArray(payments) || payments.length === 0) {
+    return '<tr><td colspan="3">No payment history available</td></tr>';
+  }
+  
+  // Format date helper function
+  const formatDate = (dateStr) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleString('de-DE', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return dateStr || '—';
+    }
+  };
+  
+  // Format amount helper function
+  const formatAmount = (amount) => {
+    try {
+      return parseFloat(amount).toLocaleString('de-DE', {
+        style: 'currency',
+        currency: 'EUR'
+      });
+    } catch (e) {
+      return amount || '—';
+    }
+  };
+  
+  return payments.map(payment => {
+    const date = formatDate(payment.created_at);
+    const gateway = payment.payment_gateway || 'Unknown';
+    const amount = formatAmount(payment.amount);
+    
+    return `
+      <tr>
+        <td>${date}</td>
+        <td>${gateway}</td>
+        <td class="text-right">${amount}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function renderPaymentHistoryTable(data, opts = {}) {
   const {
     locale = 'de-DE',
@@ -1428,54 +1481,91 @@ function validateBankTransferPayment(frm) {
 		if (data && data.history && data.history.length > 0) {
 			const rawItems = data.history;
 			const paymentDetails = rawItems.map((it, i) => {
-				let payment = `Payment #${i + 1}\n`;
-				payment += `- Gateway: ${it.payment_gateway || '-'}\n`;
-				payment += `- Amount: ${it.amount ? it.amount.toFixed(2) : '0.00'} €\n`;
-				payment += `- Request ID: ${it.id || '-'}\n`;
-				payment += `- Transaction ID: ${it.id || '-'}\n`;
+				let payment = `Payment #${i + 1}\n\n`;
+				payment += `- Gateway: ${it.payment_gateway || '-'}\n\n`;
+				payment += `- Amount: ${it.amount ? it.amount.toFixed(2) : '0.00'} €\n\n`;
+				payment += `- Request ID: ${it.id || '-'}\n\n`;
+				payment += `- Transaction ID: ${it.id || '-'}\n\n`;
 				payment += `- Date: ${it.created_at || '-'}`;
 				if (it.details) {
-					payment += `\n- Details: ${it.details}`;
+					payment += `\n\n- Details: ${it.details}`;
 				}
 				return payment;
 			});
-			manual_payment_details = paymentDetails.join('\n');
+			manual_payment_details = paymentDetails.join('\n\n');
 		}
-		frappe.prompt([
-			{
-				label: 'Confirm Method of Payment',
-				fieldname: 'payment_confirmation',
-				fieldtype: 'Select',
-				options: ['Bank Transfer', 'Cash', 'Credit Card', 'Other'],
-				reqd: 1
-			},
-			{
-				label: 'Payment Details',
-				fieldname: 'payment_details',
-				fieldtype: 'Small Text',
-				description: 'Add any relevant payment details (transaction ID, bank reference, etc.)',
-				reqd: 1,
-				default: manual_payment_details
-			},
-			{
-				label: 'Select Payment Type',
-				fieldname: 'confirm_method',
-				fieldtype: 'Select',
-				options: ['workshop', 'loan car'],
-				reqd: 1,
-				description: `
-									<ul style="color: #d14343; padding-left: 20px;">
-											<li>Approved quotations will be marked as paid.</li>
-											<li>An invoice will be generated.</li>
-											<li>The invoice will be sent to the customer.</li>
-											<li>The project status will be updated to "Invoice Paid".</li>
-											<li>This action can <span style="font-weight: bold;">NOT</span> be undone.</li>
-									</ul>
-									${renderPaymentHistoryTable(data)}
-							`
-			},
-		],
-			async (values) => {
+		
+		let d = new frappe.ui.Dialog({
+			title: 'Confirm Payment Method',
+			fields: [
+				{
+					fieldtype: 'HTML',
+					fieldname: 'payment_layout',
+					options: `
+						<div class="row">
+							<!-- Left Column - Form Fields -->
+							<div class="col-md-6" style="border-right: 1px solid #e5e7eb;">
+								<div class="form-group">
+									<label class="control-label">Confirm Method of Payment *</label>
+									<select class="form-control" id="payment_confirmation">
+										<option value="Bank Transfer">Bank Transfer</option>
+										<option value="Cash">Cash</option>
+										<option value="Credit Card">Credit Card</option>
+										<option value="Other">Other</option>
+									</select>
+								</div>
+								<div class="form-group">
+									<label class="control-label">Payment Details *</label>
+									<textarea class="form-control" id="payment_details" rows="4" 
+										placeholder="Add any relevant payment details (transaction ID, bank reference, etc.)">${manual_payment_details}</textarea>
+									<small class="text-muted">Add any relevant payment details (transaction ID, bank reference, etc.)</small>
+								</div>
+								<div class="form-group">
+									<label class="control-label">Select Payment Type *</label>
+									<select class="form-control" id="confirm_method">
+										<option value="workshop">workshop</option>
+										<option value="loan car">loan car</option>
+									</select>
+								</div>
+								<ul style="color: #d14343; padding-left: 20px;">
+									<li>Approved quotations will be marked as paid.</li>
+									<li>An invoice will be generated.</li>
+									<li>The invoice will be sent to the customer.</li>
+									<li>The project status will be updated to "Invoice Paid".</li>
+									<li>This action can <span style="font-weight: bold;">NOT</span> be undone.</li>
+								</ul>
+							</div>
+							
+							<!-- Right Column - Payment History Table -->
+							<div class="col-md-6">
+								<h4>Payment History</h4>
+								<div class="payment-history-table">
+									<table class="table table-bordered table-hover">
+										<thead>
+											<tr>
+												<th>Date</th>
+												<th>Payment Gateway</th>
+												<th class="text-right">Amount</th>
+											</tr>
+										</thead>
+										<tbody id="payment-history-tbody">
+											${data && data.response ? renderPaymentRows(data.response) : '<tr><td colspan="3">No payment history available</td></tr>'}
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+					`
+				}
+			],
+			primary_action_label: 'Confirm Payment Type and Proceed',
+			primary_action: function() {
+				const values = {
+					payment_confirmation: document.getElementById('payment_confirmation').value,
+					payment_details: document.getElementById('payment_details').value,
+					confirm_method: document.getElementById('confirm_method').value
+				};
+				
 				frappe.confirm(
 					"Are you sure you want to mark approved quotations as paid? By confirming, you acknowledge that the payment has been verified in the company's account.",
 					async () => {
@@ -1546,8 +1636,20 @@ function validateBankTransferPayment(frm) {
 						frappe.msgprint('Payment action cancelled');
 					}
 				);
-			},
-			'Confirm Payment Method',
-			'Confirm Payment Type and Proceed');
+			}
+		});
+		
+		d.show();
+		setTimeout(() => {
+			$(d.$wrapper).find('.modal-dialog').css({
+				'max-width': '90%',
+				'width': '90%',
+				'height': '85%'
+			});
+			$(d.$wrapper).find('.modal-body').css({
+				'max-height': '75vh',
+				'overflow-y': 'auto'
+			});
+		}, 200);
 	});
 }
