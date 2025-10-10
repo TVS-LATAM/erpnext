@@ -1280,6 +1280,77 @@ function viewCustomerDetails(frm) {
  * @returns {string} HTML string
  */
 /**
+ * Formats a currency value according to the German locale
+ * @param {number} amount - Amount to format
+ * @returns {string} Formatted currency string
+ */
+function formatCurrencyValue(amount) {
+  try {
+    return parseFloat(amount).toLocaleString('de-DE', {
+      style: 'currency',
+      currency: 'EUR'
+    });
+  } catch (e) {
+    return amount || '—';
+  }
+}
+
+/**
+ * Renders individual payment rows for the payment details table
+ * @param {Array} payments - Array of payment objects
+ * @returns {string} HTML string with table rows
+ */
+function renderPaymentDetailsRows(payments) {
+  if (!Array.isArray(payments) || payments.length === 0) {
+    return '<tr><td colspan="4">No payment details available</td></tr>';
+  }
+  
+  // Format date helper function
+  const formatDate = (dateStr) => {
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleString('de-DE', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (e) {
+      return dateStr || '—';
+    }
+  };
+  
+  // Format amount helper function
+  const formatAmount = (amount) => {
+    try {
+      return parseFloat(amount).toLocaleString('de-DE', {
+        style: 'currency',
+        currency: 'EUR'
+      });
+    } catch (e) {
+      return amount || '—';
+    }
+  };
+  
+  return payments.map(payment => {
+    const gateway = payment.payment_gateway || 'Unknown';
+    const amount = formatAmount(payment.amount);
+    const id = payment.id || '—';
+    const date = formatDate(payment.created_at);
+    
+    return `
+      <tr>
+        <td>${gateway}</td>
+        <td>${amount}</td>
+        <td>${id}</td>
+        <td>${date}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
  * Renders individual payment rows for the payment history table
  * @param {Array} payments - Array of payment objects
  * @returns {string} HTML string with table rows
@@ -1474,7 +1545,9 @@ function validateBankTransferPayment(frm) {
 			return;
 		}
 		const data = await response.json();
-		console.log("data: ",data);
+		console.log("data: ", data);
+		console.log("data.history: ", data.history);
+		console.log("data.response: ", data.response);
 		
 		// Format payment details if history exists
 		let manual_payment_details = '';
@@ -1516,9 +1589,37 @@ function validateBankTransferPayment(frm) {
 								</div>
 								<div class="form-group">
 									<label class="control-label">Payment Details *</label>
-									<textarea class="form-control" id="payment_details" rows="4" 
-										placeholder="Add any relevant payment details (transaction ID, bank reference, etc.)">${manual_payment_details}</textarea>
-									<small class="text-muted">Add any relevant payment details (transaction ID, bank reference, etc.)</small>
+									<div class="payment-details-table">
+										<table class="table table-bordered table-hover">
+											<thead>
+												<tr>
+													<th>Gateway</th>
+													<th>Amount</th>
+													<th>Transaction ID</th>
+													<th>Date</th>
+												</tr>
+											</thead>
+											<tbody id="payment-details-tbody">
+												${data && data.history ? renderPaymentDetailsRows(data.history) : '<tr><td colspan="4">No payment details available</td></tr>'}
+											</tbody>
+											<tfoot>
+												<tr>
+													<th scope="row" colspan="1" class="text-end">Total Paid</th>
+													<td colspan="3">${formatCurrencyValue(data?.totalPaid || 0)}</td>
+												</tr>
+												<tr>
+													<th scope="row" colspan="1" class="text-end">Total Invoice</th>
+													<td colspan="3">${formatCurrencyValue(data?.fullAmount || 0)}</td>
+												</tr>
+												<tr>
+													<th scope="row" colspan="1" class="text-end">Remaining</th>
+													<td colspan="3"><strong style="${(data?.fullAmount || 0) - (data?.totalPaid || 0) > 0 ? 'color: red;' : ''}">${formatCurrencyValue((data?.fullAmount || 0) - (data?.totalPaid || 0))}</strong></td>
+												</tr>
+											</tfoot>
+										</table>
+									</div>
+									<input type="hidden" id="payment_details" value="${manual_payment_details}">
+									<small class="text-muted">Payment details are displayed in the table above</small>
 								</div>
 								<div class="form-group">
 									<label class="control-label">Select Payment Type *</label>
