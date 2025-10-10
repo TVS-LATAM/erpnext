@@ -1353,12 +1353,16 @@ function renderPaymentDetailsRows(payments) {
 /**
  * Renders individual payment rows for the payment history table
  * @param {Array} payments - Array of payment objects
+ * @param {Array} [historyIds=[]] - Array of IDs from the history table to highlight matching rows
  * @returns {string} HTML string with table rows
  */
-function renderPaymentRows(payments) {
+function renderPaymentRows(payments, historyIds = []) {
   if (!Array.isArray(payments) || payments.length === 0) {
     return '<tr><td colspan="3">No payment history available</td></tr>';
   }
+  
+  // Convert historyIds to a Set for faster lookups
+  const historyIdSet = new Set(historyIds);
   
   // Format date helper function
   const formatDate = (dateStr) => {
@@ -1392,9 +1396,14 @@ function renderPaymentRows(payments) {
     const date = formatDate(payment.created_at);
     const gateway = payment.payment_gateway || 'Unknown';
     const amount = formatAmount(payment.amount);
+    const id = payment.id || '';
+    
+    // Check if this payment ID exists in the history IDs
+    const isMatched = historyIdSet.has(id);
+    const rowStyle = isMatched ? 'background-color: #d4edda;' : ''; // Light green background for matching rows
     
     return `
-      <tr>
+      <tr style="${rowStyle}">
         <td>${date}</td>
         <td>${gateway}</td>
         <td class="text-right">${amount}</td>
@@ -1650,7 +1659,7 @@ function validateBankTransferPayment(frm) {
 											</tr>
 										</thead>
 										<tbody id="payment-history-tbody">
-											${data && data.response ? renderPaymentRows(data.response) : '<tr><td colspan="3">No payment history available</td></tr>'}
+											${data && data.response ? renderPaymentRows(data.response, data.history ? data.history.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="3">No payment history available</td></tr>'}
 										</tbody>
 									</table>
 								</div>
