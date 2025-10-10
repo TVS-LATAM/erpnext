@@ -2,9 +2,12 @@
 // License: GNU General Public License v3. See license.txt
 
 // Import payment validation module
-frappe.require("erpnext/projects/doctype/project/payment_validation.js");
+frappe.provide('erpnext.projects.payment_validation');
+
 frappe.ui.form.on("Project", {
 	setup(frm) {
+		// Cargar el módulo de validación de pagos al inicio
+		console.log("Project setup - Loading payment validation module");
 		frm.make_methods = {
 			Timesheet: () => {
 				open_form(frm, "Timesheet", "Timesheet Detail", "time_logs");
@@ -107,13 +110,13 @@ frappe.ui.form.on("Project", {
 			frm.trigger("show_dashboard");
 		}
 
-		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
-		const isMechanic = await erpnext.utils.isMechanic(this.frm);
-		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
-		const isSeniorMechanic = await erpnext.utils.isSeniorMechanic(this.frm);
+		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(frm);
+		const isMechanic = await erpnext.utils.isMechanic(frm);
+		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(frm);
+		const isSeniorMechanic = await erpnext.utils.isSeniorMechanic(frm);
 
 		if (!frm.is_new() && !isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic) {
-			frm.add_custom_button(__("Generate Quotation"), async () => {
+			frm.add_custom_button(__('Generate Quotation'), async () => {
 				const doc = await frappe.model.get_new_doc('Quotation');
 				doc.party_name = frm.doc.customer;
 				frappe.new_doc('Quotation', {
@@ -121,9 +124,11 @@ frappe.ui.form.on("Project", {
 					party_name: frm.doc.customer,
 					quotation_to: 'Customer'
 				});
-			})
+			});
+			
+			insertValidateBankTransferPaymentButton(frm);
+			
 			viewCustomerDetails(frm);
-			validateBankTransferPayment(frm);
 		}
 		if(isMechanic || isJuniorMechanic || isSeniorMechanic) {
 			installQuotationItems(frm);
@@ -1267,10 +1272,23 @@ function viewCustomerDetails(frm) {
 
 // Las funciones relacionadas con la validación de pagos se han movido al archivo payment_validation.js
 
-
-function validateBankTransferPayment(frm) {
-	frm.add_custom_button("Validate Bank Transfer Payment", () => {
-		// Usar la función del módulo de validación de pagos
-		erpnext.projects.payment_validation.validateBankTransferPayment(frm);
+function insertValidateBankTransferPaymentButton(frm) {
+	frm.add_custom_button(__('Validate Bank Transfer Payment'), () => {
+		try {
+			if (window.erpnext && window.erpnext.projects && window.erpnext.projects.payment_validation) {
+				window.erpnext.projects.payment_validation.validateBankTransferPayment(frm);
+			} else if (erpnext.projects.payment_validation) {
+				erpnext.projects.payment_validation.validateBankTransferPayment(frm);
+			} else {
+				throw new Error("Payment validation module not loaded");
+			}
+		} catch (error) {
+			console.error("Error accessing payment validation module:", error);
+			frappe.msgprint({
+				title: 'Error',
+				indicator: 'red',
+				message: 'No se pudo cargar el módulo de validación de pagos. Por favor, inténtelo de nuevo.'
+			});
+		}
 	});
 }
