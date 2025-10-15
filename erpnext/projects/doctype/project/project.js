@@ -900,8 +900,7 @@ async function insertResendPaymentLink(frm) {
 }
 
 async function insertDiagnoseResultTranslation(frm) {
-	const lang = frappe?.boot?.user?.language || 'nl'
-	const languages = new Set(['nl', 'en', 'uk', lang])
+	const languages = getLanguages()
 	const field = document.querySelector('div[data-fieldname="diagnose_result"]');
 	const container = field.querySelector('.clearfix');
 	container.style = 'display:flex;gap:1rem;align-items:center;'
@@ -926,8 +925,7 @@ async function insertDiagnoseResultTranslation(frm) {
 }
 
 async function insertClientDescriptionTranslation(frm) {
-	const lang = frappe?.boot?.user?.language || 'nl'
-	const languages = new Set(['nl', 'en', 'uk', lang])
+	const languages = getLanguages()
 	const field = document.querySelector('div[data-fieldname="client_description"]');
 	if (!field) return;
 	const container = field.querySelector('.clearfix');
@@ -953,8 +951,7 @@ async function insertClientDescriptionTranslation(frm) {
 }
 
 async function insertNotesTranslation(frm) {
-	const lang = frappe?.boot?.user?.language || 'nl'
-	const languages = new Set(['nl', 'en', 'uk', lang])
+	const languages = getLanguages()
 	const field = document.querySelector('div[data-fieldname="notes"]');
 	if (!field) return;
 	const container = field.querySelector('.clearfix');
@@ -980,8 +977,7 @@ async function insertNotesTranslation(frm) {
 }
 
 async function insertInternalNotesTranslation(frm) {
-	const lang = frappe?.boot?.user?.language || 'nl'
-	const languages = new Set(['nl', 'en', 'uk', lang])
+	const languages = getLanguages()
 	const field = document.querySelector('div[data-fieldname="internal_notes"]');
 	if (!field) return;
 	const container = field.querySelector('.clearfix');
@@ -1762,4 +1758,9 @@ function validateBankTransferPayment(frm) {
 			});
 		}, 200);
 	});
+}
+
+function getLanguages() {
+	const lang = frappe?.boot?.user?.language || 'nl'
+	return new Set(['nl', 'en', 'uk', 'es', lang])
 }
