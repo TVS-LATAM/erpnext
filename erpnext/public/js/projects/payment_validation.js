@@ -332,8 +332,8 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                         <th>Date</th>
                       </tr>
                     </thead>
-                    <tbody id="payment-details-tbody">
-                      ${data && data.response ? renderPaymentDetailsRows(data.response) : '<tr><td colspan="4">No payment details available</td></tr>'}
+                    <tbody id="payment-history-tbody">
+                      ${data && data.history ? renderPaymentRows(data.history, data.response ? data.response.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="4">No payment history available</td></tr>'}
                     </tbody>
                     <tfoot>
                       <tr>
