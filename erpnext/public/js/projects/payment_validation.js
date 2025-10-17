@@ -318,41 +318,54 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                   <option value="loan car">loan car</option>
                 </select>
               </div>
-              <div class="form-group">
-                <div class="payment-details-table" style="max-height: 300px; overflow-y: auto;">
-                  <table class="table table-bordered table-hover">
-                    <thead>
-                      <tr>
-                        <th colspan="4" class="text-center bg-light">Payment Details (Payments detected for this project)</th>
-                      </tr>
-                      <tr>
-                        <th>Gateway</th>
-                        <th>Amount</th>
-                        <th>Transaction ID</th>
-                        <th>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody id="payment-history-tbody">
-                      ${data && data.history ? renderPaymentRows(data.history, data.response ? data.response.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="4">No payment history available</td></tr>'}
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <th scope="row" colspan="1" class="text-end">Total Paid</th>
-                        <td colspan="3">${formatCurrencyValue(data?.totalPaid || 0)}</td>
-                      </tr>
-                      <tr>
-                        <th scope="row" colspan="1" class="text-end">Total Invoice</th>
-                        <td colspan="3">${formatCurrencyValue(data?.fullAmount || 0)}</td>
-                      </tr>
-                      <tr>
-                        <th scope="row" colspan="1" class="text-end">Remaining</th>
-                        <td colspan="3"><strong style="${(data?.fullAmount || 0) - (data?.totalPaid || 0) > 0 ? 'color: red;' : ''}">${formatCurrencyValue((data?.fullAmount || 0) - (data?.totalPaid || 0))}</strong></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-                <input type="hidden" id="payment_details" value="${manual_payment_details}">
+
+
+
+           <div class="form-group">
+              <div class="payment-details-table" style="max-height: 300px; overflow-y: auto;">
+                <table class="table table-bordered table-hover">
+                  <thead>
+                    <tr>
+                      <th colspan="4" class="text-center bg-light">
+                        Payment Details (Payments detected for this project)
+                      </th>
+                    </tr>
+                    <tr>
+                      <th>Gateway</th>
+                      <th>Amount</th>
+                      <th>Transaction ID</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody id="payment-details-tbody">
+                    ${data && data.response && data.response.length > 0
+                      ? renderPaymentDetailsRows(data.response)
+                      : '<tr><td colspan="4">No payment details available</td></tr>'
+                    }
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th scope="row" colspan="1" class="text-end">Total Paid</th>
+                      <td colspan="3">${formatCurrencyValue(data?.totalPaid || 0)}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row" colspan="1" class="text-end">Total Invoice</th>
+                      <td colspan="3">${formatCurrencyValue(data?.totalToPaid || 0)}</td>
+                    </tr>
+                    <tr>
+                      <th scope="row" colspan="1" class="text-end">Remaining</th>
+                      <td colspan="3">
+                        <strong style="${(data?.totalToPaid || 0) - (data?.totalPaid || 0) > 0 ? 'color: red;' : ''}">
+                          ${formatCurrencyValue((data?.totalToPaid || 0) - (data?.totalPaid || 0))}
+                        </strong>
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
+              <input type="hidden" id="payment_details" value="${manual_payment_details}">
+            </div>
+
               <ul style="color: #d14343; padding-left: 20px;">
                 <li>Approved quotations will be marked as paid.</li>
                 <li>An invoice will be generated.</li>
@@ -378,7 +391,13 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                     </tr>
                   </thead>
                   <tbody id="payment-history-tbody">
-                    ${data && data.history ? renderPaymentRows(data.history, data.history ? data.history.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="4">No payment history available</td></tr>'}
+                    ${data && data.history
+  ? renderPaymentRows(
+      data.history,
+      data.response ? data.response.map(item => item.id).filter(Boolean) : []
+    )
+  : '<tr><td colspan="4">No payment history available</td></tr>'}
+
                   </tbody>
                 </table>
               </div>
