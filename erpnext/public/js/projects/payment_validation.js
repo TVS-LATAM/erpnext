@@ -37,7 +37,7 @@ function formatCurrencyValue(amount) {
  */
 function renderPaymentDetailsRows(payments) {
   if (!Array.isArray(payments) || payments.length === 0) {
-    return '<tr><td colspan="4"><span class="text-danger text-center">No payment details available</span> </td></tr>';
+    return '<tr><td colspan="6"><span class="text-danger text-center">No payment details available</span> </td></tr>';
   }
   
   // Format date helper function
@@ -73,6 +73,8 @@ function renderPaymentDetailsRows(payments) {
     const amount = formatAmount(payment.amount);
     const id = payment.id || '—';
     const date = formatDate(payment.created_at);
+    const reference = payment.reference || '—';
+    const description = payment.description || '—';
     
     return `
       <tr data-payment-id="${id}">
@@ -80,6 +82,8 @@ function renderPaymentDetailsRows(payments) {
         <td>${amount}</td>
         <td>${id}</td>
         <td>${date}</td>
+        <td>${reference}</td>
+        <td>${description}</td>
       </tr>
     `;
   }).join('');
@@ -138,11 +142,16 @@ function renderPaymentRows(payments, historyIds = []) {
     const rowStyle = isMatched ? 'background-color: #d4edda;' : ''; // Light green background for matching rows
     const checked = isMatched ? 'checked' : ''; // Checkbox checked if matched
     
+    const reference = payment.reference || '-';
+    const description = payment.description || '-';
+    
     return `
-      <tr style="${rowStyle}" data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}">
+      <tr style="font-size: 0.8rem; ${rowStyle}" data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}">
         <td>${date}</td>
         <td>${gateway}</td>
         <td class="text-right">${amount}</td>
+        <td>${reference}</td>
+        <td>${description}</td>
         <td class="text-center">
           <input type="checkbox" class="payment-checkbox" ${checked} data-payment-id="${id}" onchange="window.togglePaymentSelection(this)">
         </td>
@@ -326,7 +335,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 <table class="table table-bordered table-hover">
                   <thead>
                     <tr>
-                      <th colspan="4" class="text-center bg-light">
+                      <th colspan="6" class="text-center bg-light">
                         Payment Details (Payments detected for this project)
                       </th>
                     </tr>
@@ -335,26 +344,28 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                       <th>Amount</th>
                       <th>Transaction ID</th>
                       <th>Date</th>
+                      <th>Reference</th>
+                      <th>Description</th>
                     </tr>
                   </thead>
                   <tbody id="payment-details-tbody">
                     ${data && data.response && data.response.length > 0
                       ? renderPaymentDetailsRows(data.response)
-                      : '<tr><td colspan="4">No payment details available</td></tr>'
+                      : '<tr><td colspan="6">No payment details available</td></tr>'
                     }
                   </tbody>
                   <tfoot>
                     <tr>
                       <th scope="row" colspan="1" class="text-end">Total Paid</th>
-                      <td colspan="3">${formatCurrencyValue(data?.totalPaid || 0)}</td>
+                      <td colspan="5">${formatCurrencyValue(data?.totalPaid || 0)}</td>
                     </tr>
                     <tr>
                       <th scope="row" colspan="1" class="text-end">Total Invoice</th>
-                      <td colspan="3">${formatCurrencyValue(data?.totalToPaid || 0)}</td>
+                      <td colspan="5">${formatCurrencyValue(data?.totalToPaid || 0)}</td>
                     </tr>
                     <tr>
                       <th scope="row" colspan="1" class="text-end">Remaining</th>
-                      <td colspan="3">
+                      <td colspan="5">
                         <strong style="${(data?.totalToPaid || 0) - (data?.totalPaid || 0) > 0 ? 'color: red;' : ''}">
                           ${formatCurrencyValue((data?.totalToPaid || 0) - (data?.totalPaid || 0))}
                         </strong>
@@ -381,12 +392,14 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 <table class="table table-bordered table-hover">
                   <thead>
                     <tr>
-                      <th colspan="4" class="text-center bg-light">Revolut Payments List <small style="font-size: 0.8rem;" class="text-danger">(Select a payment to link to this project)</small></th>
+                      <th colspan="6" class="text-center bg-light">Revolut Payments List <small style="font-size: 0.8rem;" class="text-danger">(Select a payment to link to this project)</small></th>
                     </tr>
                     <tr>
                       <th>Date</th>
-                      <th>Payment Gateway</th>
+                      <th>Platform</th>
                       <th class="text-right">Amount</th>
+                      <th>Reference</th>
+                      <th>Description</th>
                       <th class="text-center">Options</th>
                     </tr>
                   </thead>
@@ -396,7 +409,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
       data.history,
       data.response ? data.response.map(item => item.id).filter(Boolean) : []
     )
-  : '<tr><td colspan="4">No payment history available</td></tr>'}
+  : '<tr><td colspan="6">No payment history available</td></tr>'}
 
                   </tbody>
                 </table>
@@ -424,7 +437,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
     $(dialog.$wrapper).find('.modal-dialog').css({
       'max-width': '90%',
       'width': '90%',
-      'height': '85%'
+      'height': '95%'
     });
     
     // Fijar los encabezados de las tablas
@@ -435,7 +448,11 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
       'z-index': '1'
     });
     $(dialog.$wrapper).find('.modal-body').css({
-      'max-height': '75vh',
+      'max-height': '90vh',
+      'overflow-y': 'auto'
+    });
+    $(dialog.$wrapper).find('.modal-content').css({
+      'max-height': '90vh',
       'overflow-y': 'auto'
     });
   }, 200);
@@ -622,6 +639,8 @@ window.togglePaymentSelection = function(checkbox) {
   const amount = row.getAttribute('data-amount');
   const gateway = row.getAttribute('data-gateway');
   const date = row.getAttribute('data-date');
+  const reference = row.getAttribute('data-reference');
+  const description = row.getAttribute('data-description');
   
   // Obtener la tabla de detalles de pago
   const paymentDetailsTable = document.getElementById('payment-details-tbody');
@@ -650,6 +669,8 @@ window.togglePaymentSelection = function(checkbox) {
         <td>${formattedAmount}</td>
         <td>${paymentId}</td>
         <td>${formattedDate}</td>
+        <td>${reference}</td>
+        <td>${description}</td>
       `;
       
       paymentDetailsTable.appendChild(newRow);
