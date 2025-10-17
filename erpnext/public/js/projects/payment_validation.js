@@ -37,7 +37,7 @@ function formatCurrencyValue(amount) {
  */
 function renderPaymentDetailsRows(payments) {
   if (!Array.isArray(payments) || payments.length === 0) {
-    return '<tr><td colspan="4">No payment details available</td></tr>';
+    return '<tr><td colspan="4"><span class="text-danger text-center">No payment details available</span> </td></tr>';
   }
   
   // Format date helper function
@@ -319,10 +319,12 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 </select>
               </div>
               <div class="form-group">
-                <label class="control-label">Payment Details (Payments detected for this project)</label>
                 <div class="payment-details-table" style="max-height: 300px; overflow-y: auto;">
                   <table class="table table-bordered table-hover">
                     <thead>
+                      <tr>
+                        <th colspan="4" class="text-center bg-light">Payment Details (Payments detected for this project)</th>
+                      </tr>
                       <tr>
                         <th>Gateway</th>
                         <th>Amount</th>
@@ -331,7 +333,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                       </tr>
                     </thead>
                     <tbody id="payment-details-tbody">
-                      ${data && data.history ? renderPaymentDetailsRows(data.history) : '<tr><td colspan="4">No payment details available</td></tr>'}
+                      ${data && data.response ? renderPaymentDetailsRows(data.response) : '<tr><td colspan="4">No payment details available</td></tr>'}
                     </tbody>
                     <tfoot>
                       <tr>
@@ -362,10 +364,12 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
             
             <!-- Right Column - Payment History Table -->
             <div class="col-md-6">
-              <h4>Revolut Payments <small style="font-size: 0.8rem;" class="text-danger text-sm">(Select a payment to link to this project)</small></h4>
               <div class="payment-history-table" style="max-height: 55vh; overflow-y: auto;">
                 <table class="table table-bordered table-hover">
                   <thead>
+                    <tr>
+                      <th colspan="4" class="text-center bg-light">Revolut Payments List <small style="font-size: 0.8rem;" class="text-danger">(Select a payment to link to this project)</small></th>
+                    </tr>
                     <tr>
                       <th>Date</th>
                       <th>Payment Gateway</th>
@@ -374,7 +378,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                     </tr>
                   </thead>
                   <tbody id="payment-history-tbody">
-                    ${data && data.response ? renderPaymentRows(data.response, data.history ? data.history.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="4">No payment history available</td></tr>'}
+                    ${data && data.history ? renderPaymentRows(data.history, data.history ? data.history.map(item => item.id).filter(Boolean) : []) : '<tr><td colspan="4">No payment history available</td></tr>'}
                   </tbody>
                 </table>
               </div>
@@ -402,6 +406,14 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
       'max-width': '90%',
       'width': '90%',
       'height': '85%'
+    });
+    
+    // Fijar los encabezados de las tablas
+    $(dialog.$wrapper).find('thead').css({
+      'position': 'sticky',
+      'top': '0',
+      'background-color': 'white',
+      'z-index': '1'
     });
     $(dialog.$wrapper).find('.modal-body').css({
       'max-height': '75vh',
