@@ -152,7 +152,7 @@ class SalesInvoice(SellingController):
 		packed_items: DF.Table[PackedItem]
 		paid_amount: DF.Currency
 		party_account_currency: DF.Link | None
-		payment_details: DF.MarkdownEditor | None
+		payment_details: DF.HTMLEditor | None
 		payment_gateway: DF.Data | None
 		payment_id: DF.Data | None
 		payment_schedule: DF.Table[PaymentSchedule]
