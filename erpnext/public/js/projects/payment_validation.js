@@ -78,9 +78,7 @@ function renderPaymentDetailsRows(payments) {
     
     return `
       <tr data-payment-id="${id}">
-        <td>${gateway}</td>
         <td>${amount}</td>
-        <td>${id}</td>
         <td>${date}</td>
         <td>${reference}</td>
         <td>${description}</td>
@@ -148,7 +146,6 @@ function renderPaymentRows(payments, historyIds = []) {
     return `
       <tr style="font-size: 0.8rem; ${rowStyle}" data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}">
         <td>${date}</td>
-        <td>${gateway}</td>
         <td class="text-right">${amount}</td>
         <td>${reference}</td>
         <td>${description}</td>
@@ -310,7 +307,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
         options: `
           <div class="row">
             <!-- Left Column - Form Fields -->
-            <div class="col-md-6" style="border-right: 1px solid #e5e7eb;">
+            <div class="col-md-5" style="border-right: 1px solid #e5e7eb;">
               <div class="form-group">
                 <label class="control-label">Confirm Method of Payment *</label>
                 <select class="form-control" id="payment_confirmation">
@@ -335,14 +332,12 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                 <table class="table table-bordered table-hover">
                   <thead>
                     <tr>
-                      <th colspan="6" class="text-center bg-light">
+                      <th colspan="6" class="text-center bg-light; text-danger">
                         Payment Details (Payments detected for this project)
                       </th>
                     </tr>
                     <tr>
-                      <th>Gateway</th>
                       <th>Amount</th>
-                      <th>Transaction ID</th>
                       <th>Date</th>
                       <th>Reference</th>
                       <th>Description</th>
@@ -387,8 +382,8 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
             </div>
             
             <!-- Right Column - Payment History Table -->
-            <div class="col-md-6">
-              <div class="payment-history-table" style="max-height: 55vh; overflow-y: auto;">
+            <div class="col-md-7">
+              <div class="payment-history-table" style="height:100%; overflow-y: auto;">
                 <table class="table table-bordered table-hover">
                   <thead>
                     <tr>
@@ -396,7 +391,6 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
                     </tr>
                     <tr>
                       <th>Date</th>
-                      <th>Platform</th>
                       <th class="text-right">Amount</th>
                       <th>Reference</th>
                       <th>Description</th>
@@ -452,7 +446,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
       'overflow-y': 'auto'
     });
     $(dialog.$wrapper).find('.modal-content').css({
-      'max-height': '90vh',
+      'height': '100%',
       'overflow-y': 'auto'
     });
   }, 200);
