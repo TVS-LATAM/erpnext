@@ -341,6 +341,10 @@ frappe.ui.form.on("Project", {
 
 			showLoanCarNotPaidAlert(loan_car[0])
 		}
+
+		if (new_value === "In parking") {
+			deactivateChatbot(frm.doc.custom_customers_phone_number)
+		}
 	},
 	validate: function (frm) {
 		const regex = /^(?=.*[a-zA-Z0-9])[\s\S]{4,}$/g
@@ -1293,3 +1297,11 @@ function getLanguages() {
 	const lang = frappe?.boot?.user?.language || 'nl'
 	return new Set(['nl', 'en', 'uk', 'es', lang])
 }
+
+async function deactivateChatbot(phone_number) {
+	const conversations = await frappe.db.get_list('Conversation', { filters: { from: phone_number } })
+	for(const conversation of conversations){
+		await frappe.db.set_value('Conversation', conversation.name ,{ 'is_auto_reply': 0, 'seen': 0})
+	}
+}
+
