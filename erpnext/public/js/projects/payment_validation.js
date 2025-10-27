@@ -14,8 +14,10 @@ frappe.provide('erpnext.projects.payment_validation');
 // Indicar que el módulo se está cargando
 console.log('Loading payment validation module...');
 
-// Variable para almacenar los datos de pago compartidos entre funciones
+// Variables para almacenar los datos de pago compartidos entre funciones
 let paymentData = null;
+// Array para almacenar los pagos seleccionados
+let selectedPayments = [];
 
 /**
  * Formats a currency value according to the German locale
@@ -304,6 +306,9 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
   // Guardar los datos en la variable de módulo para que esté disponible para togglePaymentSelection
   paymentData = data;
   
+  // Inicializar el array de pagos seleccionados con los pagos ya asociados al proyecto
+  selectedPayments = data && data.response ? [...data.response] : [];
+  
   const dialog = new frappe.ui.Dialog({
     title: 'Confirm Payment Method',
     fields: [
@@ -497,7 +502,7 @@ async function handlePaymentConfirmation(frm, values, data) {
             total: totalAmount,
             payment_confirmation: values.payment_confirmation,
             payment_details: values.payment_details || '',
-            array_payment: paymentData && paymentData.response ? paymentData.response : (data.response || []),
+            array_payment: selectedPayments.length ? selectedPayments : [],
           };
 
           const apiResponse = await fetch(`${aws_url}manual-confirm-payment`, {
@@ -687,7 +692,7 @@ function togglePaymentSelection(checkbox) {
       // Actualizar el estilo de la fila para marcarla como seleccionada
       row.style.backgroundColor = '#d4edda';
       
-      // Añadir el pago al array response si no existe ya
+      // Añadir el pago al array de pagos seleccionados
       const paymentItem = {
         id: paymentId,
         amount: parseFloat(amount) || 0,
@@ -697,11 +702,11 @@ function togglePaymentSelection(checkbox) {
         description: description
       };
       
-      // Verificar si el pago ya existe en el array response
-      const existingIndex = paymentData.response.findIndex(item => item.id === paymentId);
+      // Verificar si el pago ya existe en el array de pagos seleccionados
+      const existingIndex = selectedPayments.findIndex(item => item.id === paymentId);
       if (existingIndex === -1) {
-        paymentData.response.push(paymentItem);
-        console.log(`Added payment ${paymentId} with amount ${amount} to response array and details table`);
+        selectedPayments.push(paymentItem);
+        console.log(`Added payment ${paymentId} with amount ${amount} to selected payments array and details table`);
       }
     }
   } else {
@@ -710,11 +715,11 @@ function togglePaymentSelection(checkbox) {
     if (detailRow) {
       detailRow.remove();
       
-      // Eliminar el pago del array response
-      const existingIndex = paymentData.response.findIndex(item => item.id === paymentId);
+      // Eliminar el pago del array de pagos seleccionados
+      const existingIndex = selectedPayments.findIndex(item => item.id === paymentId);
       if (existingIndex !== -1) {
-        paymentData.response.splice(existingIndex, 1);
-        console.log(`Removed payment ${paymentId} with amount ${amount} from response array and details table`);
+        selectedPayments.splice(existingIndex, 1);
+        console.log(`Removed payment ${paymentId} with amount ${amount} from selected payments array and details table`);
       }
     }
     
