@@ -11,17 +11,13 @@
 // Asegurarse de que el namespace esté disponible
 frappe.provide('erpnext.projects.payment_validation');
 
-// Indicar que el módulo se está cargando
-console.log('Loading payment validation module...');
-
-// Variables para almacenar los datos de pago compartidos entre funciones
-let paymentData = null;
-// Array para almacenar los pagos seleccionados
-let selectedPayments = [];
+// Global module variables
+let paymentData = null;        // Payment data for current project
+let selectedPayments = [];     // Array of selected payments to associate with the project
 
 /**
- * Formats a currency value according to the German locale
- * @param {number} amount - Amount to format
+ * Formats a monetary value according to German format (EUR)
+ * @param {number|string} amount - Amount to format
  * @returns {string} Formatted currency string
  */
 function formatCurrencyValue(amount) {
@@ -36,53 +32,45 @@ function formatCurrencyValue(amount) {
 }
 
 /**
- * Renders individual payment rows for the payment details table
+ * Formats an ISO date in German format
+ * @param {string} dateStr - Date in ISO format or string
+ * @returns {string} Formatted date
+ */
+function formatDateValue(dateStr) {
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleString('de-DE', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch (e) {
+    return dateStr || '—';
+  }
+}
+
+/**
+ * Renders individual rows for the payment details table
  * @param {Array} payments - Array of payment objects
  * @returns {string} HTML string with table rows
  */
 function renderPaymentDetailsRows(payments) {
   if (!Array.isArray(payments) || payments.length === 0) {
-    return '<tr><td colspan="6"><span class="text-danger text-center">No payment details available</span> </td></tr>';
+    return '<tr><td colspan="4"><span class="text-danger text-center">No payment details available</span></td></tr>';
   }
-  
-  // Format date helper function
-  const formatDate = (dateStr) => {
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleString('de-DE', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (e) {
-      return dateStr || '—';
-    }
-  };
-  
-  // Format amount helper function
-  const formatAmount = (amount) => {
-    try {
-      return parseFloat(amount).toLocaleString('de-DE', {
-        style: 'currency',
-        currency: 'EUR'
-      });
-    } catch (e) {
-      return amount || '—';
-    }
-  };
   
   return payments.map(payment => {
     const gateway = payment.payment_gateway || 'Unknown';
-    const amount = formatAmount(payment.amount);
+    const amount = formatCurrencyValue(payment.amount);
     const id = payment.id || '—';
-    const date = formatDate(payment.created_at);
+    const date = formatDateValue(payment.created_at);
     const reference = payment.reference || '—';
     const description = payment.description || '—';
     
     return `
-      <tr data-payment-id="${id}">
+      <tr data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}">
         <td>${amount}</td>
         <td>${date}</td>
         <td>${reference}</td>
@@ -93,60 +81,31 @@ function renderPaymentDetailsRows(payments) {
 }
 
 /**
- * Renders individual payment rows for the payment history table
+ * Renders individual rows for the payment history table
  * @param {Array} payments - Array of payment objects
- * @param {Array} [historyIds=[]] - Array of IDs from the history table to highlight matching rows
+ * @param {Array} [historyIds=[]] - Array of IDs from history table to highlight matching rows
  * @returns {string} HTML string with table rows
  */
 function renderPaymentRows(payments, historyIds = []) {
   if (!Array.isArray(payments) || payments.length === 0) {
-    return '<tr><td colspan="4">No payment history available</td></tr>';
+    return '<tr><td colspan="5">No payment history available</td></tr>';
   }
   
   // Convert historyIds to a Set for faster lookups
   const historyIdSet = new Set(historyIds);
   
-  // Format date helper function
-  const formatDate = (dateStr) => {
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleString('de-DE', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (e) {
-      return dateStr || '—';
-    }
-  };
-  
-  // Format amount helper function
-  const formatAmount = (amount) => {
-    try {
-      return parseFloat(amount).toLocaleString('de-DE', {
-        style: 'currency',
-        currency: 'EUR'
-      });
-    } catch (e) {
-      return amount || '—';
-    }
-  };
-  
   return payments.map(payment => {
-    const date = formatDate(payment.created_at);
+    const date = formatDateValue(payment.created_at);
     const gateway = payment.payment_gateway || 'Unknown';
-    const amount = formatAmount(payment.amount);
+    const amount = formatCurrencyValue(payment.amount);
     const id = payment.id || '';
+    const reference = payment.reference || '-';
+    const description = payment.description || '-';
     
     // Check if this payment ID exists in the history IDs
     const isMatched = historyIdSet.has(id);
     const rowStyle = isMatched ? 'background-color: #d4edda;' : ''; // Light green background for matching rows
     const checked = isMatched ? 'checked' : ''; // Checkbox checked if matched
-    
-    const reference = payment.reference || '-';
-    const description = payment.description || '-';
     
     return `
       <tr style="font-size: 0.8rem; ${rowStyle}" data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}">
@@ -472,76 +431,83 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
  * @param {Object} data - Payment data from the API
  */
 async function handlePaymentConfirmation(frm, values, data) {
-  frappe.confirm(
-    "Are you sure you want to mark approved quotations as paid? By confirming, you acknowledge that the payment has been verified in the company's account.",
-    async () => {
-      try {
-        const response = await frappe.call({
-          method: "frappe.desk.reportview.get_list",
-          args: {
-            doctype: "Quotation",
-            filters: [["project_name", "=", frm.doc.name], ["status", "=", "Approved"]],
-            fields: ["name", "grand_total"]
-          }
-        });
-
-        if (response.message && response.message.length > 0) {
-          const quotations = response.message;
-          const totalAmount = quotations.reduce((sum, q) => sum + q.grand_total, 0);
-          const { aws_url, confirm_payment_webhook } = await frappe.db.get_doc('Rest Config');
-          if (!aws_url || !confirm_payment_webhook) {
-            frappe.msgprint('AWS URL or Confirm Payment Webhook not found');
-            return;
-          }
-
-          const objData = {
-            confirm_payment_webhook: confirm_payment_webhook,
-            selected_method: values.confirm_method,
-            name: frm.doc.name,
-            payment_gateway: "manual",
-            total: totalAmount,
-            payment_confirmation: values.payment_confirmation,
-            payment_details: values.payment_details || '',
-            array_payment: selectedPayments.length ? selectedPayments : [],
-          };
-
-          const apiResponse = await fetch(`${aws_url}manual-confirm-payment`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(objData)
-          });
-
-          if (apiResponse.ok) {
-            frappe.msgprint({
-              title: 'Success',
-              indicator: 'green',
-              message: 'Payment confirmed successfully'
-            });
-            frm.reload_doc();
-          } else {
-            throw new Error('API call failed');
-          }
-        } else {
-          frappe.msgprint({
-            title: 'Error',
-            indicator: 'red',
-            message: 'No quotations found for this project'
-          });
+  // Confirmation message for the user
+  const confirmMessage = "Are you sure you want to mark approved quotations as paid? " +
+                        "By confirming, you acknowledge that the payment has been verified in the company's account.";
+  
+  frappe.confirm(confirmMessage, async () => {
+    try {
+      // 1. Get approved quotations for this project
+      const response = await frappe.call({
+        method: "frappe.desk.reportview.get_list",
+        args: {
+          doctype: "Quotation",
+          filters: [["project_name", "=", frm.doc.name], ["status", "=", "Approved"]],
+          fields: ["name", "grand_total"]
         }
-      } catch (error) {
+      });
+
+      // Check if there are approved quotations
+      if (!response.message || response.message.length === 0) {
         frappe.msgprint({
           title: 'Error',
           indicator: 'red',
-          message: 'An error occurred while processing the payment: ' + error.message
+          message: 'No approved quotations found for this project'
         });
+        return;
       }
-    },
-    () => {
-      frappe.msgprint('Payment action cancelled');
+      
+      // 2. Calculate the total amount of quotations
+      const quotations = response.message;
+      const totalAmount = quotations.reduce((sum, q) => sum + q.grand_total, 0);
+      
+      // 3. Get API configuration
+      const { aws_url, confirm_payment_webhook } = await frappe.db.get_doc('Rest Config');
+      if (!aws_url || !confirm_payment_webhook) {
+        frappe.msgprint('AWS URL or payment confirmation webhook not found');
+        return;
+      }
+
+      // 4. Prepare data to send to the API
+      const objData = {
+        confirm_payment_webhook: confirm_payment_webhook,
+        selected_method: values.confirm_method,
+        name: frm.doc.name,
+        payment_gateway: "manual",
+        total: totalAmount,
+        payment_confirmation: values.payment_confirmation,
+        payment_details: values.payment_details || '',
+        array_payment: selectedPayments.length ? selectedPayments : [],
+      };
+
+      // 5. Send request to the API
+      const apiResponse = await fetch(`${aws_url}manual-confirm-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(objData)
+      });
+
+      // 6. Handle response
+      if (apiResponse.ok) {
+        frappe.msgprint({
+          title: 'Success',
+          indicator: 'green',
+          message: 'Payment confirmed successfully'
+        });
+        frm.reload_doc();
+      } else {
+        throw new Error('API call failed');
+      }
+    } catch (error) {
+      frappe.msgprint({
+        title: 'Error',
+        indicator: 'red',
+        message: 'An error occurred while processing the payment: ' + error.message
+      });
     }
-  );
+  }, () => {
+    frappe.msgprint('Payment action cancelled');
+  });
 }
 
 /**
@@ -549,24 +515,25 @@ async function handlePaymentConfirmation(frm, values, data) {
  * @param {Object} frm - The form object
  */
 async function validateBankTransferPayment(frm) {
-  if (frm.doc.status === "Invoice paid" || frm.doc.status === "Completed" || frm.doc.status === "Cancelled") {
+  // 1. Check if the project is already paid or completed
+  const invalidStatuses = ["Invoice paid", "Completed", "Cancelled"];
+  if (invalidStatuses.includes(frm.doc.status)) {
     frappe.msgprint('The project is already paid, completed, or cancelled');
     return;
   }
   
-  const { aws_url } = await frappe.db.get_doc('Rest Config');
-  if (!aws_url) {
-    frappe.msgprint('AWS URL not found');
-    return;
-  }
-  
   try {
-    // Fetch payment data from API
+    // 2. Get the API URL from configuration
+    const { aws_url } = await frappe.db.get_doc('Rest Config');
+    if (!aws_url) {
+      frappe.msgprint('AWS URL not found');
+      return;
+    }
+    
+    // 3. Get payment data from the API
     const response = await fetch(`${aws_url}manual-reconcile-payments`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: frm.doc.name })
     });
     
@@ -575,35 +542,29 @@ async function validateBankTransferPayment(frm) {
       return;
     }
     
+    // 4. Process the response
     const data = await response.json();
-    console.log("Payment data:", data);
-    console.log("History data:", data.history);
-    console.log("Response data:", data.response);
     
-    // Format payment details if history exists
+    // 5. Format payment details if history exists
     let manual_payment_details = '';
-    if (data && data.history && data.history.length > 0) {
-      const rawItems = data.history;
-      const paymentDetails = rawItems.map((it, i) => {
-        let payment = `Payment #${i + 1}\n`;
-        payment += `- Gateway: ${it.payment_gateway || '-'}\n`;
-        payment += `- Amount: ${it.amount ? it.amount.toFixed(2) : '0.00'} €\n`;
-        payment += `- Request ID: ${it.id || '-'}\n`;
-        payment += `- Transaction ID: ${it.id || '-'}\n`;
-        payment += `- Date: ${it.created_at || '-'}`;
-        if (it.details) {
-          payment += `\n- Details: ${it.details}`;
-        }
-        return payment;
-      });
-      manual_payment_details = paymentDetails.join('\n');
+    if (data?.history?.length > 0) {
+      manual_payment_details = data.history.map((payment, index) => {
+        return [
+          `Payment #${index + 1}`,
+          `- Gateway: ${payment.payment_gateway || '-'}`,
+          `- Amount: ${payment.amount ? payment.amount.toFixed(2) : '0.00'} €`,
+          `- Request ID: ${payment.id || '-'}`,
+          `- Transaction ID: ${payment.id || '-'}`,
+          `- Date: ${payment.created_at || '-'}`,
+          payment.details ? `- Details: ${payment.details}` : ''
+        ].filter(Boolean).join('\n');
+      }).join('\n');
     }
     
-    // Create and show the payment confirmation dialog
+    // 6. Show the payment confirmation dialog
     createPaymentConfirmationDialog(frm, data, manual_payment_details);
     
   } catch (error) {
-    console.error("Error validating payment:", error);
     frappe.msgprint({
       title: 'Error',
       indicator: 'red',
@@ -612,34 +573,12 @@ async function validateBankTransferPayment(frm) {
   }
 }
 
-// Definir el objeto de validación de pagos
-var PaymentValidation = {
-  validateBankTransferPayment: validateBankTransferPayment,
-  renderPaymentHistoryTable: renderPaymentHistoryTable,
-  renderPaymentRows: renderPaymentRows,
-  renderPaymentDetailsRows: renderPaymentDetailsRows,
-  formatCurrencyValue: formatCurrencyValue,
-  createPaymentConfirmationDialog: createPaymentConfirmationDialog,
-  handlePaymentConfirmation: handlePaymentConfirmation,
-  togglePaymentSelection: togglePaymentSelection
-};
-
-// Exportar las funciones globalmente
-frappe.provide('erpnext.projects.payment_validation');
-erpnext.projects.payment_validation = PaymentValidation;
-
-// Asegurarse de que el namespace esté disponible cuando el documento esté listo
-$(document).ready(function() {
-  console.log("Payment validation module initialized");
-  
-  // Verificar que las funciones estén disponibles
-  if (typeof erpnext.projects.payment_validation.validateBankTransferPayment === 'function') {
-    console.log("Payment validation functions are available");
-  }
-});
-
-// Función para manejar la selección/deselección de pagos
+/**
+ * Handles the selection/deselection of payments in the history table
+ * @param {HTMLElement} checkbox - The checkbox that has been checked/unchecked
+ */
 function togglePaymentSelection(checkbox) {
+  // Get payment data from row attributes
   const paymentId = checkbox.getAttribute('data-payment-id');
   const row = checkbox.closest('tr');
   const amount = row.getAttribute('data-amount');
@@ -648,104 +587,119 @@ function togglePaymentSelection(checkbox) {
   const reference = row.getAttribute('data-reference');
   const description = row.getAttribute('data-description');
   
-  // Obtener la tabla de detalles de pago
+  // Get the payment details table
   const paymentDetailsTable = document.getElementById('payment-details-tbody');
   
-  // Acceder al objeto data que contiene el array response
-  // Asegurarse de que data y data.response existan
-  if (!paymentData) {
-    paymentData = { response: [] };
-  } else if (!paymentData.response) {
-    paymentData.response = [];
-  }
+  // Create payment object with the obtained data
+  const paymentItem = {
+    id: paymentId,
+    amount: parseFloat(amount) || 0,
+    payment_gateway: gateway,
+    created_at: date,
+    reference: reference,
+    description: description
+  };
   
   if (checkbox.checked) {
-    // Si está marcado, agregar a la tabla de detalles de pago si no existe
+    // CASE 1: Checkbox checked - Add payment
+    
+    // Check if it already exists in the details table
     if (!document.querySelector(`#payment-details-tbody tr[data-payment-id="${paymentId}"]`)) {
-      const formattedDate = new Date(date).toLocaleString('de-DE', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      
-      const formattedAmount = parseFloat(amount).toLocaleString('de-DE', {
-        style: 'currency',
-        currency: 'EUR'
-      });
-      
+      // Create new row in the details table
       const newRow = document.createElement('tr');
       newRow.setAttribute('data-payment-id', paymentId);
-      newRow.setAttribute('data-amount', amount); // Guardar el monto para cálculos futuros
+      newRow.setAttribute('data-amount', amount);
+      newRow.setAttribute('data-gateway', gateway);
+      newRow.setAttribute('data-date', date);
+      newRow.setAttribute('data-reference', reference);
+      newRow.setAttribute('data-description', description);
+      
+      // Format values for display
+      const formattedDate = formatDateValue(date);
+      const formattedAmount = formatCurrencyValue(amount);
+      
+      // Set the HTML content of the row
       newRow.innerHTML = `
-        <td>${gateway}</td>
         <td>${formattedAmount}</td>
-        <td>${paymentId}</td>
         <td>${formattedDate}</td>
         <td>${reference}</td>
         <td>${description}</td>
       `;
       
+      // Add the row to the table
       paymentDetailsTable.appendChild(newRow);
       
-      // Actualizar el estilo de la fila para marcarla como seleccionada
+      // Highlight the row in the history table
       row.style.backgroundColor = '#d4edda';
       
-      // Añadir el pago al array de pagos seleccionados
-      const paymentItem = {
-        id: paymentId,
-        amount: parseFloat(amount) || 0,
-        payment_gateway: gateway,
-        created_at: date,
-        reference: reference,
-        description: description
-      };
-      
-      // Verificar si el pago ya existe en el array de pagos seleccionados
+      // Add to the selected payments array if it doesn't exist
       const existingIndex = selectedPayments.findIndex(item => item.id === paymentId);
       if (existingIndex === -1) {
         selectedPayments.push(paymentItem);
-        console.log(`Added payment ${paymentId} with amount ${amount} to selected payments array and details table`);
       }
     }
   } else {
-    // Si está desmarcado, eliminar de la tabla de detalles de pago
+    // CASE 2: Checkbox unchecked - Remove payment
+    
+    // Remove from the details table
     const detailRow = document.querySelector(`#payment-details-tbody tr[data-payment-id="${paymentId}"]`);
     if (detailRow) {
       detailRow.remove();
-      
-      // Eliminar el pago del array de pagos seleccionados
-      const existingIndex = selectedPayments.findIndex(item => item.id === paymentId);
-      if (existingIndex !== -1) {
-        selectedPayments.splice(existingIndex, 1);
-        console.log(`Removed payment ${paymentId} with amount ${amount} from selected payments array and details table`);
-      }
     }
     
-    // Actualizar el estilo de la fila para marcarla como no seleccionada
+    // Remove highlighting from the row in the history table
     row.style.backgroundColor = '';
+    
+    // Remove from the selected payments array
+    const existingIndex = selectedPayments.findIndex(item => item.id === paymentId);
+    if (existingIndex !== -1) {
+      selectedPayments.splice(existingIndex, 1);
+    }
   }
   
-  // Actualizar totales si es necesario
+  // Update totals
   updatePaymentTotals();
+}
+
+// Define the payment validation object with all public functions
+const PaymentValidation = {
+  // Main functions
+  validateBankTransferPayment,   // Initiates the payment validation process
+  togglePaymentSelection,        // Handles payment selection/deselection
+  
+  // Rendering functions
+  renderPaymentHistoryTable,     // Renders the payment history table
+  renderPaymentRows,             // Renders rows for the history table
+  renderPaymentDetailsRows,      // Renders rows for the details table
+  
+  // Utility functions
+  formatCurrencyValue,           // Formats monetary values
+  formatDateValue,               // Formats dates
+  
+  // Internal functions (used by the main ones)
+  createPaymentConfirmationDialog,
+  handlePaymentConfirmation,
+  updatePaymentTotals
 };
 
-// Función para actualizar los totales de pago
+// Export functions to the ERPNext namespace
+frappe.provide('erpnext.projects.payment_validation');
+erpnext.projects.payment_validation = PaymentValidation;
+
+// Initialize the module when the document is ready
+$(document).ready(function() {
+  console.log("Payment validation module initialized");
+});
+
+/**
+ * Updates the payment totals in the details table
+ * based on the currently selected payments
+ */
 function updatePaymentTotals() {
-  // Obtener todas las filas seleccionadas en la tabla de historial de pagos
-  const selectedCheckboxes = document.querySelectorAll('.payment-checkbox:checked');
+  // Calculate the total paid directly from the selected payments array
+  const totalPaid = selectedPayments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
   
-  // Calcular el total pagado sumando los montos de las filas seleccionadas
-  let totalPaid = 0;
-  selectedCheckboxes.forEach(checkbox => {
-    const row = checkbox.closest('tr');
-    const amount = parseFloat(row.getAttribute('data-amount')) || 0;
-    totalPaid += amount;
-  });
-  
-  // Obtener el valor del total de la factura (que es innamovible)
-  // Buscamos el elemento que contiene el texto "Total Invoice" y luego obtenemos su celda de valor
+  // Get the invoice total from the table
   const totalInvoiceRow = Array.from(document.querySelectorAll('tfoot tr')).find(row => 
     row.textContent.includes('Total Invoice')
   );
@@ -753,11 +707,10 @@ function updatePaymentTotals() {
   const totalInvoiceText = totalInvoiceElement?.textContent || '0';
   const totalInvoice = parseFloat(totalInvoiceText.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
   
-  // Calcular el restante
-  const remaining = totalInvoice - totalPaid;
+  // Calculate the remaining balance
+  const remaining = Math.max(0, totalInvoice - totalPaid);
   
-  // Actualizar los elementos en la tabla
-  // Buscamos las filas que contienen los textos "Total Paid" y "Remaining"
+  // Update the elements in the table
   const totalPaidRow = Array.from(document.querySelectorAll('tfoot tr')).find(row => 
     row.textContent.includes('Total Paid')
   );
@@ -765,23 +718,16 @@ function updatePaymentTotals() {
     row.textContent.includes('Remaining')
   );
   
+  // Update the total paid element
   const totalPaidElement = totalPaidRow?.querySelector('td');
-  const remainingElement = remainingRow?.querySelector('td strong') || remainingRow?.querySelector('td');
-  
   if (totalPaidElement) {
     totalPaidElement.textContent = formatCurrencyValue(totalPaid);
   }
   
+  // Update the remaining balance element
+  const remainingElement = remainingRow?.querySelector('td strong') || remainingRow?.querySelector('td');
   if (remainingElement) {
     remainingElement.textContent = formatCurrencyValue(remaining);
-    // Actualizar el color del texto según si hay saldo pendiente o no
     remainingElement.style.color = remaining > 0 ? 'red' : '';
   }
-  
-  console.log('Updated payment totals:', { totalPaid, totalInvoice, remaining });
 }
-
-// Exportar las funciones globalmente de nuevo para asegurarse
-window.erpnext = window.erpnext || {};
-window.erpnext.projects = window.erpnext.projects || {};
-window.erpnext.projects.payment_validation = PaymentValidation;
