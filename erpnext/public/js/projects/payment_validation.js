@@ -14,6 +14,11 @@ frappe.provide('erpnext.projects.payment_validation');
 // Indicar que el módulo se está cargando
 console.log('Loading payment validation module...');
 
+// Variables para almacenar los datos de pago compartidos entre funciones
+let paymentData = null;
+// Array para almacenar los pagos seleccionados
+let selectedPayments = [];
+
 /**
  * Formats a currency value according to the German locale
  * @param {number} amount - Amount to format
@@ -150,7 +155,7 @@ function renderPaymentRows(payments, historyIds = []) {
         <td>${reference}</td>
         <td>${description}</td>
         <td class="text-center">
-          <input type="checkbox" class="payment-checkbox" ${checked} data-payment-id="${id}" onchange="window.togglePaymentSelection(this)">
+          <input type="checkbox" class="payment-checkbox" ${checked} data-payment-id="${id}" onchange="erpnext.projects.payment_validation.togglePaymentSelection(this)">
         </td>
       </tr>
     `;
@@ -298,6 +303,12 @@ function renderPaymentHistoryTable(data, opts = {}) {
  * @returns {frappe.ui.Dialog} The dialog object
  */
 function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
+  // Guardar los datos en la variable de módulo para que esté disponible para togglePaymentSelection
+  paymentData = data;
+  
+  // Inicializar el array de pagos seleccionados con los pagos ya asociados al proyecto
+  selectedPayments = data && data.response ? [...data.response] : [];
+  
   const dialog = new frappe.ui.Dialog({
     title: 'Confirm Payment Method',
     fields: [
@@ -483,7 +494,7 @@ async function handlePaymentConfirmation(frm, values, data) {
             return;
           }
 
-          const paymentData = {
+          const objData = {
             confirm_payment_webhook: confirm_payment_webhook,
             selected_method: values.confirm_method,
             name: frm.doc.name,
@@ -491,7 +502,7 @@ async function handlePaymentConfirmation(frm, values, data) {
             total: totalAmount,
             payment_confirmation: values.payment_confirmation,
             payment_details: values.payment_details || '',
-            manual_payment_details: values.payment_details || ''
+            array_payment: selectedPayments.length ? selectedPayments : [],
           };
 
           const apiResponse = await fetch(`${aws_url}manual-confirm-payment`, {
@@ -499,7 +510,7 @@ async function handlePaymentConfirmation(frm, values, data) {
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(paymentData)
+            body: JSON.stringify(objData)
           });
 
           if (apiResponse.ok) {
@@ -609,7 +620,8 @@ var PaymentValidation = {
   renderPaymentDetailsRows: renderPaymentDetailsRows,
   formatCurrencyValue: formatCurrencyValue,
   createPaymentConfirmationDialog: createPaymentConfirmationDialog,
-  handlePaymentConfirmation: handlePaymentConfirmation
+  handlePaymentConfirmation: handlePaymentConfirmation,
+  togglePaymentSelection: togglePaymentSelection
 };
 
 // Exportar las funciones globalmente
@@ -627,7 +639,7 @@ $(document).ready(function() {
 });
 
 // Función para manejar la selección/deselección de pagos
-window.togglePaymentSelection = function(checkbox) {
+function togglePaymentSelection(checkbox) {
   const paymentId = checkbox.getAttribute('data-payment-id');
   const row = checkbox.closest('tr');
   const amount = row.getAttribute('data-amount');
@@ -638,6 +650,14 @@ window.togglePaymentSelection = function(checkbox) {
   
   // Obtener la tabla de detalles de pago
   const paymentDetailsTable = document.getElementById('payment-details-tbody');
+  
+  // Acceder al objeto data que contiene el array response
+  // Asegurarse de que data y data.response existan
+  if (!paymentData) {
+    paymentData = { response: [] };
+  } else if (!paymentData.response) {
+    paymentData.response = [];
+  }
   
   if (checkbox.checked) {
     // Si está marcado, agregar a la tabla de detalles de pago si no existe
@@ -672,14 +692,35 @@ window.togglePaymentSelection = function(checkbox) {
       // Actualizar el estilo de la fila para marcarla como seleccionada
       row.style.backgroundColor = '#d4edda';
       
-      console.log(`Added payment ${paymentId} with amount ${amount} to details table`);
+      // Añadir el pago al array de pagos seleccionados
+      const paymentItem = {
+        id: paymentId,
+        amount: parseFloat(amount) || 0,
+        payment_gateway: gateway,
+        created_at: date,
+        reference: reference,
+        description: description
+      };
+      
+      // Verificar si el pago ya existe en el array de pagos seleccionados
+      const existingIndex = selectedPayments.findIndex(item => item.id === paymentId);
+      if (existingIndex === -1) {
+        selectedPayments.push(paymentItem);
+        console.log(`Added payment ${paymentId} with amount ${amount} to selected payments array and details table`);
+      }
     }
   } else {
     // Si está desmarcado, eliminar de la tabla de detalles de pago
     const detailRow = document.querySelector(`#payment-details-tbody tr[data-payment-id="${paymentId}"]`);
     if (detailRow) {
       detailRow.remove();
-      console.log(`Removed payment ${paymentId} with amount ${amount} from details table`);
+      
+      // Eliminar el pago del array de pagos seleccionados
+      const existingIndex = selectedPayments.findIndex(item => item.id === paymentId);
+      if (existingIndex !== -1) {
+        selectedPayments.splice(existingIndex, 1);
+        console.log(`Removed payment ${paymentId} with amount ${amount} from selected payments array and details table`);
+      }
     }
     
     // Actualizar el estilo de la fila para marcarla como no seleccionada
