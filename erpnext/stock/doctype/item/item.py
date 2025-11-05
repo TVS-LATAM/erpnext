@@ -1412,3 +1412,27 @@ def get_child_warehouses(warehouse):
 	from erpnext.stock.doctype.warehouse.warehouse import get_child_warehouses
 
 	return get_child_warehouses(warehouse)
+
+@frappe.whitelist(allow_guest=True)
+def get_item_price_list_rate(oem_pn, price_list):
+	oem_pn_no_spaces = oem_pn.replace(" ", "")
+	items = frappe.db.sql("""
+		SELECT item_code
+		FROM `tabItem`
+		WHERE REPLACE(oem_pn, ' ', '') = %s
+	""", (oem_pn_no_spaces,), as_dict=True)
+
+	if not items:
+		return []
+
+	item_codes = [item.item_code for item in items]
+
+	return frappe.db.get_list(
+		"Item Price",
+		filters={
+			"item_code": ["in", item_codes],
+			"price_list": price_list
+		},
+		fields=["price_list", "price_list_rate", "item_code"]
+	)
+	
