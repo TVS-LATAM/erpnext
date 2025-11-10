@@ -68,9 +68,10 @@ function renderPaymentDetailsRows(payments) {
     const date = formatDateValue(payment.created_at);
     const reference = payment.reference || '—';
     const description = payment.description || '—';
+    const request_id = payment.request_id || '';
     
     return `
-      <tr data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}">
+      <tr data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}" data-request-id="${request_id}">
         <td>${amount}</td>
         <td>${date}</td>
         <td>${reference}</td>
@@ -101,6 +102,7 @@ function renderPaymentRows(payments, historyIds = []) {
     const id = payment.id || '';
     const reference = payment.reference || '-';
     const description = payment.description || '-';
+    const request_id = payment.request_id || '';
     
     // Check if this payment ID exists in the history IDs
     const isMatched = historyIdSet.has(id);
@@ -108,7 +110,7 @@ function renderPaymentRows(payments, historyIds = []) {
     const checked = isMatched ? 'checked' : ''; // Checkbox checked if matched
     
     return `
-      <tr style="font-size: 0.8rem; ${rowStyle}" data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}">
+      <tr style="font-size: 0.8rem; ${rowStyle}" data-payment-id="${id}" data-amount="${payment.amount || 0}" data-gateway="${gateway}" data-date="${payment.created_at || ''}" data-reference="${reference}" data-description="${description}" data-request-id="${request_id}">
         <td>${date}</td>
         <td class="text-right">${amount}</td>
         <td>${reference}</td>
@@ -586,6 +588,7 @@ function togglePaymentSelection(checkbox) {
   const date = row.getAttribute('data-date');
   const reference = row.getAttribute('data-reference');
   const description = row.getAttribute('data-description');
+  const request_id = row.getAttribute('data-request-id');
   
   // Get the payment details table
   const paymentDetailsTable = document.getElementById('payment-details-tbody');
@@ -593,6 +596,7 @@ function togglePaymentSelection(checkbox) {
   // Create payment object with the obtained data
   const paymentItem = {
     id: paymentId,
+    request_id: request_id,
     amount: parseFloat(amount) || 0,
     payment_gateway: gateway,
     created_at: date,
@@ -613,6 +617,7 @@ function togglePaymentSelection(checkbox) {
       newRow.setAttribute('data-date', date);
       newRow.setAttribute('data-reference', reference);
       newRow.setAttribute('data-description', description);
+      newRow.setAttribute('data-request-id', request_id);
       
       // Format values for display
       const formattedDate = formatDateValue(date);
