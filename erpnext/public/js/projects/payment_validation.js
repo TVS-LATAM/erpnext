@@ -553,11 +553,11 @@ async function validateBankTransferPayment(frm) {
       manual_payment_details = data.history.map((payment, index) => {
         return [
           `Payment #${index + 1}`,
-          `- Gateway: ${payment.payment_gateway || '-'}`,
-          `- Amount: ${payment.amount ? payment.amount.toFixed(2) : '0.00'} €`,
-          `- Request ID: ${payment.id || '-'}`,
-          `- Transaction ID: ${payment.id || '-'}`,
-          `- Date: ${payment.created_at || '-'}`,
+          `- gateway: ${payment.payment_gateway || '-'}`,
+          `- amount: ${payment.amount ? payment.amount.toFixed(2) : '0.00'}`,
+          `- requestId: ${payment.id || '-'}`,
+          `- transactionId: ${payment.id || '-'}`,
+          `- date: ${payment.created_at || '-'}`,
           payment.details ? `- Details: ${payment.details}` : ''
         ].filter(Boolean).join('\n');
       }).join('\n');
