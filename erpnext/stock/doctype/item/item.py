@@ -1414,9 +1414,50 @@ def get_child_warehouses(warehouse):
 	return get_child_warehouses(warehouse)
 
 @frappe.whitelist(allow_guest=True)
-def get_item_price_list_rate(oem_pn, price_list):
-	oem_pn_no_spaces = oem_pn.replace(" ", "")
-	items = frappe.db.sql("""
+def get_item_price_list_rate(oem_pn=None, price_list=None, part_number=None, part_type=None, transmission_code=None):
+	print(oem_pn, price_list, part_number, part_type)
+	items = []
+
+	if transmission_code:
+		query = """
+		SELECT i.item_code
+		FROM `tabItem` i
+		JOIN `tabTransmission code compatibility` tcc ON tcc.parent = i.name
+		AND tcc.parenttype = 'Item'
+		AND tcc.parentfield = 'transmission_code_list'
+		WHERE tcc.transmission_code = "{0}"
+		AND i.condition = "REBUILD"
+		""".format(transmission_code)
+		
+		items = frappe.db.sql(query, as_dict=True)
+		
+		if not items:
+			return []
+
+		item_codes = [item.item_code for item in items]
+
+		return frappe.db.get_list(
+			"Item Price",
+			filters={
+				"item_code": ["in", item_codes],
+				"price_list": price_list
+			},
+			fields=["price_list", "price_list_rate", "item_code"]
+		)
+
+	if part_number and "mechatronic" in part_type.lower():
+		print("==== a =====")
+		format_query = f"'%{part_number}%'"
+		query = """
+			SELECT item_code
+			FROM `tabItem`
+			WHERE REPLACE(oe_pn, ' ', '') LIKE {0}
+		""".format(format_query)
+		items = frappe.db.sql(query, as_dict=True)
+	elif oem_pn:
+		print("==== b =====")
+		oem_pn_no_spaces = oem_pn.replace(" ", "")
+		items = frappe.db.sql("""
 		SELECT item_code
 		FROM `tabItem`
 		WHERE REPLACE(oem_pn, ' ', '') = %s
@@ -1434,5 +1475,70 @@ def get_item_price_list_rate(oem_pn, price_list):
 			"price_list": price_list
 		},
 		fields=["price_list", "price_list_rate", "item_code"]
-	)
-	
+	)[0] if items else None
+
+@frappe.whitelist(allow_guest=True)
+def get_product_bundle_price(dsg_family, part_type, price_list, parts, transmission_code):
+	skip_subitems = ["install toolkit"]
+	query = """
+		SELECT DISTINCT pb.name, tpbi.item_code, ip.price_list_rate, ir.item_code as related_item_code, ipr.price_list_rate as related_price
+		FROM `tabProduct Bundle` pb
+		JOIN `tabProduct Bundle Item` tpbi ON tpbi.parent = pb.name
+		JOIN `tabItem Price` ip ON tpbi.item_code = ip.item_code AND ip.price_list = %(pl)s
+		JOIN `tabItems Relate` ir ON ir.parent = tpbi.item_code AND ir.parenttype = 'Item'
+		JOIN `tabItem Price` ipr ON ir.item_code = ipr.item_code AND ipr.price_list = %(pl)s
+		WHERE pb.name IN (
+			SELECT pbi.parent FROM `tabProduct Bundle Item` pbi 
+			WHERE EXISTS(
+				SELECT 1 
+				FROM `tabItem` i 
+				JOIN `tabTransmission code compatibility` tcc 
+				ON tcc.parent = i.name 
+				AND tcc.parenttype = 'Item'
+				AND tcc.parentfield = 'transmission_code_list'
+				WHERE i.name = pbi.item_code
+				AND tcc.transmission_code = %(tc)s
+			)
+		)
+		AND pb.description LIKE %(desc)s
+	"""
+	params = {"desc": f"%{dsg_family} {part_type}%", "tc": transmission_code, "pl": price_list}
+
+	mechatronic = next((x for x in parts if x.get("part_type") == "Mechatronic"), None)
+	if mechatronic:
+		query += " AND pb.name IN (SELECT pbi.parent FROM `tabProduct Bundle Item` pbi WHERE REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn)s)"
+		params["mechatronic_pn"] = f"%{mechatronic.get('part_number','')}%"
+
+	clutch = next((x for x in parts if x.get("part_type") == "Clutch"), None)
+	if clutch and clutch.get("oem_pn"):
+		query += " AND pb.name IN (SELECT pbi.parent FROM `tabProduct Bundle Item` pbi WHERE REPLACE(pbi.oem_pn, ' ', '') LIKE %(clutch_pn)s)"
+		params["clutch_pn"] = f"%{clutch['oem_pn'].replace(' ', '')}%"
+
+	items = frappe.db.sql(query, params, as_dict=True)
+
+	mapped_items = {}
+	bundle_price = 0
+	for item in items:
+		name = item["name"]
+		if name not in mapped_items:
+			mapped_items[name] = { "item_code": name, "items": [], "price_list": price_list }
+			bundle_price = 0
+
+		if item["item_code"] not in [si["item_code"] for si in mapped_items[name]["items"]]:
+			mapped_items[name]["items"].append({ "item_code": item["item_code"], "price_list_rate": item["price_list_rate"], "subitems": [] })
+			bundle_price += item["price_list_rate"]
+
+		if item["related_item_code"] in skip_subitems:
+			continue
+
+		mapped_items[name]["items"][-1]["subitems"].append({
+			"item_code": item["related_item_code"],
+			"price": item["related_price"]
+		})
+		bundle_price += item["related_price"]
+		mapped_items[name]["price_list_rate"] = bundle_price
+
+	if not mapped_items:
+		return None
+		
+	return mapped_items.get(list(mapped_items.keys())[0])

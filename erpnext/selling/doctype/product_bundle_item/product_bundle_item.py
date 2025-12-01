@@ -18,10 +18,13 @@ class ProductBundleItem(Document):
 		description_visible: DF.Check
 		is_stock_item: DF.Check
 		item_code: DF.Link
+		oe_pn: DF.Data | None
+		oem_pn: DF.Data | None
 		parent: DF.Data
 		parentfield: DF.Data
 		parenttype: DF.Data
 		qty: DF.Float
+		sub_category_name: DF.Link | None
 		tvs_pn: DF.Data | None
 	# end: auto-generated types
 
