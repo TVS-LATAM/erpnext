@@ -121,23 +121,19 @@ frappe.ui.form.on("Project", {
 				doc.party_name = frm.doc.customer;
 				frappe.new_doc('Quotation', {
 					project_name: frm.doc.name,
-					party_name: frm.doc.customer,
+					party_name: frm.doc.customer, 
 					quotation_to: 'Customer'
 				});
 			});
 			
 			insertValidateBankTransferPaymentButton(frm);
-			
+			insertTranslation(frm)
 			viewCustomerDetails(frm);
 		}
 		if(isMechanic || isJuniorMechanic || isSeniorMechanic) {
 			installQuotationItems(frm);
 			insertCarousel(frm);
 			insertVinSearchButton(frm);
-			insertDiagnoseResultTranslation(frm);
-			insertClientDescriptionTranslation(frm);
-			insertNotesTranslation(frm);
-			insertInternalNotesTranslation(frm);
 		}
 		
 		if (!isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic) {
@@ -146,10 +142,6 @@ frappe.ui.form.on("Project", {
 			insertCarousel(frm);
 			insertVinSearchButton(frm);
 			insertResendPaymentLink(frm);
-			insertDiagnoseResultTranslation(frm);
-			insertClientDescriptionTranslation(frm);
-			insertNotesTranslation(frm);
-			insertInternalNotesTranslation(frm);
 			insertUpdateQueuePositionButton(frm);
 			insertLoanCarButton(frm)
 			frm.trigger("set_custom_buttons");
@@ -911,109 +903,6 @@ async function insertResendPaymentLink(frm) {
 	}
 }
 
-async function insertDiagnoseResultTranslation(frm) {
-	const languages = getLanguages()
-	const field = document.querySelector('div[data-fieldname="diagnose_result"]');
-	const container = field.querySelector('.clearfix');
-	container.style = 'display:flex;gap:1rem;align-items:center;'
-
-	const spinner = document.createElement('div')
-	spinner.setAttribute('hidden', 'true')
-	spinner.classList = 'vin-search-spinner'
-	spinner.style = `position: relative !important;`
-
-	if (container.getElementsByClassName('flag').length) return
-
-	for (const lang of languages) {
-		const el = document.createElement(`div`)
-		el.classList = `flag ${lang}`
-		el.title = `translate diagnose result to ${lang}`
-
-		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'diagnose_result'))
-		container.appendChild(el)
-	}
-
-	container.appendChild(spinner);
-}
-
-async function insertClientDescriptionTranslation(frm) {
-	const languages = getLanguages()
-	const field = document.querySelector('div[data-fieldname="client_description"]');
-	if (!field) return;
-	const container = field.querySelector('.clearfix');
-	container.style = 'display:flex;gap:1rem;align-items:center;'
-
-	const spinner = document.createElement('div')
-	spinner.setAttribute('hidden', 'true')
-	spinner.classList = 'vin-search-spinner'
-	spinner.style = `position: relative !important;`
-
-	if (container.getElementsByClassName('flag').length) return
-
-	for (const lang of languages) {
-		const el = document.createElement(`div`)
-		el.classList = `flag ${lang}`
-		el.title = `translate client description to ${lang}`
-
-		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'client_description'))
-		container.appendChild(el)
-	}
-
-	container.appendChild(spinner);
-}
-
-async function insertNotesTranslation(frm) {
-	const languages = getLanguages()
-	const field = document.querySelector('div[data-fieldname="notes"]');
-	if (!field) return;
-	const container = field.querySelector('.clearfix');
-	container.style = 'display:flex;gap:1rem;align-items:center;'
-
-	const spinner = document.createElement('div')
-	spinner.setAttribute('hidden', 'true')
-	spinner.classList = 'vin-search-spinner'
-	spinner.style = `position: relative !important;`
-
-	if (container.getElementsByClassName('flag').length) return
-
-	for (const lang of languages) {
-		const el = document.createElement(`div`)
-		el.classList = `flag ${lang}`
-		el.title = `translate notes to ${lang}`
-
-		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'notes'))
-		container.appendChild(el)
-	}
-
-	container.appendChild(spinner);
-}
-
-async function insertInternalNotesTranslation(frm) {
-	const languages = getLanguages()
-	const field = document.querySelector('div[data-fieldname="internal_notes"]');
-	if (!field) return;
-	const container = field.querySelector('.clearfix');
-	container.style = 'display:flex;gap:1rem;align-items:center;'
-
-	const spinner = document.createElement('div')
-	spinner.setAttribute('hidden', 'true')
-	spinner.classList = 'vin-search-spinner'
-	spinner.style = `position: relative !important;`
-
-	if (container.getElementsByClassName('flag').length) return
-
-	for (const lang of languages) {
-		const el = document.createElement(`div`)
-		el.classList = `flag ${lang}`
-		el.title = `translate internal notes to ${lang}`
-
-		el.addEventListener('click', () => onClick(frm, spinner, field, lang, 'internal_notes'))
-		container.appendChild(el)
-	}
-
-	container.appendChild(spinner);
-}
-
 async function onClick(frm, spinner, field, lang, fieldType = 'diagnose_result') {
 	const flags = field.getElementsByClassName('flag')
 
@@ -1294,8 +1183,44 @@ function insertValidateBankTransferPaymentButton(frm) {
 }
 
 function getLanguages() {
-	const lang = frappe?.boot?.user?.language || 'nl'
-	return new Set(['nl', 'en', 'uk', 'es', lang])
+  const lang = frappe?.boot?.user?.language || 'nl'
+  return new Set(['nl', 'en', 'uk', 'es', lang])
+}
+
+
+async function insertTranslation(frm){
+	const languages = getLanguages()
+	const { aws_url } = await frappe.db.get_doc('Queue Settings')
+	const { aws_url: chatbot_url } = await frappe.db.get_doc('Whatsapp Config')
+	const fields = ['notes', 'internal_notes', 'client_description', 'diagnose_result']
+
+	for(const field of fields){
+		const field_dict = frm.fields_dict[field]
+
+		if(!field_dict) continue 
+
+		const quill = field_dict.quill || field_dict.editor?.quill || field_dict.editor;
+		const fieldContainer = document.querySelector(`div[data-fieldname="${field}"]`)
+
+		if(!fieldContainer) continue
+
+		const container = fieldContainer.querySelector('.clearfix')
+		container.style = 'display:flex;gap:1rem;align-items:center;'
+		const fieldElement = document.createElement('div')
+		fieldElement.id = `field-${field}`
+		container.appendChild(fieldElement)
+		
+		new frappe.ui.FieldTranslator({
+			docname: frm.docname,
+			field_container: fieldContainer,
+			field_element: fieldElement,
+			field:	field,
+			languages: [...languages],
+			chatbot_url,
+			aws_url,
+			quill
+		})
+	}
 }
 
 async function deactivateChatbot(phone_number) {
