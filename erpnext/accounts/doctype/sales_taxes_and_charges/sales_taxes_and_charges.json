@@ -111,7 +111,7 @@
    "label": "Tax Rate",
    "oldfieldname": "rate",
    "oldfieldtype": "Currency",
-   "precision": "3"
+   "precision": "2"
   },
   {
    "fieldname": "section_break_9",
@@ -124,7 +124,7 @@
    "in_list_view": 1,
    "label": "Amount",
    "options": "currency",
-   "precision": "3"
+   "precision": "2"
   },
   {
    "columns": 2,
@@ -133,7 +133,7 @@
    "in_list_view": 1,
    "label": "Total",
    "options": "currency",
-   "precision": "3",
+   "precision": "2",
    "read_only": 1
   },
   {
@@ -141,7 +141,7 @@
    "fieldtype": "Currency",
    "label": "Tax Amount After Discount Amount",
    "options": "currency",
-   "precision": "3",
+   "precision": "2",
    "read_only": 1
   },
   {
@@ -155,7 +155,7 @@
    "oldfieldname": "tax_amount",
    "oldfieldtype": "Currency",
    "options": "Company:company:default_currency",
-   "precision": "3",
+   "precision": "2",
    "read_only": 1
   },
   {
@@ -165,7 +165,7 @@
    "oldfieldname": "total",
    "oldfieldtype": "Currency",
    "options": "Company:company:default_currency",
-   "precision": "3",
+   "precision": "2",
    "read_only": 1
   },
   {
@@ -174,7 +174,7 @@
    "fieldtype": "Currency",
    "label": "Tax Amount After Discount Amount (Company Currency)",
    "options": "Company:company:default_currency",
-   "precision": "3",
+   "precision": "2",
    "read_only": 1
   },
   {
