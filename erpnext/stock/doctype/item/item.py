@@ -1464,7 +1464,7 @@ def get_item_price_list_rate(oem_pn=None, price_list=None, part_number=None, par
 	""", (oem_pn_no_spaces,), as_dict=True)
 
 	if not items:
-		return []
+		return False
 
 	item_codes = [item.item_code for item in items]
 
@@ -1475,7 +1475,7 @@ def get_item_price_list_rate(oem_pn=None, price_list=None, part_number=None, par
 			"price_list": price_list
 		},
 		fields=["price_list", "price_list_rate", "item_code"]
-	)[0] if items else None
+	)[0] if items else False
 
 @frappe.whitelist(allow_guest=True)
 def get_product_bundle_price(dsg_family, part_type, price_list, parts, transmission_code):
@@ -1539,6 +1539,6 @@ def get_product_bundle_price(dsg_family, part_type, price_list, parts, transmiss
 		mapped_items[name]["price_list_rate"] = bundle_price
 
 	if not mapped_items:
-		return None
+		return False
 		
 	return mapped_items.get(list(mapped_items.keys())[0])
