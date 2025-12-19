@@ -1432,7 +1432,7 @@ def get_item_price_list_rate(oem_pn=None, price_list=None, part_number=None, par
 		items = frappe.db.sql(query, as_dict=True)
 		
 		if not items:
-			return []
+			return False
 
 		item_codes = [item.item_code for item in items]
 
@@ -1443,7 +1443,7 @@ def get_item_price_list_rate(oem_pn=None, price_list=None, part_number=None, par
 				"price_list": price_list
 			},
 			fields=["price_list", "price_list_rate", "item_code"]
-		)
+		)[0]
 
 	if part_number and "mechatronic" in part_type.lower():
 		print("==== a =====")
