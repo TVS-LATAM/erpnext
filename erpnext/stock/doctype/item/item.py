@@ -1505,7 +1505,7 @@ def get_product_bundle_price(dsg_family, part_type, price_list, parts, transmiss
 
 	mechatronic = next((x for x in parts if x.get("part_type") == "Mechatronic"), None)
 	if mechatronic:
-		query += " AND pb.name IN (SELECT pbi.parent FROM `tabProduct Bundle Item` pbi WHERE REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn)s) OR REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn_without_software)s"
+		query += " AND pb.name IN (SELECT pbi.parent FROM `tabProduct Bundle Item` pbi WHERE REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn)s OR REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn_without_software)s)"
 		params["mechatronic_pn"] = f"%{mechatronic.get('part_number','')}%"
 		params["mechatronic_pn_without_software"] = f"%{mechatronic.get('part_number','')[:-3]}%"
 
