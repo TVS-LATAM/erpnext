@@ -1446,16 +1446,15 @@ def get_item_price_list_rate(oem_pn=None, price_list=None, part_number=None, par
 		)[0]
 
 	if part_number and "mechatronic" in part_type.lower():
-		print("==== a =====")
 		format_query = f"'%{part_number}%'"
+		part_without_software_code = f"'%{part_number[:-3]}%'"
 		query = """
 			SELECT item_code
 			FROM `tabItem`
-			WHERE REPLACE(oe_pn, ' ', '') LIKE {0}
-		""".format(format_query)
+			WHERE REPLACE(oe_pn, ' ', '') LIKE {0} OR REPLACE(oe_pn, ' ', '') LIKE {1}
+		""".format(format_query, part_without_software_code)
 		items = frappe.db.sql(query, as_dict=True)
 	elif oem_pn:
-		print("==== b =====")
 		oem_pn_no_spaces = oem_pn.replace(" ", "")
 		items = frappe.db.sql("""
 		SELECT item_code
@@ -1506,8 +1505,9 @@ def get_product_bundle_price(dsg_family, part_type, price_list, parts, transmiss
 
 	mechatronic = next((x for x in parts if x.get("part_type") == "Mechatronic"), None)
 	if mechatronic:
-		query += " AND pb.name IN (SELECT pbi.parent FROM `tabProduct Bundle Item` pbi WHERE REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn)s)"
+		query += " AND pb.name IN (SELECT pbi.parent FROM `tabProduct Bundle Item` pbi WHERE REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn)s) OR REPLACE(pbi.oe_pn, ' ', '') LIKE %(mechatronic_pn_without_software)s"
 		params["mechatronic_pn"] = f"%{mechatronic.get('part_number','')}%"
+		params["mechatronic_pn_without_software"] = f"%{mechatronic.get('part_number','')[:-3]}%"
 
 	clutch = next((x for x in parts if x.get("part_type") == "Clutch"), None)
 	if clutch and clutch.get("oem_pn"):
