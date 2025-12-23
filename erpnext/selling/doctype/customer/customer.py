@@ -47,7 +47,7 @@ class Customer(TransactionBase):
 		customer_pos_id: DF.Data | None
 		customer_primary_address: DF.Link | None
 		customer_primary_contact: DF.Link | None
-		customer_type: DF.Literal["Company", "Individual", "Partnership"]
+		customer_type: DF.Literal["Company", "Individual", "Partnership", "Eu Customer"]
 		default_bank_account: DF.Link | None
 		default_commission_rate: DF.Float
 		default_currency: DF.Link | None

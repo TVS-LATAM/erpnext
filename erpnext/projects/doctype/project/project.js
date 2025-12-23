@@ -121,21 +121,21 @@ frappe.ui.form.on("Project", {
 				doc.party_name = frm.doc.customer;
 				frappe.new_doc('Quotation', {
 					project_name: frm.doc.name,
-					party_name: frm.doc.customer, 
+					party_name: frm.doc.customer,
 					quotation_to: 'Customer'
 				});
 			});
-			
+
 			insertValidateBankTransferPaymentButton(frm);
 			insertTranslation(frm)
 			viewCustomerDetails(frm);
 		}
-		if(isMechanic || isJuniorMechanic || isSeniorMechanic) {
+		if (isMechanic || isJuniorMechanic || isSeniorMechanic) {
 			installQuotationItems(frm);
 			insertCarousel(frm);
 			insertVinSearchButton(frm);
 		}
-		
+
 		if (!isWorkshopViewer && !isMechanic && !isJuniorMechanic && !isSeniorMechanic) {
 			installChat(frm);
 			installQuotationItems(frm);
@@ -986,9 +986,9 @@ async function insertUpdateQueuePositionButton(frm) {
 	const cardName = $('.frappe-list .kanban-card-title.ellipsis');
 	cardName.html(cardName.html() + doc.model != "" ? " " + doc.model : "");
 
-		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
-		const isMechanic = await erpnext.utils.isMechanic(this.frm);
-		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
+	const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(this.frm);
+	const isMechanic = await erpnext.utils.isMechanic(this.frm);
+	const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
 	frm.set_df_property("queue_position", "read_only", frm.is_new() ? 0 : 1);
 	if (!frm.is_new() && doc.status === 'In queue' && !isWorkshopViewer && !isMechanic && !isJuniorMechanic) {
 		frm.add_custom_button('Change queue position', async () => {
@@ -1042,46 +1042,46 @@ async function insertLoanCarButton(frm) {
 }
 
 function viewCustomerDetails(frm) {
-  frm.add_custom_button(__("View Customer Details"), async () => {
-    const customer = await frappe.db.get_doc('Customer', frm.doc.customer);
+	frm.add_custom_button(__("View Customer Details"), async () => {
+		const customer = await frappe.db.get_doc('Customer', frm.doc.customer);
 
-    const linked_contacts_and_addresses = await frappe.db.get_list("Address", {
-      filters: [
-        ["disabled", "=", 0],
-        ["address_type", "in", ["Billing", "Shipping"]],
-        ["Dynamic Link", "link_doctype", "=", "Customer"],
-        ["Dynamic Link", "link_name", "=", `${frm.doc.customer}`],
-        ["Dynamic Link", "parenttype", "=", "Address"]
-      ],
-      fields: ["name", "address_line1", "address_line2", "country", "city", "pincode", "state", "address_type"]
-    });
+		const linked_contacts_and_addresses = await frappe.db.get_list("Address", {
+			filters: [
+				["disabled", "=", 0],
+				["address_type", "in", ["Billing", "Shipping"]],
+				["Dynamic Link", "link_doctype", "=", "Customer"],
+				["Dynamic Link", "link_name", "=", `${frm.doc.customer}`],
+				["Dynamic Link", "parenttype", "=", "Address"]
+			],
+			fields: ["name", "address_line1", "address_line2", "country", "city", "pincode", "state", "address_type"]
+		});
 
-    // Primer Billing y Shipping
-    let billingAddress = null;
-    let shippingAddress = null;
-    for (let address of linked_contacts_and_addresses) {
-      if (address.address_type === 'Billing' && !billingAddress) billingAddress = address;
-      else if (address.address_type === 'Shipping' && !shippingAddress) shippingAddress = address;
-      if (billingAddress && shippingAddress) break;
-    }
+		// Primer Billing y Shipping
+		let billingAddress = null;
+		let shippingAddress = null;
+		for (let address of linked_contacts_and_addresses) {
+			if (address.address_type === 'Billing' && !billingAddress) billingAddress = address;
+			else if (address.address_type === 'Shipping' && !shippingAddress) shippingAddress = address;
+			if (billingAddress && shippingAddress) break;
+		}
 
-    // Utilidades de UI
-    const escapeHtml = (val) => {
-      if (val === null || val === undefined) return '—';
-      if (frappe.utils && frappe.utils.escape_html) return frappe.utils.escape_html(String(val));
-      return String(val)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-    };
+		// Utilidades de UI
+		const escapeHtml = (val) => {
+			if (val === null || val === undefined) return '—';
+			if (frappe.utils && frappe.utils.escape_html) return frappe.utils.escape_html(String(val));
+			return String(val)
+				.replace(/&/g, '&amp;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;')
+				.replace(/"/g, '&quot;')
+				.replace(/'/g, '&#039;');
+		};
 
-    const phoneRaw = customer.phone || customer.phone_number || customer.mobile_no;
-    const phone = phoneRaw ? `<a href="tel:${escapeHtml(phoneRaw)}">${escapeHtml(phoneRaw)}</a>` : '—';
-    const email = customer.email_id ? `<a href="mailto:${escapeHtml(customer.email_id)}">${escapeHtml(customer.email_id)}</a>` : '—';
+		const phoneRaw = customer.phone || customer.phone_number || customer.mobile_no;
+		const phone = phoneRaw ? `<a href="tel:${escapeHtml(phoneRaw)}">${escapeHtml(phoneRaw)}</a>` : '—';
+		const email = customer.email_id ? `<a href="mailto:${escapeHtml(customer.email_id)}">${escapeHtml(customer.email_id)}</a>` : '—';
 
-    const addrBlock = (label, a) => a ? `
+		const addrBlock = (label, a) => a ? `
       <div class="cc-addr">
         <div class="cc-badge">${escapeHtml(label)}</div>
         <div class="cc-addr-lines">
@@ -1091,13 +1091,13 @@ function viewCustomerDetails(frm) {
         </div>
       </div>` : '';
 
-    const card = (title, inner) => `
+		const card = (title, inner) => `
       <div class="cc-card">
         <div class="cc-card-title">${escapeHtml(title)}</div>
         ${inner}
       </div>`;
 
-    const html = `
+		const html = `
       <style>
         .cc-wrap { font-size: 13px; line-height: 1.45; }
         .cc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
@@ -1145,17 +1145,17 @@ function viewCustomerDetails(frm) {
       </div>
     `;
 
-    const d = new frappe.ui.Dialog({
-      title: __('Customer Information'),
-      fields: [{ fieldtype: 'HTML', fieldname: 'preview' }],
-      size: 'large',
-      primary_action_label: __('Cerrar'),
-      primary_action: () => d.hide()
-    });
+		const d = new frappe.ui.Dialog({
+			title: __('Customer Information'),
+			fields: [{ fieldtype: 'HTML', fieldname: 'preview' }],
+			size: 'large',
+			primary_action_label: __('Cerrar'),
+			primary_action: () => d.hide()
+		});
 
-    d.show();
-    d.get_field('preview').$wrapper.html(html);
-  });
+		d.show();
+		d.get_field('preview').$wrapper.html(html);
+	});
 }
 
 
@@ -1183,38 +1183,39 @@ function insertValidateBankTransferPaymentButton(frm) {
 }
 
 function getLanguages() {
-  const lang = frappe?.boot?.user?.language || 'nl'
-  return new Set(['nl', 'en', 'uk', 'es', lang])
+	const lang = frappe?.boot?.user?.language || 'nl'
+	return new Set(['nl', 'en', 'uk', 'es', lang])
 }
 
 
-async function insertTranslation(frm){
+async function insertTranslation(frm) {
 	const languages = getLanguages()
 	const { aws_url } = await frappe.db.get_doc('Queue Settings')
 	const { aws_url: chatbot_url } = await frappe.db.get_doc('Whatsapp Config')
 	const fields = ['notes', 'internal_notes', 'client_description', 'diagnose_result']
 
-	for(const field of fields){
+	for (const field of fields) {
 		const field_dict = frm.fields_dict[field]
 
-		if(!field_dict) continue 
+		if (!field_dict) continue
 
 		const quill = field_dict.quill || field_dict.editor?.quill || field_dict.editor;
-		const fieldContainer = document.querySelector(`div[data-fieldname="${field}"]`)
+		const fieldContainer = document.querySelector(`div[data-fieldname="${field}"][data-fieldtype="Text Editor"]`)
 
-		if(!fieldContainer) continue
+		if (!fieldContainer) continue
 
 		const container = fieldContainer.querySelector('.clearfix')
-		container.style = 'display:flex;gap:1rem;align-items:center;'
 		const fieldElement = document.createElement('div')
 		fieldElement.id = `field-${field}`
+		if (!container || container.querySelector(`#${fieldElement.id}`)) continue;
+		container.style = 'display:flex;gap:1rem;align-items:center;'
 		container.appendChild(fieldElement)
-		
+
 		new frappe.ui.FieldTranslator({
 			docname: frm.docname,
 			field_container: fieldContainer,
 			field_element: fieldElement,
-			field:	field,
+			field: field,
 			languages: [...languages],
 			chatbot_url,
 			aws_url,
@@ -1225,8 +1226,8 @@ async function insertTranslation(frm){
 
 async function deactivateChatbot(phone_number) {
 	const conversations = await frappe.db.get_list('Conversation', { filters: { from: phone_number } })
-	for(const conversation of conversations){
-		await frappe.db.set_value('Conversation', conversation.name ,{ 'is_auto_reply': 0, 'seen': 0})
+	for (const conversation of conversations) {
+		await frappe.db.set_value('Conversation', conversation.name, { 'is_auto_reply': 0, 'seen': 0 })
 	}
 }
 

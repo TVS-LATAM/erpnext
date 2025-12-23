@@ -139,7 +139,7 @@
    "label": "Customer Type",
    "oldfieldname": "customer_type",
    "oldfieldtype": "Select",
-   "options": "Company\nIndividual\nPartnership",
+   "options": "Company\nIndividual\nPartnership\nEu Customer",
    "reqd": 1
   },
   {
@@ -629,7 +629,7 @@
    "link_fieldname": "party"
   }
  ],
- "modified": "2025-09-10 20:50:35.010612",
+ "modified": "2025-10-08 18:22:58.839325",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Customer",
