@@ -1,1073 +1,1074 @@
 {
- "actions": [],
- "allow_import": 1,
- "allow_rename": 1,
- "autoname": "naming_series:",
- "creation": "2013-03-07 11:55:07",
- "doctype": "DocType",
- "editable_grid": 1,
- "engine": "InnoDB",
- "field_order": [
-  "naming_series",
-  "project_name",
-  "description_title",
-  "queue_position",
-  "callback_date",
-  "callback_time",
-  "status",
-  "is_loan_car",
-  "loan_car",
-  "payment_status",
-  "language",
-  "has_dongle",
-  "dongle_tested",
-  "column_break_5",
-  "project_template",
-  "parts_status",
-  "car_driving",
-  "test_drive_terms_and_conditions",
-  "sent_software_offer",
-  "software_status",
-  "expected_start_date",
-  "expected_end_date",
-  "remote_diagnostic_date",
-  "remote_diagnostic_time",
-  "remote_diagnose_status",
-  "priority",
-  "department",
-  "project_mechanic",
-  "project_diagnozer",
-  "is_active",
-  "percent_complete_method",
-  "percent_complete",
-  "appointment_date",
-  "appointment_time",
-  "done",
-  "customer_details",
-  "project_invoice",
-  "customer",
-  "sales_order",
-  "team_viewer_id",
-  "sales_invoice",
-  "vehicle_details",
-  "plate",
-  "vin",
-  "brand",
-  "model",
-  "model_year",
-  "hp_kw",
-  "engine_liters",
-  "type_of_job",
-  "clutch",
-  "transmission_code",
-  "column_break_15",
-  "engine_code",
-  "dsg_model",
-  "dsg_code",
-  "ecu_number",
-  "dsg_gearbox",
-  "mechatronic",
-  "project_type",
-  "project_description",
-  "flywheel",
-  "section_break18",
-  "actual_ecu_number",
-  "actual_ecu_software_version",
-  "column_break_19",
-  "actual_dsg_number_software_version",
-  "actual_mileage",
-  "client_requirements_section",
-  "requirements",
-  "pickup",
-  "terms_and_conditions_accepted",
-  "client_description",
-  "client_state_detail",
-  "client_engine_state",
-  "column_break_16",
-  "client_dsg_state",
-  "column_break_17",
-  "client_mileage_state",
-  "section_break2",
-  "diagnose_result",
-  "diagnose_modified",
-  "price_agreement",
-  "attachments",
-  "html_pybn",
-  "section_break_18",
-  "actual_start_date",
-  "actual_time",
-  "column_break_20",
-  "actual_end_date",
-  "project_details",
-  "estimated_costing",
-  "total_costing_amount",
-  "total_purchase_cost",
-  "company",
-  "column_break_28",
-  "total_sales_amount",
-  "total_billable_amount",
-  "total_billed_amount",
-  "total_consumed_material_cost",
-  "cost_center",
-  "section_break0",
-  "notes",
-  "internal_notes",
-  "users_section",
-  "users",
-  "copied_from",
-  "margin",
-  "gross_margin",
-  "column_break_37",
-  "per_gross_margin",
-  "monitor_progress",
-  "collect_progress",
-  "holiday_list",
-  "frequency",
-  "from_time",
-  "to_time",
-  "first_email",
-  "second_email",
-  "daily_time_to_send",
-  "day_to_send",
-  "weekly_time_to_send",
-  "column_break_45",
-  "message",
-  "parking_date",
-  "assistant_confirmed",
-  "bring_car_date",
-  "status_modified"
- ],
- "fields": [
-  {
-   "fieldname": "project_name",
-   "fieldtype": "Data",
-   "label": "Project Name",
-   "oldfieldtype": "Data",
-   "reqd": 1,
-   "unique": 1
-  },
-  {
-   "fieldname": "description_title",
-   "fieldtype": "Data",
-   "label": "Description Title",
-   "oldfieldtype": "Data"
-  },
-  {
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Status",
-   "no_copy": 1,
-   "oldfieldname": "status",
-   "oldfieldtype": "Select",
-   "options": "\nIn queue\nIn parking\nPre-diagnose\nDiagnosed\nQuoted\nQuote approved\nIn repair\nRepair ready\nFully-tested/adapted\nQuality check approved\nInvoice paid\nAwaiting pickup\nCompleted\nCancelled\nIn pause\nNo response from customer\nRequest a callback\nSoft. showroom\nSoft. internally",
-   "search_index": 1
-  },
-  {
-   "default": "No",
-   "fieldname": "is_loan_car",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Is loan car",
-   "no_copy": 1,
-   "options": "No\nYes\nLoaned car\nCar returned",
-   "search_index": 1
-  },
-  {
-   "fieldname": "type_of_job",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Type of job",
-   "no_copy": 1,
-   "options": "Diagnose\nReparatie\nOliewissel\nOverig\nSoftware\nParts",
-   "search_index": 1
-  },
-  {
-   "fieldname": "project_description",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Project Description"
-  },
-  {
-   "fieldname": "language",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Language"
-  },
-  {
-   "default": "0",
-   "fieldname": "has_dongle",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Has dongle"
-  },
-  {
-   "default": "0",
-   "fieldname": "car_driving",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Car Driving"
-  },
-  {
-   "fieldname": "clutch",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Clutch"
-  },
-  {
-   "fieldname": "flywheel",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Flywheel"
-  },
-  {
-   "fieldname": "loan_car",
-   "fieldtype": "Text Editor",
-   "in_list_view": 1,
-   "label": "Loan car"
-  },
-  {
-   "fieldname": "queue_position",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Queue position"
-  },
-  {
-   "fieldname": "callback_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Callback date"
-  },
-  {
-   "fieldname": "callback_time",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Callback time",
-   "options": "\n9:30-10:00\n13:30-14:00\n17:30-18:00"
-  },
-  {
-   "default": "No",
-   "fieldname": "payment_status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Payment status",
-   "no_copy": 1,
-   "options": "No\nAwaiting approval quotation\nQuotation approved\nQuotation Declined\nInvoice send awaiting payment\nPayment ready."
-  },
-  {
-   "fieldname": "project_type",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Project Type",
-   "oldfieldname": "project_type",
-   "oldfieldtype": "Data",
-   "options": "Project Type"
-  },
-  {
-   "fieldname": "is_active",
-   "fieldtype": "Select",
-   "label": "Is Active",
-   "oldfieldname": "is_active",
-   "oldfieldtype": "Select",
-   "options": "Yes\nNo"
-  },
-  {
-   "fieldname": "column_break_5",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "parts_status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Parts Status",
-   "oldfieldname": "parts_status",
-   "oldfieldtype": "Select",
-   "options": "\nNew request\nSent for approval\nQuotation approved\nNew order\nProcessing order\nQuality control\nReady for pickup\nIn Transit\nDelivered\nCore return pending\nCore return completed\nWarranty return\nAftersales support\nQuoted\nCompleted order\nCancelled order\nCompleted support\nCompleted warranty return\nQuotation rejected"
-  },
-  {
-   "fieldname": "software_status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Software Status",
-   "oldfieldname": "software_status",
-   "oldfieldtype": "Select",
-   "options": "\nSoftware request\nSoftware is ready for use\nSoftware has been attached"
-  },
-  {
-   "allow_in_quick_entry": 1,
-   "fieldname": "project_template",
-   "fieldtype": "Link",
-   "label": "From Template",
-   "options": "Project Template",
-   "set_only_once": 1
-  },
-  {
-   "bold": 1,
-   "fieldname": "expected_start_date",
-   "fieldtype": "Date",
-   "label": "Expected Start Date",
-   "oldfieldname": "project_start_date",
-   "oldfieldtype": "Date"
-  },
-  {
-   "bold": 1,
-   "fieldname": "expected_end_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Expected End Date",
-   "oldfieldname": "completion_date",
-   "oldfieldtype": "Date"
-  },
-  {
-   "bold": 1,
-   "description": "Remote Diagnostic Date",
-   "fieldname": "remote_diagnostic_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "R.D Date",
-   "oldfieldname": "completion_date",
-   "oldfieldtype": "Date"
-  },
-  {
-   "description": "Remote Diagnostic Time",
-   "fetch_if_empty": 1,
-   "fieldname": "remote_diagnostic_time",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_preview": 1,
-   "label": "R.D Time",
-   "options": "\n15:30-16:15\n16:15-17:00"
-  },
-  {
-   "fieldname": "priority",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Priority",
-   "oldfieldname": "priority",
-   "oldfieldtype": "Select",
-   "options": "Medium\nLow\nHigh"
-  },
-  {
-   "fieldname": "department",
-   "fieldtype": "Link",
-   "label": "Department",
-   "options": "Department"
-  },
-  {
-   "default": "Task Completion",
-   "fieldname": "percent_complete_method",
-   "fieldtype": "Select",
-   "label": "% Complete Method",
-   "options": "Manual\nTask Completion\nTask Progress\nTask Weight"
-  },
-  {
-   "bold": 1,
-   "fieldname": "percent_complete",
-   "fieldtype": "Percent",
-   "label": "% Completed",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
-   "fieldname": "project_mechanic",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Mechanic",
-   "options": "User"
-  },
-  {
-   "fieldname": "project_diagnozer",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Diagnozer Specialist",
-   "options": "User"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "customer_details",
-   "fieldtype": "Section Break",
-   "label": "Quotation",
-   "oldfieldtype": "Section Break",
-   "options": "fa fa-user"
-  },
-  {
-   "fieldname": "customer",
-   "fieldtype": "Link",
-   "in_global_search": 1,
-   "label": "Customer",
-   "oldfieldname": "customer",
-   "oldfieldtype": "Link",
-   "options": "Customer",
-   "print_hide": 1,
-   "reqd": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "sales_order",
-   "fieldtype": "Link",
-   "label": "Sales Order",
-   "options": "Sales Order"
-  },
-  {
-   "fieldname": "project_invoice",
-   "fieldtype": "Table",
-   "label": "Invoice",
-   "options": "Project Invoice"
-  },
-  {
-   "fieldname": "sales_invoice",
-   "fieldtype": "Link",
-   "label": "Sales Invoice",
-   "options": "Sales Invoice"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "vehicle_details",
-   "fieldtype": "Section Break",
-   "label": "PL vehicle details",
-   "oldfieldtype": "Section Break",
-   "options": "fa fa-car"
-  },
-  {
-   "fieldname": "plate",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Licence plate",
-   "reqd": 1
-  },
-  {
-   "fieldname": "brand",
-   "fieldtype": "Data",
-   "label": "Brand"
-  },
-  {
-   "fieldname": "model",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Model",
-   "search_index": 1
-  },
-  {
-   "fieldname": "hp_kw",
-   "fieldtype": "Data",
-   "label": "Hp/KW"
-  },
-  {
-   "fieldname": "engine_liters",
-   "fieldtype": "Data",
-   "label": "Engine liters"
-  },
-  {
-   "fieldname": "column_break_15",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "engine_code",
-   "fieldtype": "Data",
-   "label": "Engine code"
-  },
-  {
-   "fieldname": "dsg_model",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "DSG model",
-   "search_index": 1
-  },
-  {
-   "fieldname": "dsg_code",
-   "fieldtype": "Data",
-   "label": "DSG code"
-  },
-  {
-   "fieldname": "ecu_number",
-   "fieldtype": "Data",
-   "label": "ECU Nr."
-  },
-  {
-   "fieldname": "dsg_gearbox",
-   "fieldtype": "Data",
-   "label": "DSG gearbox"
-  },
-  {
-   "fieldname": "mechatronic",
-   "fieldtype": "Data",
-   "label": "Mechatronic"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break18",
-   "fieldtype": "Section Break",
-   "label": "Actual ECU + DSG",
-   "oldfieldtype": "Section Break",
-   "options": "fa fa-list"
-  },
-  {
-   "fieldname": "actual_ecu_number",
-   "fieldtype": "Data",
-   "label": "Actual ECU Number"
-  },
-  {
-   "fieldname": "actual_ecu_software_version",
-   "fieldtype": "Data",
-   "label": "Actual ECU software version"
-  },
-  {
-   "fieldname": "column_break_19",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "actual_dsg_number_software_version",
-   "fieldtype": "Data",
-   "label": "Actual DSG number + software version"
-  },
-  {
-   "fieldname": "actual_mileage",
-   "fieldtype": "Data",
-   "label": "Actual mileage"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "users_section",
-   "fieldtype": "Section Break",
-   "label": "Users"
-  },
-  {
-   "description": "Project will be accessible on the website to these users",
-   "fieldname": "users",
-   "fieldtype": "Table",
-   "label": "Users",
-   "options": "Project User"
-  },
-  {
-   "fieldname": "copied_from",
-   "fieldtype": "Data",
-   "hidden": 1,
-   "label": "Copied From",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break0",
-   "fieldtype": "Section Break",
-   "ignore_user_permissions": 1,
-   "label": "Notes"
-  },
-  {
-   "fieldname": "notes",
-   "fieldtype": "Text Editor",
-   "in_list_view": 1,
-   "label": "Client Notes",
-   "print_hide": 1
-  },
-  {
-   "fieldname": "internal_notes",
-   "fieldtype": "Text Editor",
-   "ignore_user_permissions": 1,
-   "in_list_view": 1,
-   "in_preview": 1,
-   "in_standard_filter": 1,
-   "label": "Internal Notes",
-   "print_hide": 1
-  },
-  {
-   "fieldname": "client_description",
-   "fieldtype": "Text Editor",
-   "in_list_view": 1,
-   "label": "Problem description"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "client_state_detail",
-   "fieldtype": "Section Break",
-   "label": "Client vehicle state",
-   "oldfieldtype": "Section Break",
-   "options": "fa fa-car"
-  },
-  {
-   "fieldname": "client_engine_state",
-   "fieldtype": "Data",
-   "label": "Current engine state"
-  },
-  {
-   "fieldname": "column_break_16",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "client_dsg_state",
-   "fieldtype": "Data",
-   "label": "Current DSG state"
-  },
-  {
-   "fieldname": "column_break_17",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "client_mileage_state",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Current mileage state"
-  },
-  {
-   "fieldname": "team_viewer_id",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Teamviewer ID"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break2",
-   "fieldtype": "Section Break",
-   "label": "Diagnose",
-   "options": "fa fa-list"
-  },
-  {
-   "default": "<p>Opgemerkte klachten:</p><ul><li></li><li></li><li></li></ul><p>Diagnose data bijzonderheden:</p><ul><li></li><li></li><li></li></ul><p>Reparatie advies:</p><ul><li></li><li></li><li></li></ul>",
-   "fieldname": "diagnose_result",
-   "fieldtype": "Text Editor",
-   "label": "Diagnose result"
-  },
-  {
-   "fieldname": "diagnose_modified",
-   "fieldtype": "Datetime",
-   "label": "Last Diagnose Update",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break_18",
-   "fieldtype": "Section Break",
-   "label": "Start and End Dates"
-  },
-  {
-   "fieldname": "actual_start_date",
-   "fieldtype": "Date",
-   "label": "Actual Start Date (via Time Sheet)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "actual_time",
-   "fieldtype": "Float",
-   "label": "Actual Time (in Hours via Time Sheet)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_20",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "actual_end_date",
-   "fieldtype": "Date",
-   "label": "Actual End Date (via Time Sheet)",
-   "oldfieldname": "act_completion_date",
-   "oldfieldtype": "Date",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "project_details",
-   "fieldtype": "Section Break",
-   "label": "Costing and Billing",
-   "oldfieldtype": "Section Break",
-   "options": "fa fa-money"
-  },
-  {
-   "fieldname": "estimated_costing",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Estimated Cost",
-   "oldfieldname": "project_value",
-   "oldfieldtype": "Currency",
-   "options": "Company:company:default_currency"
-  },
-  {
-   "fieldname": "total_costing_amount",
-   "fieldtype": "Currency",
-   "label": "Total Costing Amount (via Timesheets)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_purchase_cost",
-   "fieldtype": "Currency",
-   "label": "Total Purchase Cost (via Purchase Invoice)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "company",
-   "fieldtype": "Link",
-   "label": "Company",
-   "options": "Company",
-   "remember_last_selected_value": 1,
-   "reqd": 1
-  },
-  {
-   "fieldname": "column_break_28",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "total_sales_amount",
-   "fieldtype": "Currency",
-   "label": "Total Sales Amount (via Sales Order)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_billable_amount",
-   "fieldtype": "Currency",
-   "label": "Total Billable Amount (via Timesheets)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_billed_amount",
-   "fieldtype": "Currency",
-   "label": "Total Billed Amount (via Sales Invoices)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "total_consumed_material_cost",
-   "fieldtype": "Currency",
-   "label": "Total Consumed Material Cost  (via Stock Entry)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "cost_center",
-   "fieldtype": "Link",
-   "label": "Default Cost Center",
-   "options": "Cost Center"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "margin",
-   "fieldtype": "Section Break",
-   "label": "Margin",
-   "oldfieldtype": "Column Break",
-   "width": "50%"
-  },
-  {
-   "fieldname": "gross_margin",
-   "fieldtype": "Currency",
-   "label": "Gross Margin",
-   "oldfieldname": "gross_margin_value",
-   "oldfieldtype": "Currency",
-   "options": "Company:company:default_currency",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_37",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "per_gross_margin",
-   "fieldtype": "Percent",
-   "label": "Gross Margin %",
-   "oldfieldname": "per_gross_margin",
-   "oldfieldtype": "Currency",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "monitor_progress",
-   "fieldtype": "Section Break",
-   "label": "Monitor Progress"
-  },
-  {
-   "default": "0",
-   "fieldname": "collect_progress",
-   "fieldtype": "Check",
-   "label": "Collect Progress"
-  },
-  {
-   "depends_on": "collect_progress",
-   "fieldname": "holiday_list",
-   "fieldtype": "Link",
-   "label": "Holiday List",
-   "options": "Holiday List"
-  },
-  {
-   "depends_on": "eval:doc.collect_progress == true",
-   "fieldname": "frequency",
-   "fieldtype": "Select",
-   "label": "Frequency To Collect Progress",
-   "options": "Hourly\nTwice Daily\nDaily\nWeekly"
-  },
-  {
-   "depends_on": "eval:(doc.frequency == \"Hourly\" && doc.collect_progress)",
-   "fieldname": "from_time",
-   "fieldtype": "Time",
-   "label": "From Time"
-  },
-  {
-   "depends_on": "eval:(doc.frequency == \"Hourly\" && doc.collect_progress)",
-   "fieldname": "to_time",
-   "fieldtype": "Time",
-   "label": "To Time"
-  },
-  {
-   "depends_on": "eval:(doc.frequency == \"Twice Daily\" && doc.collect_progress == true)\n\n",
-   "fieldname": "first_email",
-   "fieldtype": "Time",
-   "label": "First Email"
-  },
-  {
-   "depends_on": "eval:(doc.frequency == \"Twice Daily\" && doc.collect_progress == true)",
-   "fieldname": "second_email",
-   "fieldtype": "Time",
-   "label": "Second Email"
-  },
-  {
-   "depends_on": "eval:(doc.frequency == \"Daily\" && doc.collect_progress == true)",
-   "fieldname": "daily_time_to_send",
-   "fieldtype": "Time",
-   "label": "Daily Time to send"
-  },
-  {
-   "depends_on": "eval:(doc.frequency == \"Weekly\" && doc.collect_progress == true)",
-   "fieldname": "day_to_send",
-   "fieldtype": "Select",
-   "label": "Day to Send",
-   "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday"
-  },
-  {
-   "depends_on": "eval:(doc.frequency == \"Weekly\" && doc.collect_progress == true)",
-   "fieldname": "weekly_time_to_send",
-   "fieldtype": "Time",
-   "label": "Weekly Time to send"
-  },
-  {
-   "fieldname": "column_break_45",
-   "fieldtype": "Column Break"
-  },
-  {
-   "depends_on": "collect_progress",
-   "description": "Message will be sent to the users to get their status on the Project",
-   "fieldname": "message",
-   "fieldtype": "Text",
-   "label": "Message",
-   "mandatory_depends_on": "collect_progress"
-  },
-  {
-   "fieldname": "naming_series",
-   "fieldtype": "Select",
-   "label": "Series",
-   "no_copy": 1,
-   "options": "PROJ-.####",
-   "print_hide": 1,
-   "reqd": 1,
-   "set_only_once": 1
-  },
-  {
-   "fieldname": "parking_date",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Parking Date",
-   "oldfieldtype": "Data"
-  },
-  {
-   "default": "0",
-   "fieldname": "assistant_confirmed",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Assistant Confirmed"
-  },
-  {
-   "fieldname": "bring_car_date",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Bring Car Date"
-  },
-  {
-   "fieldname": "vin",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "VIN"
-  },
-  {
-   "default": "0",
-   "description": "This option prevents this job card move the queue line (when complete).",
-   "fieldname": "done",
-   "fieldtype": "Check",
-   "label": "freeze queue position"
-  },
-  {
-   "fieldname": "appointment_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Fixed appointment date"
-  },
-  {
-   "fieldname": "status_modified",
-   "fieldtype": "Date",
-   "hidden": 1,
-   "in_list_view": 1,
-   "label": "status_modified"
-  },
-  {
-   "fieldname": "attachments",
-   "fieldtype": "Section Break",
-   "label": "Attachments"
-  },
-  {
-   "fieldname": "html_pybn",
-   "fieldtype": "HTML"
-  },
-  {
-   "default": "0",
-   "fieldname": "test_drive_terms_and_conditions",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Test drive terms and conditions"
-  },
-  {
-   "default": "0",
-   "fieldname": "dongle_tested",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Dongle tested"
-  },
-  {
-   "fieldname": "price_agreement",
-   "fieldtype": "Currency",
-   "label": "Price agreement",
-   "options": "Company:company:default_currency"
-  },
-  {
-   "fetch_if_empty": 1,
-   "fieldname": "appointment_time",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_preview": 1,
-   "label": "Fixed appointment time",
-   "options": "\n9:00-9:30\n9:30-10:00\n10:00-10:30\n10:30-11:00\n11:00-11:30\n11:30-12:00\n12:00-12:30\n12:30-13:00\n13:00-13:30\n13:30-14:00\n14:00-14:30\n14:30-15:00\n15:00-15:30\n15:30-16:00\n16:00-16:30\n16:30-17:00\n17:00-17:30\n17:30-18:00"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "client_requirements_section",
-   "fieldtype": "Section Break",
-   "label": "Client Requirements"
-  },
-  {
-   "fieldname": "requirements",
-   "fieldtype": "Table",
-   "label": "Requirement List",
-   "options": "Client Requirements"
-  },
-  {
-   "fieldname": "pickup",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Dropoff - Pickup service",
-   "options": "\nDropoff service\nPickup service\nDropoff service arranged\nPickup service arranged\nReady",
-   "translatable": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "terms_and_conditions_accepted",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Terms and Conditions accepted"
-  },
-  {
-   "fieldname": "model_year",
-   "fieldtype": "Data",
-   "label": "Model year"
-  },
-  {
-   "fieldname": "transmission_code",
-   "fieldtype": "Data",
-   "label": "Transmission Code"
-  },
-  {
-   "default": "0",
-   "fieldname": "sent_software_offer",
-   "fieldtype": "Check",
-   "in_list_view": 1,
-   "label": "Sent Software Offer"
-  },
-  {
-   "description": "Remote Diagnostic Time",
-   "fetch_if_empty": 1,
-   "fieldname": "remote_diagnose_status",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "in_preview": 1,
-   "label": "R.D Status",
-   "options": "\nRemote diagnose\nIn diagnosis\nAfter diagnosis"
-  }
- ],
- "grid_page_length": 50,
- "icon": "fa fa-puzzle-piece",
- "idx": 29,
- "index_web_pages_for_search": 1,
- "links": [],
- "max_attachments": 4,
- "modified": "2025-12-05 20:17:39.568792",
- "modified_by": "Administrator",
- "module": "Projects",
- "name": "Project",
- "naming_rule": "By \"Naming Series\" field",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Projects User",
-   "select": 1,
-   "share": 1,
-   "write": 1
-  },
-  {
-   "permlevel": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Desk User"
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Projects Manager",
-   "select": 1,
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "select": 1,
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "report": 1,
-   "role": "Employee",
-   "select": 1,
-   "share": 1
-  }
- ],
- "quick_entry": 1,
- "row_format": "Dynamic",
- "search_fields": "project_name,customer, status",
- "show_name_in_global_search": 1,
- "sort_field": "queue_position",
- "sort_order": "DESC",
- "states": [],
- "timeline_field": "customer",
- "title_field": "project_name",
- "track_seen": 1
+  "actions": [],
+  "allow_import": 1,
+  "allow_rename": 1,
+  "autoname": "naming_series:",
+  "creation": "2013-03-07 11:55:07",
+  "doctype": "DocType",
+  "editable_grid": 1,
+  "engine": "InnoDB",
+  "field_order": [
+    "naming_series",
+    "project_name",
+    "description_title",
+    "queue_position",
+    "callback_date",
+    "callback_time",
+    "status",
+    "is_loan_car",
+    "loan_car",
+    "payment_status",
+    "language",
+    "has_dongle",
+    "dongle_tested",
+    "column_break_5",
+    "project_template",
+    "parts_status",
+    "car_driving",
+    "test_drive_terms_and_conditions",
+    "sent_software_offer",
+    "software_status",
+    "expected_start_date",
+    "expected_end_date",
+    "remote_diagnostic_date",
+    "remote_diagnostic_time",
+    "remote_diagnose_status",
+    "priority",
+    "department",
+    "project_mechanic",
+    "project_diagnozer",
+    "is_active",
+    "percent_complete_method",
+    "percent_complete",
+    "appointment_date",
+    "appointment_time",
+    "done",
+    "customer_details",
+    "project_invoice",
+    "customer",
+    "sales_order",
+    "team_viewer_id",
+    "sales_invoice",
+    "vehicle_details",
+    "plate",
+    "vin",
+    "brand",
+    "model",
+    "model_year",
+    "hp_kw",
+    "engine_liters",
+    "type_of_job",
+    "clutch",
+    "transmission_code",
+    "column_break_15",
+    "engine_code",
+    "dsg_model",
+    "dsg_code",
+    "ecu_number",
+    "dsg_gearbox",
+    "mechatronic",
+    "project_type",
+    "project_description",
+    "flywheel",
+    "section_break18",
+    "actual_ecu_number",
+    "actual_ecu_software_version",
+    "column_break_19",
+    "actual_dsg_number_software_version",
+    "actual_mileage",
+    "client_requirements_section",
+    "requirements",
+    "pickup",
+    "terms_and_conditions_accepted",
+    "client_description",
+    "client_state_detail",
+    "client_engine_state",
+    "column_break_16",
+    "client_dsg_state",
+    "column_break_17",
+    "client_mileage_state",
+    "section_break2",
+    "diagnose_result",
+    "diagnose_modified",
+    "price_agreement",
+    "attachments",
+    "html_pybn",
+    "section_break_18",
+    "actual_start_date",
+    "actual_time",
+    "column_break_20",
+    "actual_end_date",
+    "project_details",
+    "estimated_costing",
+    "total_costing_amount",
+    "total_purchase_cost",
+    "company",
+    "column_break_28",
+    "total_sales_amount",
+    "total_billable_amount",
+    "total_billed_amount",
+    "total_consumed_material_cost",
+    "cost_center",
+    "section_break0",
+    "notes",
+    "internal_notes",
+    "users_section",
+    "users",
+    "copied_from",
+    "margin",
+    "gross_margin",
+    "column_break_37",
+    "per_gross_margin",
+    "monitor_progress",
+    "collect_progress",
+    "holiday_list",
+    "frequency",
+    "from_time",
+    "to_time",
+    "first_email",
+    "second_email",
+    "daily_time_to_send",
+    "day_to_send",
+    "weekly_time_to_send",
+    "column_break_45",
+    "message",
+    "parking_date",
+    "assistant_confirmed",
+    "bring_car_date",
+    "status_modified"
+  ],
+  "fields": [
+    {
+      "fieldname": "project_name",
+      "fieldtype": "Data",
+      "label": "Project Name",
+      "oldfieldtype": "Data",
+      "reqd": 1,
+      "unique": 1
+    },
+    {
+      "fieldname": "description_title",
+      "fieldtype": "Data",
+      "label": "Description Title",
+      "oldfieldtype": "Data"
+    },
+    {
+      "fieldname": "status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_standard_filter": 1,
+      "label": "Status",
+      "no_copy": 1,
+      "oldfieldname": "status",
+      "oldfieldtype": "Select",
+      "options": "\nIn queue\nIn parking\nPre-diagnose\nDiagnosed\nQuoted\nQuote approved\nIn repair\nRepair ready\nFully-tested/adapted\nQuality check approved\nInvoice paid\nAwaiting pickup\nCompleted\nCancelled\nIn pause\nNo response from customer\nRequest a callback\nSoft. showroom\nSoft. internally",
+      "search_index": 1
+    },
+    {
+      "default": "No",
+      "fieldname": "is_loan_car",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Is loan car",
+      "no_copy": 1,
+      "options": "No\nYes\nLoaned car\nCar returned",
+      "search_index": 1
+    },
+    {
+      "fieldname": "type_of_job",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Type of job",
+      "no_copy": 1,
+      "options": "Diagnose\nReparatie\nOliewissel\nOverig\nSoftware\nParts",
+      "search_index": 1
+    },
+    {
+      "fieldname": "project_description",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Project Description"
+    },
+    {
+      "fieldname": "language",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Language"
+    },
+    {
+      "default": "0",
+      "fieldname": "has_dongle",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Has dongle"
+    },
+    {
+      "default": "0",
+      "fieldname": "car_driving",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Car Driving"
+    },
+    {
+      "fieldname": "clutch",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Clutch"
+    },
+    {
+      "fieldname": "flywheel",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Flywheel"
+    },
+    {
+      "fieldname": "loan_car",
+      "fieldtype": "Text Editor",
+      "in_list_view": 1,
+      "label": "Loan car"
+    },
+    {
+      "fieldname": "queue_position",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Queue position"
+    },
+    {
+      "fieldname": "callback_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "Callback date"
+    },
+    {
+      "fieldname": "callback_time",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Callback time",
+      "options": "\n9:30-10:00\n13:30-14:00\n17:30-18:00"
+    },
+    {
+      "default": "No",
+      "fieldname": "payment_status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Payment status",
+      "no_copy": 1,
+      "options": "No\nAwaiting approval quotation\nQuotation approved\nQuotation Declined\nInvoice send awaiting payment\nPayment ready."
+    },
+    {
+      "fieldname": "project_type",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Project Type",
+      "oldfieldname": "project_type",
+      "oldfieldtype": "Data",
+      "options": "Project Type"
+    },
+    {
+      "fieldname": "is_active",
+      "fieldtype": "Select",
+      "label": "Is Active",
+      "oldfieldname": "is_active",
+      "oldfieldtype": "Select",
+      "options": "Yes\nNo"
+    },
+    {
+      "fieldname": "column_break_5",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "parts_status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Parts Status",
+      "oldfieldname": "parts_status",
+      "oldfieldtype": "Select",
+      "options": "\nNew request\nSent for approval\nQuotation approved\nNew order\nProcessing order\nQuality control\nReady for pickup\nIn Transit\nDelivered\nCore return pending\nCore return completed\nWarranty return\nAftersales support\nQuoted\nCompleted order\nCancelled order\nCompleted support\nCompleted warranty return\nQuotation rejected"
+    },
+    {
+      "fieldname": "software_status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Software Status",
+      "oldfieldname": "software_status",
+      "oldfieldtype": "Select",
+      "options": "\nSoftware request\nSoftware is ready for use\nSoftware has been attached"
+    },
+    {
+      "allow_in_quick_entry": 1,
+      "fieldname": "project_template",
+      "fieldtype": "Link",
+      "label": "From Template",
+      "options": "Project Template",
+      "set_only_once": 1
+    },
+    {
+      "bold": 1,
+      "fieldname": "expected_start_date",
+      "fieldtype": "Date",
+      "label": "Expected Start Date",
+      "oldfieldname": "project_start_date",
+      "oldfieldtype": "Date"
+    },
+    {
+      "bold": 1,
+      "fieldname": "expected_end_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "Expected End Date",
+      "oldfieldname": "completion_date",
+      "oldfieldtype": "Date"
+    },
+    {
+      "bold": 1,
+      "description": "Remote Diagnostic Date",
+      "fieldname": "remote_diagnostic_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "R.D Date",
+      "oldfieldname": "completion_date",
+      "oldfieldtype": "Date"
+    },
+    {
+      "description": "Remote Diagnostic Time",
+      "fetch_if_empty": 1,
+      "fieldname": "remote_diagnostic_time",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_preview": 1,
+      "label": "R.D Time",
+      "options": "\n15:30-16:15\n16:15-17:00"
+    },
+    {
+      "fieldname": "priority",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Priority",
+      "oldfieldname": "priority",
+      "oldfieldtype": "Select",
+      "options": "Medium\nLow\nHigh"
+    },
+    {
+      "fieldname": "department",
+      "fieldtype": "Link",
+      "label": "Department",
+      "options": "Department"
+    },
+    {
+      "default": "Task Completion",
+      "fieldname": "percent_complete_method",
+      "fieldtype": "Select",
+      "label": "% Complete Method",
+      "options": "Manual\nTask Completion\nTask Progress\nTask Weight"
+    },
+    {
+      "bold": 1,
+      "fieldname": "percent_complete",
+      "fieldtype": "Percent",
+      "label": "% Completed",
+      "no_copy": 1,
+      "read_only": 1
+    },
+    {
+      "fieldname": "project_mechanic",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Mechanic",
+      "options": "User"
+    },
+    {
+      "fieldname": "project_diagnozer",
+      "fieldtype": "Link",
+      "in_list_view": 1,
+      "label": "Diagnozer Specialist",
+      "options": "User"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "customer_details",
+      "fieldtype": "Section Break",
+      "label": "Quotation",
+      "oldfieldtype": "Section Break",
+      "options": "fa fa-user"
+    },
+    {
+      "fieldname": "customer",
+      "fieldtype": "Link",
+      "in_global_search": 1,
+      "label": "Customer",
+      "oldfieldname": "customer",
+      "oldfieldtype": "Link",
+      "options": "Customer",
+      "print_hide": 1,
+      "reqd": 1,
+      "search_index": 1
+    },
+    {
+      "fieldname": "sales_order",
+      "fieldtype": "Link",
+      "label": "Sales Order",
+      "options": "Sales Order"
+    },
+    {
+      "fieldname": "project_invoice",
+      "fieldtype": "Table",
+      "label": "Invoice",
+      "options": "Project Invoice"
+    },
+    {
+      "fieldname": "sales_invoice",
+      "fieldtype": "Link",
+      "label": "Sales Invoice",
+      "options": "Sales Invoice"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "vehicle_details",
+      "fieldtype": "Section Break",
+      "label": "PL vehicle details",
+      "oldfieldtype": "Section Break",
+      "options": "fa fa-car"
+    },
+    {
+      "fieldname": "plate",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Licence plate",
+      "reqd": 1
+    },
+    {
+      "fieldname": "brand",
+      "fieldtype": "Data",
+      "label": "Brand"
+    },
+    {
+      "fieldname": "model",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Model",
+      "search_index": 1
+    },
+    {
+      "fieldname": "hp_kw",
+      "fieldtype": "Data",
+      "label": "Hp/KW"
+    },
+    {
+      "fieldname": "engine_liters",
+      "fieldtype": "Data",
+      "label": "Engine liters"
+    },
+    {
+      "fieldname": "column_break_15",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "engine_code",
+      "fieldtype": "Data",
+      "label": "Engine code"
+    },
+    {
+      "fieldname": "dsg_model",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "DSG model",
+      "search_index": 1
+    },
+    {
+      "fieldname": "dsg_code",
+      "fieldtype": "Data",
+      "label": "DSG code"
+    },
+    {
+      "fieldname": "ecu_number",
+      "fieldtype": "Data",
+      "label": "ECU Nr."
+    },
+    {
+      "fieldname": "dsg_gearbox",
+      "fieldtype": "Data",
+      "label": "DSG gearbox"
+    },
+    {
+      "fieldname": "mechatronic",
+      "fieldtype": "Data",
+      "label": "Mechatronic"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "section_break18",
+      "fieldtype": "Section Break",
+      "label": "Actual ECU + DSG",
+      "oldfieldtype": "Section Break",
+      "options": "fa fa-list"
+    },
+    {
+      "fieldname": "actual_ecu_number",
+      "fieldtype": "Data",
+      "label": "Actual ECU Number"
+    },
+    {
+      "fieldname": "actual_ecu_software_version",
+      "fieldtype": "Data",
+      "label": "Actual ECU software version"
+    },
+    {
+      "fieldname": "column_break_19",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "actual_dsg_number_software_version",
+      "fieldtype": "Data",
+      "label": "Actual DSG number + software version"
+    },
+    {
+      "fieldname": "actual_mileage",
+      "fieldtype": "Data",
+      "label": "Actual mileage"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "users_section",
+      "fieldtype": "Section Break",
+      "label": "Users"
+    },
+    {
+      "description": "Project will be accessible on the website to these users",
+      "fieldname": "users",
+      "fieldtype": "Table",
+      "label": "Users",
+      "options": "Project User"
+    },
+    {
+      "fieldname": "copied_from",
+      "fieldtype": "Data",
+      "hidden": 1,
+      "label": "Copied From",
+      "read_only": 1
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "section_break0",
+      "fieldtype": "Section Break",
+      "ignore_user_permissions": 1,
+      "label": "Notes"
+    },
+    {
+      "fieldname": "notes",
+      "fieldtype": "Text Editor",
+      "in_list_view": 1,
+      "label": "Client Notes",
+      "print_hide": 1
+    },
+    {
+      "fieldname": "internal_notes",
+      "fieldtype": "Text Editor",
+      "ignore_user_permissions": 1,
+      "in_list_view": 1,
+      "in_preview": 1,
+      "in_standard_filter": 1,
+      "label": "Internal Notes",
+      "print_hide": 1,
+      "default": "<p><strong>Naam:</strong> <strong>Datum:</strong></p><p></p><p>Klachtomschrijving vanuit klant samengevat:</p><ul><li></li><li></li><li></li></ul><p>Recent uitgevoerde (DSG) reparaties:</p><p>KM stand laatste DSG oliewissel:</p><p>DSG/Motor getuned:Opmerkingen:</p>"
+    },
+    {
+      "fieldname": "client_description",
+      "fieldtype": "Text Editor",
+      "in_list_view": 1,
+      "label": "Problem description"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "client_state_detail",
+      "fieldtype": "Section Break",
+      "label": "Client vehicle state",
+      "oldfieldtype": "Section Break",
+      "options": "fa fa-car"
+    },
+    {
+      "fieldname": "client_engine_state",
+      "fieldtype": "Data",
+      "label": "Current engine state"
+    },
+    {
+      "fieldname": "column_break_16",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "client_dsg_state",
+      "fieldtype": "Data",
+      "label": "Current DSG state"
+    },
+    {
+      "fieldname": "column_break_17",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "client_mileage_state",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Current mileage state"
+    },
+    {
+      "fieldname": "team_viewer_id",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Teamviewer ID"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "section_break2",
+      "fieldtype": "Section Break",
+      "label": "Diagnose",
+      "options": "fa fa-list"
+    },
+    {
+      "default": "<p><strong>Diagnose door:</strong> <strong>Datum:</strong></p><p><strong>Goedkeur door:</strong> <strong>Datum:</strong></p><p></p><p>Opgemerkte klachten:</p><ul><li></li><li></li><li></li></ul><p>Diagnose data bijzonderheden:</p><ul><li></li><li></li><li></li></ul><p>Reparatie advies:</p><ul><li></li><li></li><li></li></ul>",
+      "fieldname": "diagnose_result",
+      "fieldtype": "Text Editor",
+      "label": "Diagnose result"
+    },
+    {
+      "fieldname": "diagnose_modified",
+      "fieldtype": "Datetime",
+      "label": "Last Diagnose Update",
+      "read_only": 1
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "section_break_18",
+      "fieldtype": "Section Break",
+      "label": "Start and End Dates"
+    },
+    {
+      "fieldname": "actual_start_date",
+      "fieldtype": "Date",
+      "label": "Actual Start Date (via Time Sheet)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "actual_time",
+      "fieldtype": "Float",
+      "label": "Actual Time (in Hours via Time Sheet)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_20",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "actual_end_date",
+      "fieldtype": "Date",
+      "label": "Actual End Date (via Time Sheet)",
+      "oldfieldname": "act_completion_date",
+      "oldfieldtype": "Date",
+      "read_only": 1
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "project_details",
+      "fieldtype": "Section Break",
+      "label": "Costing and Billing",
+      "oldfieldtype": "Section Break",
+      "options": "fa fa-money"
+    },
+    {
+      "fieldname": "estimated_costing",
+      "fieldtype": "Currency",
+      "in_list_view": 1,
+      "label": "Estimated Cost",
+      "oldfieldname": "project_value",
+      "oldfieldtype": "Currency",
+      "options": "Company:company:default_currency"
+    },
+    {
+      "fieldname": "total_costing_amount",
+      "fieldtype": "Currency",
+      "label": "Total Costing Amount (via Timesheets)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_purchase_cost",
+      "fieldtype": "Currency",
+      "label": "Total Purchase Cost (via Purchase Invoice)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "remember_last_selected_value": 1,
+      "reqd": 1
+    },
+    {
+      "fieldname": "column_break_28",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "total_sales_amount",
+      "fieldtype": "Currency",
+      "label": "Total Sales Amount (via Sales Order)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_billable_amount",
+      "fieldtype": "Currency",
+      "label": "Total Billable Amount (via Timesheets)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_billed_amount",
+      "fieldtype": "Currency",
+      "label": "Total Billed Amount (via Sales Invoices)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "total_consumed_material_cost",
+      "fieldtype": "Currency",
+      "label": "Total Consumed Material Cost  (via Stock Entry)",
+      "read_only": 1
+    },
+    {
+      "fieldname": "cost_center",
+      "fieldtype": "Link",
+      "label": "Default Cost Center",
+      "options": "Cost Center"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "margin",
+      "fieldtype": "Section Break",
+      "label": "Margin",
+      "oldfieldtype": "Column Break",
+      "width": "50%"
+    },
+    {
+      "fieldname": "gross_margin",
+      "fieldtype": "Currency",
+      "label": "Gross Margin",
+      "oldfieldname": "gross_margin_value",
+      "oldfieldtype": "Currency",
+      "options": "Company:company:default_currency",
+      "read_only": 1
+    },
+    {
+      "fieldname": "column_break_37",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "per_gross_margin",
+      "fieldtype": "Percent",
+      "label": "Gross Margin %",
+      "oldfieldname": "per_gross_margin",
+      "oldfieldtype": "Currency",
+      "read_only": 1
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "monitor_progress",
+      "fieldtype": "Section Break",
+      "label": "Monitor Progress"
+    },
+    {
+      "default": "0",
+      "fieldname": "collect_progress",
+      "fieldtype": "Check",
+      "label": "Collect Progress"
+    },
+    {
+      "depends_on": "collect_progress",
+      "fieldname": "holiday_list",
+      "fieldtype": "Link",
+      "label": "Holiday List",
+      "options": "Holiday List"
+    },
+    {
+      "depends_on": "eval:doc.collect_progress == true",
+      "fieldname": "frequency",
+      "fieldtype": "Select",
+      "label": "Frequency To Collect Progress",
+      "options": "Hourly\nTwice Daily\nDaily\nWeekly"
+    },
+    {
+      "depends_on": "eval:(doc.frequency == \"Hourly\" && doc.collect_progress)",
+      "fieldname": "from_time",
+      "fieldtype": "Time",
+      "label": "From Time"
+    },
+    {
+      "depends_on": "eval:(doc.frequency == \"Hourly\" && doc.collect_progress)",
+      "fieldname": "to_time",
+      "fieldtype": "Time",
+      "label": "To Time"
+    },
+    {
+      "depends_on": "eval:(doc.frequency == \"Twice Daily\" && doc.collect_progress == true)\n\n",
+      "fieldname": "first_email",
+      "fieldtype": "Time",
+      "label": "First Email"
+    },
+    {
+      "depends_on": "eval:(doc.frequency == \"Twice Daily\" && doc.collect_progress == true)",
+      "fieldname": "second_email",
+      "fieldtype": "Time",
+      "label": "Second Email"
+    },
+    {
+      "depends_on": "eval:(doc.frequency == \"Daily\" && doc.collect_progress == true)",
+      "fieldname": "daily_time_to_send",
+      "fieldtype": "Time",
+      "label": "Daily Time to send"
+    },
+    {
+      "depends_on": "eval:(doc.frequency == \"Weekly\" && doc.collect_progress == true)",
+      "fieldname": "day_to_send",
+      "fieldtype": "Select",
+      "label": "Day to Send",
+      "options": "Monday\nTuesday\nWednesday\nThursday\nFriday\nSaturday\nSunday"
+    },
+    {
+      "depends_on": "eval:(doc.frequency == \"Weekly\" && doc.collect_progress == true)",
+      "fieldname": "weekly_time_to_send",
+      "fieldtype": "Time",
+      "label": "Weekly Time to send"
+    },
+    {
+      "fieldname": "column_break_45",
+      "fieldtype": "Column Break"
+    },
+    {
+      "depends_on": "collect_progress",
+      "description": "Message will be sent to the users to get their status on the Project",
+      "fieldname": "message",
+      "fieldtype": "Text",
+      "label": "Message",
+      "mandatory_depends_on": "collect_progress"
+    },
+    {
+      "fieldname": "naming_series",
+      "fieldtype": "Select",
+      "label": "Series",
+      "no_copy": 1,
+      "options": "PROJ-.####",
+      "print_hide": 1,
+      "reqd": 1,
+      "set_only_once": 1
+    },
+    {
+      "fieldname": "parking_date",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Parking Date",
+      "oldfieldtype": "Data"
+    },
+    {
+      "default": "0",
+      "fieldname": "assistant_confirmed",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Assistant Confirmed"
+    },
+    {
+      "fieldname": "bring_car_date",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "Bring Car Date"
+    },
+    {
+      "fieldname": "vin",
+      "fieldtype": "Data",
+      "in_list_view": 1,
+      "label": "VIN"
+    },
+    {
+      "default": "0",
+      "description": "This option prevents this job card move the queue line (when complete).",
+      "fieldname": "done",
+      "fieldtype": "Check",
+      "label": "freeze queue position"
+    },
+    {
+      "fieldname": "appointment_date",
+      "fieldtype": "Date",
+      "in_list_view": 1,
+      "label": "Fixed appointment date"
+    },
+    {
+      "fieldname": "status_modified",
+      "fieldtype": "Date",
+      "hidden": 1,
+      "in_list_view": 1,
+      "label": "status_modified"
+    },
+    {
+      "fieldname": "attachments",
+      "fieldtype": "Section Break",
+      "label": "Attachments"
+    },
+    {
+      "fieldname": "html_pybn",
+      "fieldtype": "HTML"
+    },
+    {
+      "default": "0",
+      "fieldname": "test_drive_terms_and_conditions",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Test drive terms and conditions"
+    },
+    {
+      "default": "0",
+      "fieldname": "dongle_tested",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Dongle tested"
+    },
+    {
+      "fieldname": "price_agreement",
+      "fieldtype": "Currency",
+      "label": "Price agreement",
+      "options": "Company:company:default_currency"
+    },
+    {
+      "fetch_if_empty": 1,
+      "fieldname": "appointment_time",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_preview": 1,
+      "label": "Fixed appointment time",
+      "options": "\n9:00-9:30\n9:30-10:00\n10:00-10:30\n10:30-11:00\n11:00-11:30\n11:30-12:00\n12:00-12:30\n12:30-13:00\n13:00-13:30\n13:30-14:00\n14:00-14:30\n14:30-15:00\n15:00-15:30\n15:30-16:00\n16:00-16:30\n16:30-17:00\n17:00-17:30\n17:30-18:00"
+    },
+    {
+      "collapsible": 1,
+      "fieldname": "client_requirements_section",
+      "fieldtype": "Section Break",
+      "label": "Client Requirements"
+    },
+    {
+      "fieldname": "requirements",
+      "fieldtype": "Table",
+      "label": "Requirement List",
+      "options": "Client Requirements"
+    },
+    {
+      "fieldname": "pickup",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "label": "Dropoff - Pickup service",
+      "options": "\nDropoff service\nPickup service\nDropoff service arranged\nPickup service arranged\nReady",
+      "translatable": 1
+    },
+    {
+      "default": "0",
+      "fieldname": "terms_and_conditions_accepted",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Terms and Conditions accepted"
+    },
+    {
+      "fieldname": "model_year",
+      "fieldtype": "Data",
+      "label": "Model year"
+    },
+    {
+      "fieldname": "transmission_code",
+      "fieldtype": "Data",
+      "label": "Transmission Code"
+    },
+    {
+      "default": "0",
+      "fieldname": "sent_software_offer",
+      "fieldtype": "Check",
+      "in_list_view": 1,
+      "label": "Sent Software Offer"
+    },
+    {
+      "description": "Remote Diagnostic Time",
+      "fetch_if_empty": 1,
+      "fieldname": "remote_diagnose_status",
+      "fieldtype": "Select",
+      "in_list_view": 1,
+      "in_preview": 1,
+      "label": "R.D Status",
+      "options": "\nRemote diagnose\nIn diagnosis\nAfter diagnosis"
+    }
+  ],
+  "grid_page_length": 50,
+  "icon": "fa fa-puzzle-piece",
+  "idx": 29,
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "max_attachments": 4,
+  "modified": "2025-12-05 20:17:39.568792",
+  "modified_by": "Administrator",
+  "module": "Projects",
+  "name": "Project",
+  "naming_rule": "By \"Naming Series\" field",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Projects User",
+      "select": 1,
+      "share": 1,
+      "write": 1
+    },
+    {
+      "permlevel": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Desk User"
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "Projects Manager",
+      "select": 1,
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "System Manager",
+      "select": 1,
+      "share": 1,
+      "write": 1
+    },
+    {
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "report": 1,
+      "role": "Employee",
+      "select": 1,
+      "share": 1
+    }
+  ],
+  "quick_entry": 1,
+  "row_format": "Dynamic",
+  "search_fields": "project_name,customer, status",
+  "show_name_in_global_search": 1,
+  "sort_field": "queue_position",
+  "sort_order": "DESC",
+  "states": [],
+  "timeline_field": "customer",
+  "title_field": "project_name",
+  "track_seen": 1
 }
