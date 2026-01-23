@@ -54,7 +54,7 @@ frappe.ui.form.on("Customer", {
 						if (response.isValid) {
 							let tax_category = response.outsideEU ? TAX_CATEGORY.Non_EU : TAX_CATEGORY.EU;
 							frm.set_value("customer_group", "Garage");
-							frm.set_value("tax_category", tax_category);
+							frm.set_value("tax_category", tax_category); // EU: "Omzet Werkplaats (21%)" 	Non_EU: "Outside EU"
 							frm.set_value("customer_type", "Company");
 							frm.save();
 						}
