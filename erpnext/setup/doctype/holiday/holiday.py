@@ -27,13 +27,16 @@ class Holiday(Document):
 	pass
 
 @frappe.whitelist()
-def get_holiday_list() -> list[dict]:
+def get_holiday_list(holiday_list: str = None) -> list[dict]:
+
+	if not holiday_list:
+		holiday_list = "Nederlands holidays"
 
 	holiday_lists = frappe.get_list(
 		"Holiday",
 		fields=["holiday_date"],
 		ignore_permissions=True,
-		filters=[['holiday_date', ">", date.today()]],
+		filters=[['holiday_date', ">", date.today()], ['parent', "=", holiday_list]],
 		pluck="holiday_date"
 	)
 
