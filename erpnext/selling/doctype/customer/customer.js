@@ -6,6 +6,42 @@ const TAX_CATEGORY = {
 	Non_EU: "Outside EU"
 };
 
+async function update_customer_addresses_tax_category(frm, tax_category) {
+	if (!frm?.doc?.name || !tax_category) return;
+
+	const address_name_like = `%${frm.doc.name}%`;
+
+	const res = await frappe.call({
+		method: "frappe.client.get_list",
+		args: {
+			doctype: "Address",
+			filters: {
+				name: ["like", address_name_like]
+			},
+			fields: ["name", "tax_category"],
+			limit_page_length: 100
+		}
+	});
+
+	const addresses = res?.message || [];
+	if (!addresses.length) return;
+	await Promise.all(
+		addresses
+			.filter(addr => addr.name && addr.tax_category !== tax_category)
+			.map(addr =>
+				frappe.call({
+					method: "frappe.client.set_value",
+					args: {
+						doctype: "Address",
+						name: addr.name,
+						fieldname: "tax_category",
+						value: tax_category
+					}
+				})
+			)
+	);
+}
+
 frappe.ui.form.on("Customer", {
 	vat_validation: async function(frm) {
 		if (!frm.doc.tax_id) {
@@ -49,14 +85,15 @@ frappe.ui.form.on("Customer", {
 						}
 					],
 					primary_action_label: __("Update Customer Group and Tax Category"),
-					primary_action: function() {
+					primary_action: async function() {
 						// Update customer information if validation is successful
 						if (response.isValid) {
 							let tax_category = response.outsideEU ? TAX_CATEGORY.Non_EU : TAX_CATEGORY.EU;
 							frm.set_value("customer_group", "Garage");
 							frm.set_value("tax_category", tax_category); // EU: "Omzet Werkplaats (21%)" 	Non_EU: "Outside EU"
 							frm.set_value("customer_type", "Company");
-							frm.save();
+							await update_customer_addresses_tax_category(frm, tax_category);
+							await frm.save();
 						}
 
 						dialog.hide();
