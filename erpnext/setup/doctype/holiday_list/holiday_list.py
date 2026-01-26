@@ -41,8 +41,13 @@ class HolidayList(Document):
 	# end: auto-generated types
 
 	def before_save(self):
+		print("self", self.name)
 		config = frappe.get_single("Whatsapp Config")
 		aws_url = config.aws_url
+		
+		if self.name == "Remote diagnosis blocked":
+			return
+
 		old_rows = set()
 		if self.get_doc_before_save():
 			old_rows = {str(row.holiday_date) for row in self.get_doc_before_save().get("holidays")}
@@ -52,7 +57,7 @@ class HolidayList(Document):
 		added_rows = new_rows - old_rows
 		deleted_rows = old_rows - new_rows
 
-		if added_rows:
+		if added_rows :
 			for row in added_rows:
 				self.switch_holiday_status(row, aws_url)
 
