@@ -2,7 +2,8 @@
 // License: GNU General Public License v3. See license.txt
 
 const TAX_CATEGORY = {
-	EU: "Omzet Werkplaats (21%)",
+	NL: "Omzet Werkplaats (21%)",
+	EU_Zero: "Omzet Werkplaats (0%)",
 	Non_EU: "Outside EU"
 };
 
@@ -88,9 +89,15 @@ frappe.ui.form.on("Customer", {
 					primary_action: async function() {
 						// Update customer information if validation is successful
 						if (response.isValid) {
-							let tax_category = response.outsideEU ? TAX_CATEGORY.Non_EU : TAX_CATEGORY.EU;
+							let tax_category = TAX_CATEGORY.Non_EU;
+							if (!response.outsideEU) {
+								const isNL =
+									response.vatNumber && response.vatNumber.toUpperCase().startsWith("NL");
+								tax_category = isNL ? TAX_CATEGORY.NL : TAX_CATEGORY.EU_Zero;
+							}
+
 							frm.set_value("customer_group", "Garage");
-							frm.set_value("tax_category", tax_category); // EU: "Omzet Werkplaats (21%)" 	Non_EU: "Outside EU"
+							frm.set_value("tax_category", tax_category); // NL: "Omzet Werkplaats (21%)" EU: "Omzet Werkplaats (0%)" Non_EU: "Outside EU"
 							frm.set_value("customer_type", "Company");
 							await update_customer_addresses_tax_category(frm, tax_category);
 							await frm.save();
@@ -122,7 +129,11 @@ frappe.ui.form.on("Customer", {
 				// Set company details HTML
 				let company_details = "";
 				if (response.isValid) {
-					let tax_category = response.outsideEU ? TAX_CATEGORY.Non_EU : TAX_CATEGORY.EU;
+					let tax_category = TAX_CATEGORY.Non_EU;
+					if (!response.outsideEU) {
+						const isNL = response.vatNumber && response.vatNumber.toUpperCase().startsWith("NL");
+						tax_category = isNL ? TAX_CATEGORY.NL : TAX_CATEGORY.EU_Zero;
+					}
 					company_details = `
                     <div class="row">
                         <div class="col-xs-12">
