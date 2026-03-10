@@ -310,7 +310,7 @@ function createPaymentConfirmationDialog(frm, data, manual_payment_details) {
 
 
            <div class="form-group">
-              <div class="payment-details-table" style="max-height: 300px; overflow-y: auto;">
+              <div class="payment-details-table" style="max-height: 600px; overflow-y: auto;">
                 <table class="table table-bordered table-hover">
                   <thead>
                     <tr>
