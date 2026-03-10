@@ -54,6 +54,7 @@
 .frappe-control[data-fieldname="result_html"] {
 	overflow: scroll;
 }
+
 .assessment-result-tool {
 	table-layout: fixed;
 
@@ -86,7 +87,7 @@ body[data-route="pos"] {
 	}
 
 	.pos-bill-item:hover,
-	.list-customers-table > .pos-list-row:hover {
+	.list-customers-table>.pos-list-row:hover {
 		background-color: #f5f7fa;
 		cursor: pointer;
 	}
@@ -95,7 +96,7 @@ body[data-route="pos"] {
 		display: inline-block;
 	}
 
-	.pos-qty-row > div {
+	.pos-qty-row>div {
 		padding: 5px 0px;
 	}
 
@@ -209,7 +210,7 @@ body[data-route="pos"] {
 	.numeric_keypad {
 		margin-left: -15px;
 
-		& > .row > button {
+		&>.row>button {
 			border: none;
 			border-right: 1px solid var(--border-color);
 			border-bottom: 1px solid var(--border-color);
@@ -219,7 +220,7 @@ body[data-route="pos"] {
 			}
 		}
 
-		& > .row:first-child > button {
+		&>.row:first-child>button {
 			border-top: 1px solid var(--border-color);
 		}
 	}
@@ -257,13 +258,16 @@ body[data-route="pos"] {
 		.amount-row h3 {
 			font-size: 15px;
 		}
+
 		.pos-keyboard-key,
 		.delete-btn {
 			height: 50px;
 		}
+
 		.multimode-payments {
 			padding-left: 15px;
 		}
+
 		.payment-toolbar {
 			padding-right: 15px;
 		}
@@ -404,7 +408,7 @@ body[data-route="pos"] {
 			padding-top: 0;
 		}
 
-		& > .pos-list-row {
+		&>.pos-list-row {
 			border: none;
 
 			@media (max-width: var(--xl-width)) {
@@ -526,9 +530,11 @@ body[data-route="pos"] {
 		-webkit-transform: scale(0.1, 0.1);
 		opacity: 0;
 	}
+
 	50% {
 		opacity: 1;
 	}
+
 	100% {
 		-webkit-transform: scale(1.2, 1.2);
 		opacity: 0;
@@ -596,7 +602,7 @@ body[data-route="pos"] {
 
 //Attachments carousel
 
-.glider-iframe{
+.glider-iframe {
 	width: 100%;
 	height: 100%;
 	border: none;
@@ -612,8 +618,12 @@ body[data-route="pos"] {
 	margin: 0 8px;
 }
 
-#touch-overlay{
-	position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+#touch-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
 }
 
 .video-container {
@@ -621,6 +631,7 @@ body[data-route="pos"] {
 	overflow: hidden;
 	position: relative;
 }
+
 .video-container video {
 	position: absolute;
 	top: 50%;
@@ -633,64 +644,27 @@ body[data-route="pos"] {
 
 .selected-attachment {
 	position: fixed;
-	top: 0;left:0;
-	z-index:10000;
-	width:100%;
-	height:100vh;
-	max-height:100vh;
-	display:flex;
-	background:rgba(0, 0, 0, 0.3);
+	top: 0;
+	left: 0;
+	z-index: 10000;
+	width: 100%;
+	height: 100vh;
+	max-height: 100vh;
+	display: flex;
+	background: rgba(0, 0, 0, 0.3);
 
-	img{
-		width:100%;
-		max-height:100vh;
-		object-fit:contain;
+	img {
+		width: 100%;
+		max-height: 100vh;
+		object-fit: contain;
 	}
 }
 
-#show-icons {
-	position: fixed;
-	bottom: 1.2rem;
-	right: 9.5rem;
-	width: 30px;
-	height: 30px;
-	cursor: pointer;
-	background: none;
-	border: none;
-	padding: 0px;
-	background: white;
-	z-index: 10;
 
-	#tools-icon {
+@media (max-width: 767px) {
+	.zoom-container {
 		display: none;
 	}
-
-	svg {
-		height: 1rem;
-		width: 1rem;
-		margin: 0 auto;
-	}
-
-	&.close-icon-container{
-		right: 1rem !important;
-		width: 30px;
-		height: 30px;
-		border: 1px solid rgb(31, 41, 55);
-		bottom: 1rem;
-
-		#close-icon {
-			display: none;
-		}
-
-		#tools-icon {
-			display: block;
-		}
-	}
-}
-@media (max-width: 767px) {
-    .zoom-container {
-        display: none;
-    }
 }
 
 .vin-search-spinner {
@@ -706,8 +680,13 @@ body[data-route="pos"] {
 }
 
 @keyframes spin {
-	0% { transform: rotate(0deg); }
-	100% { transform: rotate(360deg); }
+	0% {
+		transform: rotate(0deg);
+	}
+
+	100% {
+		transform: rotate(360deg);
+	}
 }
 
 #chat-container {
@@ -715,31 +694,31 @@ body[data-route="pos"] {
 }
 
 .flag {
-  cursor: pointer;
-  display: inline-block;
-  background-repeat: no-repeat;
-  background-size: 5762px 15px;
-  height: 15px;
-  width: 20px;
-  background-image: url('https://chat-bot-prod-chat-files.s3.us-east-2.amazonaws.com/flags%402x.webp')
+	cursor: pointer;
+	display: inline-block;
+	background-repeat: no-repeat;
+	background-size: 5762px 15px;
+	height: 15px;
+	width: 20px;
+	background-image: url('https://chat-bot-prod-chat-files.s3.us-east-2.amazonaws.com/flags%402x.webp')
 }
 
-.en{
-  background-position: -1841px
+.en {
+	background-position: -1841px
 }
 
 .es {
-  background-position: -1577px
+	background-position: -1577px
 }
 
 .nl {
-  background-position: -3818px
+	background-position: -3818px
 }
 
 .uk {
-  background-position: -5263px;
+	background-position: -5263px;
 }
 
 .de {
-  background-position: -1291px
+	background-position: -1291px
 }
