@@ -1126,16 +1126,13 @@ frappe.ui.form.on('Sales Invoice', {
 	},
 
 	is_return: function(frm) {
-		console.log("===================> is credit note.");
 		if (frm.doc.is_return && frm.doc.docstatus === 0) {
-			console.log("===================> changing taxes value: On net total");
 			(frm.doc.taxes || []).forEach(row => {
-				console.log("Checking tax row:", row.charge_type, row.account_head);
 				if (row.charge_type === "Actual") {
-					console.log("Changing Actual to On Net Total for:", row.account_head);
 					frappe.model.set_value(row.doctype, row.name, "charge_type", "On Net Total");
 				}
 			});
+			frm.script_manager.trigger('taxes_and_charges');
 			frm.trigger("calculate_taxes_and_totals");
 		}
 	},
