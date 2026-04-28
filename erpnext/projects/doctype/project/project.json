@@ -21,6 +21,7 @@
   "language",
   "has_dongle",
   "dongle_tested",
+  "lane",
   "column_break_5",
   "project_template",
   "parts_status",
@@ -992,6 +993,11 @@
    "in_preview": 1,
    "label": "R.D Status",
    "options": "\nRemote diagnose\nIn diagnosis\nAfter diagnosis"
+  },
+  {
+   "fieldname": "lane",
+   "fieldtype": "Data",
+   "label": "Lane"
   }
  ],
  "grid_page_length": 50,
@@ -1000,7 +1006,7 @@
  "index_web_pages_for_search": 1,
  "links": [],
  "max_attachments": 4,
- "modified": "2026-01-30 16:04:21.908214",
+ "modified": "2026-04-28 22:08:52.858874",
  "modified_by": "Administrator",
  "module": "Projects",
  "name": "Project",
