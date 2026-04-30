@@ -1,80 +1,105 @@
 {
- "actions": [],
- "allow_rename": 1,
- "creation": "2024-01-31 21:39:07.693353",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "auto_move_paused",
-  "vacations_mode",
-  "aws_url",
-  "cars_per_day",
-  "job_workload_status"
- ],
- "fields": [
-  {
-   "default": "0",
-   "fieldname": "auto_move_paused",
-   "fieldtype": "Check",
-   "label": "Pause move queue line on complete job card."
-  },
-  {
-   "fieldname": "aws_url",
-   "fieldtype": "Data",
-   "label": "aws url"
-  },
-  {
-   "fieldname": "job_workload_status",
-   "fieldtype": "Table",
-   "label": "Job Workload Status",
-   "options": "Job Workload Item"
-  },
-  {
-   "default": "4",
-   "fieldname": "cars_per_day",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Cars per day",
-   "reqd": 1
-  },
-  {
-   "default": "0",
-   "fieldname": "vacations_mode",
-   "fieldtype": "Check",
-   "label": "Vacations mode"
-  }
- ],
- "grid_page_length": 50,
- "index_web_pages_for_search": 1,
- "issingle": 1,
- "links": [],
- "modified": "2025-07-28 21:52:58.006449",
- "modified_by": "Administrator",
- "module": "Projects",
- "name": "Queue Settings",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "role": "All",
-   "share": 1
-  }
- ],
- "row_format": "Dynamic",
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+    "actions": [],
+    "allow_rename": 1,
+    "creation": "2024-01-31 21:39:07.693353",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "auto_move_paused",
+        "vacations_mode",
+        "aws_url",
+        "lanes_enabled",
+        "sb_lanes",
+        "fast_cars_per_day",
+        "heavy_cars_per_day",
+        "sb_workload",
+        "job_workload_status"
+    ],
+    "fields": [
+        {
+            "default": "0",
+            "fieldname": "auto_move_paused",
+            "fieldtype": "Check",
+            "label": "Pause move queue line on complete job card."
+        },
+        {
+            "fieldname": "aws_url",
+            "fieldtype": "Data",
+            "label": "aws url"
+        },
+        {
+            "fieldname": "job_workload_status",
+            "fieldtype": "Table",
+            "label": "Job Workload Status",
+            "options": "Job Workload Item"
+        },
+        {
+            "default": "0",
+            "fieldname": "lanes_enabled",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "Lanes Enabled"
+        },
+        {
+            "fieldname": "sb_lanes",
+            "fieldtype": "Section Break",
+            "label": "Lanes"
+        },
+        {
+            "default": "0",
+            "fieldname": "fast_cars_per_day",
+            "fieldtype": "Data",
+            "label": "Fast Cars per Day"
+        },
+        {
+            "default": "0",
+            "fieldname": "heavy_cars_per_day",
+            "fieldtype": "Data",
+            "label": "Heavy Cars per Day"
+        },
+        {
+            "fieldname": "sb_workload",
+            "fieldtype": "Section Break",
+            "label": "Workload Status"
+        },
+        {
+            "default": "0",
+            "fieldname": "vacations_mode",
+            "fieldtype": "Check",
+            "label": "Vacations mode"
+        }
+    ],
+    "grid_page_length": 50,
+    "index_web_pages_for_search": 1,
+    "issingle": 1,
+    "links": [],
+    "modified": "2026-04-30 21:08:14.363762",
+    "modified_by": "Administrator",
+    "module": "Projects",
+    "name": "Queue Settings",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "print": 1,
+            "read": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "print": 1,
+            "read": 1,
+            "role": "All",
+            "share": 1
+        }
+    ],
+    "row_format": "Dynamic",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "track_changes": 1
 }
