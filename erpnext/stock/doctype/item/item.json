@@ -260,7 +260,6 @@
    "label": "Opening Stock"
   },
   {
-   "depends_on": "is_stock_item",
    "fieldname": "valuation_rate",
    "fieldtype": "Currency",
    "label": "Retail price"
@@ -1073,7 +1072,7 @@
  "image_field": "image",
  "links": [],
  "make_attachments_public": 1,
- "modified": "2025-02-03 23:43:57.253667",
+ "modified": "2026-02-23 22:38:43.975535",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Item",
@@ -1138,6 +1137,7 @@
   }
  ],
  "quick_entry": 1,
+ "row_format": "Dynamic",
  "search_fields": "item_name,description,item_group,customer_code",
  "show_name_in_global_search": 1,
  "show_preview_popup": 1,
