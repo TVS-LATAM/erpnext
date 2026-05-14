@@ -778,61 +778,12 @@ async function insertVinSearchButton(frm) {
 	button.addEventListener('click', async function () {
 		button.setAttribute('hidden', 'true')
 		spinner.removeAttribute('hidden')
-		const { vin_search_url } = await frappe.db.get_doc('Vin Search')
-
-		const data = await fetch(`${vin_search_url}/${frm.doc.vin}`).then(response => response.json()).catch(error => {
-			frappe.throw(__('Error', error));
-		})
-			.finally(() => {
-				button.removeAttribute('hidden')
-				spinner.setAttribute('hidden', 'true')
-			});
-
-		if (data.errors) {
-			frappe.show_alert({
-				message: __(`${data.errors}`),
-				indicator: 'red'
-			}, 5);
-
-			if (!data.vehicle_identification_no) {
-				return
-			}
+		try {
+			await fetchAndPopulateVinData(frm, frm.doc.vin);
+		} finally {
+			button.removeAttribute('hidden')
+			spinner.setAttribute('hidden', 'true')
 		}
-
-		const partsObject = {};
-
-		data.parts?.forEach(part => {
-			partsObject[part.name] = part.partNumber;
-		});
-		frm.set_value({
-			vin: data.vehicle_identification_no,
-			model: data.model,
-			model_year: data.year,
-			brand: data.make,
-			engine_liters: data.engine_liters,
-			engine_code: data.engine_code,
-			dsg_model: data.dsg_family || (data.dsg ? data.dsg[0] : ''),
-			dsg_code: data.dsg_code,
-			ecu_number: data.ecu_code,
-			sales_type: data.sales_type,
-			date_of_production: data.date_of_production,
-			axle_drive: data.axle_drive,
-			equipment: data.equipment,
-			roof_color: data.roof_color,
-			exterior_color_paint_code: data.exterior_color_paint_code,
-			model_description: data.model_description,
-			gearbox_code: data.gearbox_code,
-			dsg_family: data.dsg_family,
-			transmission_code: data.transmission_code ?? "",
-
-			dsg_gearbox: partsObject["gearbox"] ?? partsObject["speed dual clutch gearbox"] ?? "",
-			mechatronic: partsObject["mechatronic"] ?? partsObject["mechatronic with software"] ?? "",
-			flywheel: partsObject["flywheel"] ?? "",
-			clutch: partsObject["clutch"] ?? partsObject["repair set for multi-coupling"] ?? "",
-		}).then(() => {
-			frm.save();
-		});
-
 	});
 
 	button.appendChild(iconSpan);
@@ -840,6 +791,124 @@ async function insertVinSearchButton(frm) {
 	container.appendChild(tooltip);
 	container.appendChild(spinner);
 
+	insertVinCameraButton(frm, container);
+}
+
+async function fetchAndPopulateVinData(frm, vin) {
+	if (!vin) return;
+
+	const { vin_search_url } = await frappe.db.get_doc('Vin Search');
+
+	const data = await fetch(`${vin_search_url}/${vin}`).then(response => response.json()).catch(error => {
+		frappe.throw(__('Error', error));
+	});
+
+	if (data.errors) {
+		frappe.show_alert({
+			message: __(`${data.errors}`),
+			indicator: 'red'
+		}, 5);
+
+		if (!data.vehicle_identification_no) return;
+	}
+
+	const partsObject = {};
+	data.parts?.forEach(part => {
+		partsObject[part.name] = part.partNumber;
+	});
+
+	await frm.set_value({
+		vin: data.vehicle_identification_no,
+		model: data.model,
+		model_year: data.year,
+		brand: data.make,
+		engine_liters: data.engine_liters,
+		engine_code: data.engine_code,
+		dsg_model: data.dsg_family || (data.dsg ? data.dsg[0] : ''),
+		dsg_code: data.dsg_code,
+		ecu_number: data.ecu_code,
+		sales_type: data.sales_type,
+		date_of_production: data.date_of_production,
+		axle_drive: data.axle_drive,
+		equipment: data.equipment,
+		roof_color: data.roof_color,
+		exterior_color_paint_code: data.exterior_color_paint_code,
+		model_description: data.model_description,
+		gearbox_code: data.gearbox_code,
+		dsg_family: data.dsg_family,
+		transmission_code: data.transmission_code ?? "",
+
+		dsg_gearbox: partsObject["gearbox"] ?? partsObject["speed dual clutch gearbox"] ?? "",
+		mechatronic: partsObject["mechatronic"] ?? partsObject["mechatronic with software"] ?? "",
+		flywheel: partsObject["flywheel"] ?? "",
+		clutch: partsObject["clutch"] ?? partsObject["repair set for multi-coupling"] ?? "",
+	});
+
+	await frm.save();
+}
+
+async function insertVinCameraButton(frm, container) {
+	if (document.getElementById('vinCamera')) return;
+
+	const { aws_url } = await frappe.db.get_doc('Rest Config');
+
+	const cameraButton = document.createElement('button');
+	cameraButton.id = 'vinCamera';
+	cameraButton.style = 'border:none;background:black;padding:2px;color:white;border-radius:5px;position:relative;margin-left:4px;';
+	cameraButton.title = 'Scan VIN from photo';
+
+	cameraButton.innerHTML = `
+	<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+		<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+		<circle cx="12" cy="13" r="4"/>
+	</svg>`;
+
+	const fileInput = document.createElement('input');
+	fileInput.type = 'file';
+	fileInput.accept = 'image/*';
+	fileInput.capture = 'environment';
+	fileInput.style = 'display:none;';
+
+	fileInput.addEventListener('change', async function () {
+		const file = fileInput.files[0];
+		if (!file) return;
+
+		cameraButton.setAttribute('disabled', 'true');
+		cameraButton.style.opacity = '0.5';
+
+		try {
+			const binaryData = await file.arrayBuffer();
+			const response = await fetch(`${aws_url}/image-rekognition`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/octet-stream' },
+				body: binaryData
+			});
+
+			if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+			const data = await response.json();
+
+			if (!data.vin) {
+				frappe.show_alert({ message: __('Could not detect a VIN in the image'), indicator: 'red' }, 5);
+				return;
+			}
+
+			frappe.show_alert({ message: __('VIN detected: ') + data.vin, indicator: 'green' }, 4);
+
+			await fetchAndPopulateVinData(frm, data.vin);
+		} catch (err) {
+			frappe.show_alert({ message: __('Image recognition failed: ') + err.message, indicator: 'red' }, 5);
+		} finally {
+			cameraButton.removeAttribute('disabled');
+			cameraButton.style.opacity = '1';
+			fileInput.value = '';
+		}
+	});
+
+	cameraButton.addEventListener('click', () => fileInput.click());
+
+	container.appendChild(cameraButton);
+	container.appendChild(fileInput);
 }
 
 function showSentMessageAfterRemoteDiagnoseDialog(project_name) {
