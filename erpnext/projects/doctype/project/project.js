@@ -327,11 +327,15 @@ frappe.ui.form.on("Project", {
 		if (new_value === "Completed") {
 			const loan_car = await frappe.db.get_list('Loan car', { fields: ["name", "status"], filters: [["project", "=", frm.docname], ["status", "!=", "Paid"], ["status", "!=", "Done"], ["status", "!=", "Cancelled"]] })
 
-			if (!loan_car.length) return
+			if (loan_car.length) {
+				frm.undo_manager.undo();
+				showLoanCarNotPaidAlert(loan_car[0]);
+				return;
+			}
+		}
 
-			frm.undo_manager.undo();
-
-			showLoanCarNotPaidAlert(loan_car[0])
+		if (["Completed", "Cancelled", "No response from customer"].includes(new_value)) {
+			showDoneStatusQueueDialog(frm, new_value);
 		}
 
 		if (new_value === "In parking") {
@@ -365,6 +369,32 @@ function showConfirmationDialog(frm, quotations, incomplete_requirements) {
 
 	dialog.$wrapper.find('.modal-header .modal-actions').hide();
 	dialog.$wrapper.modal({ backdrop: 'static', keyboard: false })
+
+	dialog.show();
+}
+
+function showDoneStatusQueueDialog(frm, new_status) {
+	const dialog = new frappe.ui.Dialog({
+		title: 'Confirm',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				options: `<p>Moving this project to <strong>${new_status}</strong> will update queue positions and customers in the queue will be notified. Are you sure you want to proceed?</p>`
+			}
+		],
+		primary_action_label: 'Confirm',
+		primary_action: function () {
+			dialog.hide();
+		},
+		secondary_action_label: 'Cancel',
+		secondary_action: function () {
+			frm.undo_manager.undo();
+			dialog.hide();
+		}
+	});
+
+	dialog.$wrapper.find('.modal-header .modal-actions').hide();
+	dialog.$wrapper.modal({ backdrop: 'static', keyboard: false });
 
 	dialog.show();
 }
