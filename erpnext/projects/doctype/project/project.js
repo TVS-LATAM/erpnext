@@ -775,14 +775,17 @@ async function insertVinSearchButton(frm) {
 		tooltip.style.opacity = '0';
 	});
 
+	const setLoading = (loading) => {
+		[button, cameraButton].forEach(b => b && (loading ? b.setAttribute('hidden', 'true') : b.removeAttribute('hidden')));
+		loading ? spinner.removeAttribute('hidden') : spinner.setAttribute('hidden', 'true');
+	};
+
 	button.addEventListener('click', async function () {
-		button.setAttribute('hidden', 'true')
-		spinner.removeAttribute('hidden')
+		setLoading(true);
 		try {
 			await fetchAndPopulateVinData(frm, frm.doc.vin);
 		} finally {
-			button.removeAttribute('hidden')
-			spinner.setAttribute('hidden', 'true')
+			setLoading(false);
 		}
 	});
 
@@ -791,7 +794,7 @@ async function insertVinSearchButton(frm) {
 	container.appendChild(tooltip);
 	container.appendChild(spinner);
 
-	insertVinCameraButton(frm, container);
+	const cameraButton = insertVinCameraButton(frm, container, setLoading);
 }
 
 async function fetchAndPopulateVinData(frm, vin) {
@@ -847,10 +850,8 @@ async function fetchAndPopulateVinData(frm, vin) {
 	await frm.save();
 }
 
-async function insertVinCameraButton(frm, container) {
-	if (document.getElementById('vinCamera')) return;
-
-	const { aws_url } = await frappe.db.get_doc('Rest Config');
+function insertVinCameraButton(frm, container, setLoading) {
+	if (document.getElementById('vinCamera')) return null;
 
 	const cameraButton = document.createElement('button');
 	cameraButton.id = 'vinCamera';
@@ -873,10 +874,9 @@ async function insertVinCameraButton(frm, container) {
 		const file = fileInput.files[0];
 		if (!file) return;
 
-		cameraButton.setAttribute('disabled', 'true');
-		cameraButton.style.opacity = '0.5';
-
+		setLoading(true);
 		try {
+			const { aws_url } = await frappe.db.get_doc('Rest Config');
 			const binaryData = await file.arrayBuffer();
 			const response = await fetch(`${aws_url}/image-rekognition`, {
 				method: 'POST',
@@ -899,8 +899,7 @@ async function insertVinCameraButton(frm, container) {
 		} catch (err) {
 			frappe.show_alert({ message: __('Image recognition failed: ') + err.message, indicator: 'red' }, 5);
 		} finally {
-			cameraButton.removeAttribute('disabled');
-			cameraButton.style.opacity = '1';
+			setLoading(false);
 			fileInput.value = '';
 		}
 	});
@@ -909,6 +908,8 @@ async function insertVinCameraButton(frm, container) {
 
 	container.appendChild(cameraButton);
 	container.appendChild(fileInput);
+
+	return cameraButton;
 }
 
 function showSentMessageAfterRemoteDiagnoseDialog(project_name) {
