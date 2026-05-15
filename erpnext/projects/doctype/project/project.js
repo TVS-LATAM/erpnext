@@ -850,6 +850,22 @@ async function fetchAndPopulateVinData(frm, vin) {
 	await frm.save();
 }
 
+async function compressImageToArrayBuffer(file, { maxDimension = 1920, quality = 0.8 } = {}) {
+	const bitmap = await createImageBitmap(file);
+	const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+	const width = Math.round(bitmap.width * scale);
+	const height = Math.round(bitmap.height * scale);
+
+	const canvas = document.createElement('canvas');
+	canvas.width = width;
+	canvas.height = height;
+	canvas.getContext('2d').drawImage(bitmap, 0, 0, width, height);
+	bitmap.close?.();
+
+	const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+	return blob.arrayBuffer();
+}
+
 function insertVinCameraButton(frm, container, setLoading) {
 	if (document.getElementById('vinCamera')) return null;
 
@@ -877,7 +893,7 @@ function insertVinCameraButton(frm, container, setLoading) {
 		setLoading(true);
 		try {
 			const { aws_url } = await frappe.db.get_doc('Rest Config');
-			const binaryData = await file.arrayBuffer();
+			const binaryData = await compressImageToArrayBuffer(file);
 			const response = await fetch(`${aws_url}/image-rekognition`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/octet-stream' },
