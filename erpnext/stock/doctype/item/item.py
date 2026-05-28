@@ -58,8 +58,8 @@ class Item(Document):
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
-		from frappe.types import DF
-
+		from erpnext.selling.doctype.item_dsg_compatibility.item_dsg_compatibility import ItemDSGCompatibility
+		from erpnext.selling.doctype.item_engine_compatibility.item_engine_compatibility import ItemEngineCompatibility
 		from erpnext.stock.doctype.item_barcode.item_barcode import ItemBarcode
 		from erpnext.stock.doctype.item_customer_detail.item_customer_detail import ItemCustomerDetail
 		from erpnext.stock.doctype.item_default.item_default import ItemDefault
@@ -67,17 +67,22 @@ class Item(Document):
 		from erpnext.stock.doctype.item_supplier.item_supplier import ItemSupplier
 		from erpnext.stock.doctype.item_tax.item_tax import ItemTax
 		from erpnext.stock.doctype.item_variant_attribute.item_variant_attribute import ItemVariantAttribute
+		from erpnext.stock.doctype.items_relate.items_relate import ItemsRelate
+		from erpnext.stock.doctype.transmission_code_compatibility.transmission_code_compatibility import Transmissioncodecompatibility
 		from erpnext.stock.doctype.uom_conversion_detail.uom_conversion_detail import UOMConversionDetail
+		from frappe.types import DF
 
 		allow_alternative_item: DF.Check
 		allow_negative_stock: DF.Check
+		alternatives: DF.Data | None
 		asset_category: DF.Link | None
 		asset_naming_series: DF.Literal[None]
 		attributes: DF.Table[ItemVariantAttribute]
 		auto_create_assets: DF.Check
 		barcodes: DF.Table[ItemBarcode]
 		batch_number_series: DF.Data | None
-		brand: DF.Link | None
+		brand: DF.Link
+		condition: DF.Literal["NEW", "REBUILD", "COMBO"]
 		country_of_origin: DF.Link | None
 		create_new_batch: DF.Check
 		customer: DF.Link | None
@@ -87,15 +92,17 @@ class Item(Document):
 		default_bom: DF.Link | None
 		default_item_manufacturer: DF.Link | None
 		default_manufacturer_part_no: DF.Data | None
-		default_material_request_type: DF.Literal[
-			"Purchase", "Material Transfer", "Material Issue", "Manufacture", "Customer Provided"
-		]
+		default_material_request_type: DF.Literal["Purchase", "Material Transfer", "Material Issue", "Manufacture", "Customer Provided"]
 		delivered_by_supplier: DF.Check
 		description: DF.TextEditor | None
 		disabled: DF.Check
+		dsg_code_list: DF.Table[ItemDSGCompatibility]
+		ean: DF.Data | None
 		enable_deferred_expense: DF.Check
 		enable_deferred_revenue: DF.Check
 		end_of_life: DF.Date | None
+		engine_code_list: DF.Table[ItemEngineCompatibility]
+		external_notes: DF.TextEditor | None
 		grant_commission: DF.Check
 		has_batch_no: DF.Check
 		has_expiry_date: DF.Check
@@ -105,6 +112,7 @@ class Item(Document):
 		include_item_in_manufacturing: DF.Check
 		inspection_required_before_delivery: DF.Check
 		inspection_required_before_purchase: DF.Check
+		internal_notes: DF.TextEditor | None
 		is_customer_provided_item: DF.Check
 		is_fixed_asset: DF.Check
 		is_grouped_asset: DF.Check
@@ -112,23 +120,32 @@ class Item(Document):
 		is_sales_item: DF.Check
 		is_stock_item: DF.Check
 		is_sub_contracted_item: DF.Check
+		item_category: DF.Link
 		item_code: DF.Data
 		item_defaults: DF.Table[ItemDefault]
 		item_group: DF.Link
 		item_name: DF.Data | None
 		last_purchase_rate: DF.Float
 		lead_time_days: DF.Int
+		location: DF.Link | None
 		max_discount: DF.Float
 		min_order_qty: DF.Float
 		naming_series: DF.Literal["STO-ITEM-.YYYY.-"]
 		no_of_months: DF.Int
 		no_of_months_exp: DF.Int
+		oe_pn: DF.Data | None
+		oe_ref: DF.Data | None
+		oem_pn: DF.Data | None
 		opening_stock: DF.Float
 		over_billing_allowance: DF.Float
 		over_delivery_receipt_allowance: DF.Float
+		purchase_info: DF.Data | None
+		purchase_pn: DF.Data | None
 		purchase_uom: DF.Link | None
+		qty_unit_measure: DF.Data | None
 		quality_inspection_template: DF.Link | None
 		reorder_levels: DF.Table[ItemReorder]
+		required: DF.Check
 		retain_sample: DF.Check
 		safety_stock: DF.Float
 		sales_uom: DF.Link | None
@@ -137,9 +154,14 @@ class Item(Document):
 		shelf_life_in_days: DF.Int
 		standard_rate: DF.Currency
 		stock_uom: DF.Link
+		sub_category_name: DF.Link
+		subitems_list: DF.Table[ItemsRelate]
+		supplier: DF.Link | None
 		supplier_items: DF.Table[ItemSupplier]
 		taxes: DF.Table[ItemTax]
 		total_projected_qty: DF.Float
+		transmission_code_list: DF.Table[Transmissioncodecompatibility]
+		tvs_pn: DF.Data | None
 		uoms: DF.Table[UOMConversionDetail]
 		valuation_method: DF.Literal["", "FIFO", "Moving Average", "LIFO"]
 		valuation_rate: DF.Currency
@@ -1540,5 +1562,413 @@ def get_product_bundle_price(dsg_family, part_type, price_list, parts, transmiss
 
 	if not mapped_items:
 		return False
-		
+
 	return mapped_items.get(list(mapped_items.keys())[0])
+
+
+def _resolve_labour_set() -> set[str]:
+	"""Labour SKUs come from site_config (`labour_item_codes` as list or CSV), fallback to MONDSG0001."""
+	raw = frappe.conf.get("labour_item_codes") or "MONDSG0001"
+	if isinstance(raw, (list, tuple)):
+		return {str(s).strip() for s in raw if str(s).strip()}
+	return {s.strip() for s in str(raw).split(",") if s.strip()}
+
+
+def _car_name_from_title(title: str | None) -> str:
+	"""Parse the car model from a Sales Invoice `description_title` by dropping any 17-char VIN token."""
+	if not title:
+		return "Unknown"
+	kept = [tok for tok in title.split() if not (len(tok) == 17 and tok.isalnum())]
+	return " ".join(kept) or "Unknown"
+
+
+def _aggregate_insights(parents: set[str], lines: list[dict], item_code: str, labour_set: set[str]) -> dict:
+	"""Compute co-occurrence + labour metrics for a set of invoices (`lines` being their Sales Invoice Item rows)."""
+	co_parents: dict[str, set[str]] = {}
+	co_names: dict[str, str] = {}
+	labour_qty_by_parent: dict[str, float] = {}
+
+	for line in lines:
+		line_item = line["item_code"]
+		if line_item != item_code:
+			co_parents.setdefault(line_item, set()).add(line["parent"])
+			if line_item not in co_names and line.get("item_name"):
+				co_names[line_item] = line["item_name"]
+		if line_item in labour_set:
+			labour_qty_by_parent[line["parent"]] = labour_qty_by_parent.get(line["parent"], 0.0) + (line.get("qty") or 0.0)
+
+	frequently_used_with = sorted(
+		(
+			{
+				"item_code": ic,
+				"item_name": co_names.get(ic) or ic,
+				"co_occurrence_count": len(invoices),
+				"is_labour": ic in labour_set,
+			}
+			for ic, invoices in co_parents.items()
+		),
+		key=lambda r: r["co_occurrence_count"],
+		reverse=True,
+	)[:10]
+
+	avg_hours = round(sum(labour_qty_by_parent.values()) / len(labour_qty_by_parent), 1) if labour_qty_by_parent else None
+
+	return {
+		"sample_size_invoices": len(parents),
+		"frequently_used_with": frequently_used_with,
+		"labour": {
+			"avg_hours": avg_hours,
+			"invoices_with_labour": len(labour_qty_by_parent),
+		},
+	}
+
+
+@frappe.whitelist()
+def get_item_insights(
+	item_code: str,
+	sample_size: int = 20,
+	engine_codes: str = "",
+	dsg_codes: str = "",
+) -> dict:
+	"""Return co-occurrence and labour-hours insights for `item_code`, optionally restricted to Sales Invoices whose linked Project matches the given engine/DSG codes.
+
+	Runs with the caller's permissions; requires read on Sales Invoice, Sales Invoice Item,
+	and Project (when engine/DSG filters are supplied). Labour SKUs are read from
+	`site_config.labour_item_codes` (defaulting to `["MONDSG0001"]`).
+	"""
+	if not isinstance(item_code, str) or not item_code.strip():
+		frappe.throw(_("item_code required"))
+	item_code = item_code.strip()
+
+	try:
+		sample_size = int(sample_size)
+	except (TypeError, ValueError):
+		sample_size = 20
+	sample_size = max(1, min(sample_size, 100))
+
+	engines = {s.strip().upper() for s in (engine_codes or "").split(",") if s.strip()}
+	dsgs = {s.strip().upper() for s in (dsg_codes or "").split(",") if s.strip()}
+	labour_set = _resolve_labour_set()
+
+	empty_response = {
+		"item_code": item_code,
+		"sample_size_invoices": 0,
+		"frequently_used_with": [],
+		"labour": {"avg_hours": None, "invoices_with_labour": 0},
+		"cars": [],
+		"vehicle_models": _lookup_vehicle_models(engines, dsgs),
+	}
+
+	parent_conditions = ["sii.item_code = %(item_code)s", "sii.docstatus = 1", "si.docstatus = 1"]
+	parent_params: dict = {"item_code": item_code, "sample_size": sample_size}
+	parent_joins = ""
+
+	if engines or dsgs:
+		parent_joins = "JOIN `tabProject` p ON p.name = si.project"
+		if engines:
+			parent_conditions.append("UPPER(p.engine_code) IN %(engines)s")
+			parent_params["engines"] = tuple(engines)
+		if dsgs:
+			parent_conditions.append("UPPER(p.dsg_code) IN %(dsgs)s")
+			parent_params["dsgs"] = tuple(dsgs)
+
+	parents = frappe.db.sql(
+		f"""
+		SELECT sii.parent
+		FROM `tabSales Invoice Item` sii
+		JOIN `tabSales Invoice` si ON si.name = sii.parent
+		{parent_joins}
+		WHERE {' AND '.join(parent_conditions)}
+		GROUP BY sii.parent
+		ORDER BY MAX(si.posting_date) DESC, MAX(si.creation) DESC
+		LIMIT %(sample_size)s
+		""",
+		parent_params,
+		as_dict=False,
+	)
+	parent_names = [row[0] for row in parents]
+	if not parent_names:
+		return empty_response
+
+	lines = frappe.db.sql(
+		"""
+		SELECT parent, item_code, item_name, qty
+		FROM `tabSales Invoice Item`
+		WHERE parent IN %(parents)s AND docstatus = 1
+		""",
+		{"parents": tuple(parent_names)},
+		as_dict=True,
+	)
+
+	# Pull each invoice's title plus its Project engine/DSG codes so identical vehicles group together.
+	title_rows = frappe.db.sql(
+		"""
+		SELECT si.name, si.description_title, p.engine_code, p.dsg_code
+		FROM `tabSales Invoice` si
+		LEFT JOIN `tabProject` p ON p.name = si.project
+		WHERE si.name IN %(parents)s
+		""",
+		{"parents": tuple(parent_names)},
+		as_dict=True,
+	)
+	info_by_parent = {
+		r["name"]: {
+			"car_name": _car_name_from_title(r.get("description_title")),
+			"engine": (r.get("engine_code") or "").strip().upper(),
+			"dsg": (r.get("dsg_code") or "").strip().upper(),
+		}
+		for r in title_rows
+	}
+
+	lines_by_parent: dict[str, list[dict]] = {}
+	for line in lines:
+		lines_by_parent.setdefault(line["parent"], []).append(line)
+
+	# Group by (engine_code, dsg_code) when available; otherwise fall back to the parsed name.
+	groups: dict[tuple, dict] = {}
+	for parent in parent_names:
+		info = info_by_parent.get(parent, {"car_name": "Unknown", "engine": "", "dsg": ""})
+		key = ("v", info["engine"], info["dsg"]) if (info["engine"] or info["dsg"]) else ("n", info["car_name"])
+		group = groups.setdefault(key, {"parents": set(), "name_counts": {}})
+		group["parents"].add(parent)
+		group["name_counts"][info["car_name"]] = group["name_counts"].get(info["car_name"], 0) + 1
+
+	cars = []
+	for key, group in groups.items():
+		car_parents = group["parents"]
+		car_lines = [line for parent in car_parents for line in lines_by_parent.get(parent, [])]
+		# Representative name: most frequent title variant, tie-broken by the most descriptive (longest).
+		car_name = sorted(group["name_counts"].items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))[0][0]
+		engine_code, dsg_code = (key[1] or None, key[2] or None) if key[0] == "v" else (None, None)
+		cars.append({
+			"car_name": car_name,
+			"engine_code": engine_code,
+			"dsg_code": dsg_code,
+			**_aggregate_insights(car_parents, car_lines, item_code, labour_set),
+		})
+	cars.sort(key=lambda c: (-c["sample_size_invoices"], c["car_name"]))
+
+	_attach_vehicle_models_to_cars(cars)
+
+	return {
+		"item_code": item_code,
+		**_aggregate_insights(set(parent_names), lines, item_code, labour_set),
+		"cars": cars,
+		"vehicle_models": _lookup_vehicle_models(engines, dsgs),
+	}
+
+
+def _lookup_vehicle_models(engines: set[str], dsgs: set[str]) -> list[dict]:
+	"""Return Vehicle Models whose typical engine_code / dsg_code child rows match.
+
+	Match logic: a model is included if it has at least one matching engine code OR
+	at least one matching dsg code. When both inputs are non-empty, models matching
+	BOTH lists (intersection) are returned first.
+	"""
+	if not engines and not dsgs:
+		return []
+
+	engine_models: set[str] = set()
+	if engines:
+		rows = frappe.db.sql(
+			"SELECT DISTINCT parent FROM `tabVehicle Model Engine Code` "
+			"WHERE UPPER(engine_code) IN %(codes)s",
+			{"codes": tuple(engines)},
+			as_dict=True,
+		)
+		engine_models = {r["parent"] for r in rows}
+
+	dsg_models: set[str] = set()
+	if dsgs:
+		rows = frappe.db.sql(
+			"SELECT DISTINCT parent FROM `tabVehicle Model DSG Code` "
+			"WHERE UPPER(dsg_code) IN %(codes)s",
+			{"codes": tuple(dsgs)},
+			as_dict=True,
+		)
+		dsg_models = {r["parent"] for r in rows}
+
+	if engines and dsgs:
+		both = engine_models & dsg_models
+		either = (engine_models | dsg_models) - both
+	elif engines:
+		both, either = engine_models, set()
+	else:
+		both, either = dsg_models, set()
+
+	ordered = sorted(both) + sorted(either)
+	if not ordered:
+		return []
+
+	meta_rows = frappe.db.sql(
+		"SELECT name, brand, model, engine_liters, hp_kw "
+		"FROM `tabVehicle Model` WHERE name IN %(names)s",
+		{"names": tuple(ordered)},
+		as_dict=True,
+	)
+	meta = {r["name"]: r for r in meta_rows}
+
+	return [
+		{
+			"name": name,
+			"brand": meta[name]["brand"],
+			"model": meta[name]["model"],
+			"engine_liters": meta[name]["engine_liters"],
+			"hp_kw": meta[name]["hp_kw"],
+			"match": "both" if name in both else "partial",
+		}
+		for name in ordered
+		if name in meta
+	]
+
+
+def _attach_vehicle_models_to_cars(cars: list[dict]) -> None:
+	"""Mutate each car entry to add `vehicle_models` based on its (engine_code, dsg_code)."""
+	for car in cars:
+		engines = {car["engine_code"]} if car.get("engine_code") else set()
+		dsgs = {car["dsg_code"]} if car.get("dsg_code") else set()
+		car["vehicle_models"] = _lookup_vehicle_models(engines, dsgs)
+
+
+_COMPAT_SUB_CATEGORIES = (
+	"GEARBOX",
+	"GEARBOX REPAIR KIT",
+	"MECHATRONIC",
+	"MECHATRONIC REPAIR KIT",
+	"MECHATRONIC REPLACE KIT",
+	"MECHATRONIC REPLACEMENT KIT",
+	"MECHATRONIC COVER INCL SEAL BOLTS",
+	"FLYWHEEL",
+	"CLUTCH",
+	"CLUTCH From 3 pieces",
+	"CLUTCH REPLACE KIT",
+	"CLUTCH REPLACEMENT KIT",
+	"CLUTCH REPLAMENT KIT",
+)
+
+_PRICE_LIST_KEYS = {"Retail": "retail", "Dealer": "dealer", "Business to Business": "b2b"}
+
+
+@frappe.whitelist()
+def get_compatible_parts(engine_codes: str = "", dsg_codes: str = "") -> dict:
+	"""Return Item rows in the gearbox/mechatronic/flywheel/clutch sub-categories filtered by engine/DSG compatibility, hydrated with compat lists and Retail/Dealer/B2B prices.
+
+	Runs with the caller's permissions; requires read on Item, Item Engine Compatibility,
+	Item DSG Compatibility, and Item Price.
+	"""
+	engines = {s.strip() for s in (engine_codes or "").split(",") if s.strip()}
+	dsgs = {s.strip() for s in (dsg_codes or "").split(",") if s.strip()}
+
+	conditions = ["i.is_sales_item = 1", "i.disabled = 0", "i.sub_category_name IN %(sub_categories)s"]
+	params: dict = {"sub_categories": _COMPAT_SUB_CATEGORIES, "limit": 500}
+
+	if engines and dsgs:
+		conditions.append(
+			"EXISTS (SELECT 1 FROM `tabItem Engine Compatibility` ec "
+			"WHERE ec.parent = i.name AND ec.engine_code IN %(engines)s)"
+		)
+		conditions.append(
+			"EXISTS (SELECT 1 FROM `tabItem DSG Compatibility` dc "
+			"WHERE dc.parent = i.name AND dc.dsg_code IN %(dsgs)s)"
+		)
+		params["engines"] = tuple(engines)
+		params["dsgs"] = tuple(dsgs)
+	elif engines:
+		conditions.append(
+			"EXISTS (SELECT 1 FROM `tabItem Engine Compatibility` ec "
+			"WHERE ec.parent = i.name AND ec.engine_code IN %(engines)s)"
+		)
+		params["engines"] = tuple(engines)
+	elif dsgs:
+		conditions.append(
+			"EXISTS (SELECT 1 FROM `tabItem DSG Compatibility` dc "
+			"WHERE dc.parent = i.name AND dc.dsg_code IN %(dsgs)s)"
+		)
+		params["dsgs"] = tuple(dsgs)
+	else:
+		conditions.append(
+			"(EXISTS (SELECT 1 FROM `tabItem Engine Compatibility` ec WHERE ec.parent = i.name) "
+			"OR EXISTS (SELECT 1 FROM `tabItem DSG Compatibility` dc WHERE dc.parent = i.name))"
+		)
+
+	items = frappe.db.sql(
+		f"""
+		SELECT i.name AS item_code, i.item_name, i.oe_pn, i.oem_pn, i.sub_category_name
+		FROM `tabItem` i
+		WHERE {' AND '.join(conditions)}
+		ORDER BY i.name
+		LIMIT %(limit)s
+		""",
+		params,
+		as_dict=True,
+	)
+	if not items:
+		return {"items": []}
+
+	codes = tuple(row["item_code"] for row in items)
+
+	engine_rows = frappe.db.sql(
+		"SELECT parent, engine_code FROM `tabItem Engine Compatibility` WHERE parent IN %(codes)s",
+		{"codes": codes},
+		as_dict=True,
+	)
+	dsg_rows = frappe.db.sql(
+		"SELECT parent, dsg_code FROM `tabItem DSG Compatibility` WHERE parent IN %(codes)s",
+		{"codes": codes},
+		as_dict=True,
+	)
+	price_rows = frappe.db.sql(
+		"""
+		SELECT item_code, price_list, price_list_rate
+		FROM `tabItem Price`
+		WHERE item_code IN %(codes)s AND price_list IN ('Retail', 'Dealer', 'Business to Business')
+		""",
+		{"codes": codes},
+		as_dict=True,
+	)
+
+	engines_by_item: dict[str, list[str]] = {}
+	for row in engine_rows:
+		code = row.get("engine_code")
+		if not code:
+			continue
+		bucket = engines_by_item.setdefault(row["parent"], [])
+		if code not in bucket:
+			bucket.append(code)
+
+	dsgs_by_item: dict[str, list[str]] = {}
+	for row in dsg_rows:
+		code = row.get("dsg_code")
+		if not code:
+			continue
+		bucket = dsgs_by_item.setdefault(row["parent"], [])
+		if code not in bucket:
+			bucket.append(code)
+
+	prices_by_item: dict[str, dict] = {}
+	for row in price_rows:
+		key = _PRICE_LIST_KEYS.get(row["price_list"])
+		if key is None:
+			continue
+		prices_by_item.setdefault(row["item_code"], {})[key] = row["price_list_rate"]
+
+	result = []
+	for row in items:
+		code = row["item_code"]
+		prices = prices_by_item.get(code, {})
+		result.append({
+			"item_code": code,
+			"item_name": row.get("item_name"),
+			"oe_pn": row["oe_pn"] or None,
+			"oem_pn": row["oem_pn"] or None,
+			"sub_category_name": row.get("sub_category_name"),
+			"engine_code_list": engines_by_item.get(code, []),
+			"dsg_code_list": dsgs_by_item.get(code, []),
+			"prices": {
+				"retail": prices.get("retail"),
+				"dealer": prices.get("dealer"),
+				"b2b": prices.get("b2b"),
+			},
+		})
+
+	return {"items": result}

@@ -52,6 +52,10 @@
   "subitems_list",
   "transmission_code_compatibility_section",
   "transmission_code_list",
+  "engine_compatibility",
+  "engine_code_list",
+  "dsg_compatibility_section",
+  "dsg_code_list",
   "section_break_11",
   "description",
   "interna_external_notes",
@@ -1065,6 +1069,28 @@
    "fieldtype": "Table",
    "label": "transmission code list",
    "options": "Transmission code compatibility"
+  },
+  {
+   "fieldname": "engine_code_list",
+   "fieldtype": "Table",
+   "label": "Engine code list",
+   "options": "Item Engine Compatibility"
+  },
+  {
+   "fieldname": "engine_compatibility",
+   "fieldtype": "Section Break",
+   "label": "Engine Compatibility"
+  },
+  {
+   "fieldname": "dsg_compatibility_section",
+   "fieldtype": "Section Break",
+   "label": "DSG compatibility"
+  },
+  {
+   "fieldname": "dsg_code_list",
+   "fieldtype": "Table",
+   "label": "dsg code list",
+   "options": "Item DSG Compatibility"
   }
  ],
  "icon": "fa fa-tag",
@@ -1072,7 +1098,7 @@
  "image_field": "image",
  "links": [],
  "make_attachments_public": 1,
- "modified": "2026-02-23 22:38:43.975535",
+ "modified": "2026-05-05 20:35:03.318970",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Item",
