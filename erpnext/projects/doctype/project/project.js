@@ -519,14 +519,10 @@ async function installChat(frm) {
 		chat.setAttribute('url', aws_url)
 		chat.setAttribute('user-name', frappe.user_info().fullname)
 
-		frappe.realtime.off(`msg-${conversation.name}`)
-		frappe.realtime.on(`msg-${conversation.name}`, (data) => {
-			chat._instance.exposed.addMessage(data);
-		})
-		frappe.realtime.off(`translation-${frm.doc.name}`)
-		frappe.realtime.on(`translation-${frm.doc.name}`, (data) => {
-			chat._instance.exposed.onTranslate(data);
-		})
+		// Realtime wiring lives inside the component now — it subscribes to
+		// `msg-{id}` / `translation-{id}` off the conversation we pass to
+		// setConversation. (Previously this hooked `translation-${frm.doc.name}`,
+		// i.e. the Project name, so translations never reached the chat here.)
 		frappe.require('erp-whatsapp-chat.bundle.js')
 			.then(() => {
 				chatContainer.appendChild(chat)
