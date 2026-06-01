@@ -13,6 +13,7 @@
   "basic_info",
   "naming_series",
   "salutation",
+  "email_id",
   "customer_name",
   "customer_type",
   "customer_group",
@@ -58,7 +59,6 @@
   "column_break_nwor",
   "customer_primary_contact",
   "mobile_no",
-  "email_id",
   "tax_tab",
   "taxation_section",
   "tax_id",
@@ -629,7 +629,7 @@
    "link_fieldname": "party"
   }
  ],
- "modified": "2025-10-08 18:22:58.839325",
+ "modified": "2026-06-01 16:37:49.659423",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Customer",
@@ -708,6 +708,7 @@
  ],
  "quick_entry": 1,
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "search_fields": "customer_group,territory, mobile_no,primary_address",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
