@@ -1611,13 +1611,18 @@ def _aggregate_insights(parents: set[str], lines: list[dict], item_code: str, la
 		reverse=True,
 	)[:10]
 
-	avg_hours = round(sum(labour_qty_by_parent.values()) / len(labour_qty_by_parent), 1) if labour_qty_by_parent else None
+	labour_hours = list(labour_qty_by_parent.values())
+	avg_hours = round(sum(labour_hours) / len(labour_hours), 1) if labour_hours else None
+	min_hours = round(min(labour_hours), 1) if labour_hours else None
+	max_hours = round(max(labour_hours), 1) if labour_hours else None
 
 	return {
 		"sample_size_invoices": len(parents),
 		"frequently_used_with": frequently_used_with,
 		"labour": {
 			"avg_hours": avg_hours,
+			"min_hours": min_hours,
+			"max_hours": max_hours,
 			"invoices_with_labour": len(labour_qty_by_parent),
 		},
 	}
@@ -1654,9 +1659,10 @@ def get_item_insights(
 		"item_code": item_code,
 		"sample_size_invoices": 0,
 		"frequently_used_with": [],
-		"labour": {"avg_hours": None, "invoices_with_labour": 0},
+		"labour": {"avg_hours": None, "min_hours": None, "max_hours": None, "invoices_with_labour": 0},
 		"cars": [],
-		"vehicle_models": _lookup_vehicle_models(engines, dsgs),
+		"used_configs": [],
+		# "vehicle_models": _lookup_vehicle_models(engines, dsgs),
 	}
 
 	parent_conditions = ["sii.item_code = %(item_code)s", "sii.docstatus = 1", "si.docstatus = 1"]
@@ -1726,6 +1732,8 @@ def get_item_insights(
 
 	# Group by (engine_code, dsg_code) when available; otherwise fall back to the parsed name.
 	groups: dict[tuple, dict] = {}
+	# Distinct (engine_code, dsg_code) pairs actually seen across the sampled invoices.
+	used_configs_counts: dict[tuple, int] = {}
 	for parent in parent_names:
 		info = info_by_parent.get(parent, {"car_name": "Unknown", "engine": "", "dsg": ""})
 		key = ("v", info["engine"], info["dsg"]) if (info["engine"] or info["dsg"]) else ("n", info["car_name"])
@@ -1733,28 +1741,39 @@ def get_item_insights(
 		group["parents"].add(parent)
 		group["name_counts"][info["car_name"]] = group["name_counts"].get(info["car_name"], 0) + 1
 
-	cars = []
-	for key, group in groups.items():
-		car_parents = group["parents"]
-		car_lines = [line for parent in car_parents for line in lines_by_parent.get(parent, [])]
-		# Representative name: most frequent title variant, tie-broken by the most descriptive (longest).
-		car_name = sorted(group["name_counts"].items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))[0][0]
-		engine_code, dsg_code = (key[1] or None, key[2] or None) if key[0] == "v" else (None, None)
-		cars.append({
-			"car_name": car_name,
-			"engine_code": engine_code,
-			"dsg_code": dsg_code,
-			**_aggregate_insights(car_parents, car_lines, item_code, labour_set),
-		})
-	cars.sort(key=lambda c: (-c["sample_size_invoices"], c["car_name"]))
+		# Reuse the same per-invoice engine/dsg resolution to collect distinct configs.
+		if info["engine"] and info["dsg"]:
+			config_key = (info["engine"], info["dsg"])
+			used_configs_counts[config_key] = used_configs_counts.get(config_key, 0) + 1
 
-	_attach_vehicle_models_to_cars(cars)
+	used_configs = [
+		{"engine_code": engine, "dsg_code": dsg, "invoices": count}
+		for (engine, dsg), count in used_configs_counts.items()
+	]
+
+	# cars = []
+	# for key, group in groups.items():
+	# 	car_parents = group["parents"]
+	# 	car_lines = [line for parent in car_parents for line in lines_by_parent.get(parent, [])]
+	# 	# Representative name: most frequent title variant, tie-broken by the most descriptive (longest).
+	# 	car_name = sorted(group["name_counts"].items(), key=lambda kv: (-kv[1], -len(kv[0]), kv[0]))[0][0]
+	# 	engine_code, dsg_code = (key[1] or None, key[2] or None) if key[0] == "v" else (None, None)
+	# 	cars.append({
+	# 		"car_name": car_name,
+	# 		"engine_code": engine_code,
+	# 		"dsg_code": dsg_code,
+	# 		**_aggregate_insights(car_parents, car_lines, item_code, labour_set),
+	# 	})
+	# cars.sort(key=lambda c: (-c["sample_size_invoices"], c["car_name"]))
+
+	# _attach_vehicle_models_to_cars(cars)
 
 	return {
 		"item_code": item_code,
 		**_aggregate_insights(set(parent_names), lines, item_code, labour_set),
-		"cars": cars,
-		"vehicle_models": _lookup_vehicle_models(engines, dsgs),
+		"used_configs": used_configs,
+		# "cars": cars,
+		# "vehicle_models": _lookup_vehicle_models(engines, dsgs),
 	}
 
 
