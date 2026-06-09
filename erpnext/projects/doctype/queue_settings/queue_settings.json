@@ -8,9 +8,10 @@
         "auto_move_paused",
         "vacations_mode",
         "aws_url",
-        "lanes_enabled",
         "sb_lanes",
+        "fast_lane_enabled",
         "fast_cars_per_day",
+        "heavy_lane_enabled",
         "heavy_cars_per_day",
         "sb_workload",
         "job_workload_status"
@@ -34,22 +35,29 @@
             "options": "Job Workload Item"
         },
         {
-            "default": "0",
-            "fieldname": "lanes_enabled",
-            "fieldtype": "Check",
-            "in_list_view": 1,
-            "label": "Lanes Enabled"
-        },
-        {
             "fieldname": "sb_lanes",
             "fieldtype": "Section Break",
             "label": "Lanes"
         },
         {
             "default": "0",
+            "fieldname": "fast_lane_enabled",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "Fast Lane Enabled"
+        },
+        {
+            "default": "0",
             "fieldname": "fast_cars_per_day",
             "fieldtype": "Data",
             "label": "Fast Cars per Day"
+        },
+        {
+            "default": "0",
+            "fieldname": "heavy_lane_enabled",
+            "fieldtype": "Check",
+            "in_list_view": 1,
+            "label": "Heavy Lane Enabled"
         },
         {
             "default": "0",
