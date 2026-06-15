@@ -134,6 +134,11 @@ class Customer(TransactionBase):
 		self.update_lead_status()
 
 	def validate(self):
+		if not self.customer_name or len(self.customer_name.strip()) < 3:
+			frappe.throw(
+				_("Please ensure this name is correct, as it will be used for your invoice.")
+			)
+
 		self.flags.is_new_doc = self.is_new()
 		self.flags.old_lead = self.lead_name
 		validate_party_accounts(self)
