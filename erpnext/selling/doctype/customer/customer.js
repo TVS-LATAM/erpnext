@@ -376,6 +376,10 @@ frappe.ui.form.on("Customer", {
 		grid.set_column_disp("incentives", false);
 	},
 	validate: function(frm) {
+		if (!frm.doc.customer_name || frm.doc.customer_name.trim().length < 3) {
+			frappe.msgprint(__("Please ensure this name is correct, as it will be used for your invoice."));
+			frappe.validated = false;
+		}
 		if (frm.doc.lead_name) frappe.model.clear_doc("Lead", frm.doc.lead_name);
 	},
 	get_customer_group_details: function(frm) {
