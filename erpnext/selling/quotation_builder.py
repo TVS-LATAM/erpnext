@@ -178,20 +178,24 @@ def oem_reference_parts(job, project):
 
 
 @frappe.whitelist()
-def build_quotation_suggestions(quotation):
-	"""Assemble the diagnosis-driven suggestion bundle for a Quotation's Project."""
+def build_quotation_suggestions(project):
+	"""Assemble the diagnosis-driven suggestion bundle for a Project.
+
+	Read-only: keyed off the Project so it works before the Quotation is saved.
+	The client renders the bundle and appends the chosen lines to the Quotation
+	in memory; nothing is written here.
+	"""
 	from erpnext.selling.doctype.standard_labour_hours.standard_labour_hours import (
 		get_standard_labour_hours,
 	)
 
-	quo = frappe.get_doc("Quotation", quotation)
-	quo.check_permission("read")
-
 	messages = []
-	if not quo.project_name:
+	if not project:
 		frappe.throw(_("Link this Quotation to a Project first (Project name)."))
 
-	project = frappe.get_doc("Project", quo.project_name).as_dict()
+	proj_doc = frappe.get_doc("Project", project)
+	proj_doc.check_permission("read")
+	project = proj_doc.as_dict()
 	engine_code = (project.get("engine_code") or "").strip() or None
 	dsg_code = (project.get("dsg_code") or "").strip() or None
 	family = dsg_family_from_project(project)
@@ -224,8 +228,7 @@ def build_quotation_suggestions(quotation):
 		)
 
 	return {
-		"quotation": quo.name,
-		"project": quo.project_name,
+		"project": project.get("name"),
 		"car": {
 			"engine_code": engine_code,
 			"dsg_code": dsg_code,

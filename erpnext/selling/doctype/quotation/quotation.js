@@ -955,7 +955,7 @@ function refreshQuotationFields(frm) {
 // ---------------------------------------------------------------------------
 frappe.ui.form.on("Quotation", {
 	refresh(frm) {
-		if (frm.is_new() || frm.doc.docstatus !== 0 || !frm.doc.project_name) {
+		if (frm.doc.docstatus !== 0 || !frm.doc.project_name) {
 			return;
 		}
 		frm.add_custom_button(__("Build from diagnosis"), () => build_from_diagnosis(frm));
@@ -963,15 +963,15 @@ frappe.ui.form.on("Quotation", {
 });
 
 function build_from_diagnosis(frm) {
-	if (frm.is_dirty() || frm.is_new()) {
-		frappe.msgprint(__("Please save the Quotation first."));
+	if (!frm.doc.project_name) {
+		frappe.msgprint(__("Link this Quotation to a Project first."));
 		return;
 	}
 	frappe.dom.freeze(__("Reading diagnosis..."));
 	frappe
 		.call({
 			method: "erpnext.selling.quotation_builder.build_quotation_suggestions",
-			args: { quotation: frm.doc.name },
+			args: { project: frm.doc.project_name },
 		})
 		.then((r) => {
 			frappe.dom.unfreeze();
@@ -1113,24 +1113,28 @@ function apply_builder_selection(frm, dialog, bundle) {
 		return;
 	}
 
-	frappe.dom.freeze(__("Adding to quotation..."));
-	frappe
-		.call({
-			method: "erpnext.selling.quotation_builder.apply_suggestions_to_quotation",
-			args: { quotation: frm.doc.name, rows: JSON.stringify(rows) },
-		})
-		.then((r) => {
-			frappe.dom.unfreeze();
-			dialog.hide();
-			if (r && r.message) {
-				frappe.show_alert(
-					{ message: __("Added {0} line(s) — review rates.", [r.message.added]), indicator: "green" },
-					7
-				);
-			}
-			frm.reload_doc();
-		})
-		.catch(() => frappe.dom.unfreeze());
+	// Append to the items grid in memory (mirrors quotation_template); the item_code
+	// change triggers erpnext's standard rate/name fetch. Nothing persists until the
+	// user saves the Quotation, so this works on a brand-new unsaved doc too.
+	const setters = rows.map((r) => {
+		const child = frm.add_child("items", { qty: r.qty });
+		return frappe.model
+			.set_value(child.doctype, child.name, "item_code", r.item_code)
+			.then(() => {
+				if (r.description) {
+					return frappe.model.set_value(child.doctype, child.name, "description", r.description);
+				}
+			});
+	});
+
+	Promise.all(setters).then(() => {
+		frm.refresh_field("items");
+		dialog.hide();
+		frappe.show_alert(
+			{ message: __("Added {0} line(s) — review rates.", [rows.length]), indicator: "green" },
+			7
+		);
+	});
 }
 
 async function insertResendQuotationApprovalButton(frm) {
