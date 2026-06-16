@@ -118,10 +118,10 @@
   resolved "https://registry.yarnpkg.com/@tsconfig/node16/-/node16-1.0.4.tgz#0b92dcc0cc1c81f6f306a381f28e31b1a56536e9"
   integrity sha512-vxhUy4J8lyeyinH7Azl1pdd43GJhZH/tP2weN8TntQblOY+A0XbT8DJk1/oCPuOOyg/Ja757rG0CgHcWC8OfMA==
 
-"@tvsgroup/erp-calendar@^0.6.19":
-  version "0.6.19"
-  resolved "https://registry.yarnpkg.com/@tvsgroup/erp-calendar/-/erp-calendar-0.6.19.tgz#b8e3ff0fe1c50a8c5515877a9b3fa2e7942231f6"
-  integrity sha512-bCpWJuSJbVb/Go4YshyC4l0NcQxtEwQryfoBjvSLUOPcOhfOOU3huSmErf/Yx2XU3fwVcyleRKFXTaxfibVj2w==
+"@tvsgroup/erp-calendar@^0.6.20":
+  version "0.6.20"
+  resolved "https://registry.yarnpkg.com/@tvsgroup/erp-calendar/-/erp-calendar-0.6.20.tgz#98da9b1f90dfec3e7cdbb153a644721c4b0228eb"
+  integrity sha512-5RbhIgeABQkmnfkSEHMV+HBie6zlUEpZN3epCnlZHn/OHrClhj08JGcUX+ZilMS3tEdii6ldHbP5BRd9PvlBsQ==
   dependencies:
     "@fullcalendar/core" "^6.1.9"
     "@fullcalendar/daygrid" "^6.1.9"
@@ -130,6 +130,7 @@
     "@fullcalendar/scrollgrid" "^6.1.9"
     "@fullcalendar/timegrid" "^6.1.9"
     "@fullcalendar/vue3" "^6.1.9"
+    dompurify "^3.4.10"
     frappe-js-sdk "^1.10.0"
     pinia "^2.1.7"
     vue "^3.3.4"
@@ -142,6 +143,11 @@
     pinia "^2.1.7"
     ts-node "^10.9.2"
     vue "^3.4.21"
+
+"@types/trusted-types@^2.0.7":
+  version "2.0.7"
+  resolved "https://registry.yarnpkg.com/@types/trusted-types/-/trusted-types-2.0.7.tgz#baccb07a970b91707df3a3e8ba6896c57ead2d11"
+  integrity sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==
 
 "@vue/compiler-core@3.5.18":
   version "3.5.18"
@@ -293,6 +299,13 @@ diff@^4.0.1:
   version "4.0.2"
   resolved "https://registry.yarnpkg.com/diff/-/diff-4.0.2.tgz#60f3aecb89d5fae520c11aa19efc2bb982aade7d"
   integrity sha512-58lmxKSA4BNyLz+HHMUzlOEpg09FV+ev6ZMe3vJihgdxzgcwZ8VoEEPmALCZG9LmqfVoNMMKpttIYTVG6uDY7A==
+
+dompurify@^3.4.10:
+  version "3.4.10"
+  resolved "https://registry.yarnpkg.com/dompurify/-/dompurify-3.4.10.tgz#96704295b4d8aeefcc8c7a90caa579b0ad69e46a"
+  integrity sha512-0xzNv0e7oYC6yyuOGZIABPM4qtg3QxLFniDNPP4ZP90wR8Yq3zgwpRbrNiT4N3IKqDbbYFEJLV+JWEs19aZ//w==
+  optionalDependencies:
+    "@types/trusted-types" "^2.0.7"
 
 dunder-proto@^1.0.1:
   version "1.0.1"
