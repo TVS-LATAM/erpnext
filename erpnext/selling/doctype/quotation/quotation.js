@@ -993,6 +993,15 @@ function show_builder_dialog(frm, bundle) {
 
 	const $body = dialog.fields_dict.body.$wrapper;
 	$body.append(render_builder_html(bundle));
+
+	// A template-level checkbox enables/disables its whole item set + labour.
+	$body.on("change", ".template-check", function () {
+		const on = $(this).is(":checked");
+		const $block = $(this).closest(".job-block");
+		$block.css("opacity", on ? "1" : "0.5");
+		$block.find(".part-check, .part-qty, .labour-variant").prop("disabled", !on);
+	});
+
 	dialog.show();
 }
 
@@ -1015,8 +1024,9 @@ function render_builder_html(bundle) {
 	bundle.jobs.forEach((job, ji) => {
 		html += `<div class="job-block" data-job="${esc(job.job)}" data-ji="${ji}"
 			style="border:1px solid var(--border-color);border-radius:6px;padding:10px;margin-bottom:12px">`;
-		html += `<h5 style="margin-top:0">${esc(job.job)}
-			<small class="text-muted">(${__("matched")}: "${esc(job.matched_keyword)}")</small></h5>`;
+		html += `<label style="margin-top:0;display:block;font-size:15px;font-weight:600;cursor:pointer">
+			<input type="checkbox" class="template-check" checked> ${esc(job.job)} ${__("template")}
+			<small class="text-muted" style="font-weight:normal">(${__("matched")}: "${esc(job.matched_keyword)}")</small></label>`;
 
 		// Labour variant picker
 		const variants = (job.labour && job.labour.variants) || [];
@@ -1051,7 +1061,7 @@ function render_builder_html(bundle) {
 				<thead><tr><th width="30"></th><th>${__("Item")}</th><th width="90">${__("Used in")}</th>
 				<th width="80">${__("Qty")}</th></tr></thead><tbody>`;
 			parts.forEach((p) => {
-				html += part_row(p.item_code, esc(p.item_name || p.item_code), `${p.invoices}×`, false);
+				html += part_row(p.item_code, esc(p.item_name || p.item_code), `${p.invoices}×`, true);
 			});
 			html += `</tbody></table>`;
 		} else {
@@ -1081,6 +1091,11 @@ function apply_builder_selection(frm, dialog, bundle) {
 	$body.find(".job-block").each(function () {
 		const $block = $(this);
 		const job = $block.data("job");
+
+		// skip templates the user did not select
+		if (!$block.find(".template-check").is(":checked")) {
+			return;
+		}
 
 		// selected parts
 		$block.find(".part-row").each(function () {
