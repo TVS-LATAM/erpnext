@@ -955,7 +955,7 @@ function refreshQuotationFields(frm) {
 // ---------------------------------------------------------------------------
 frappe.ui.form.on("Quotation", {
 	refresh(frm) {
-		if (frm.doc.docstatus !== 0 || !frm.doc.project_name) {
+		if (frm.is_new() || frm.doc.docstatus !== 0 || !frm.doc.project_name) {
 			return;
 		}
 		frm.add_custom_button(__("Build from diagnosis"), () => build_from_diagnosis(frm));
@@ -963,6 +963,10 @@ frappe.ui.form.on("Quotation", {
 });
 
 function build_from_diagnosis(frm) {
+	if (frm.is_dirty() || frm.is_new()) {
+		frappe.msgprint(__("Please save the Quotation first."));
+		return;
+	}
 	frappe.dom.freeze(__("Reading diagnosis..."));
 	frappe
 		.call({
