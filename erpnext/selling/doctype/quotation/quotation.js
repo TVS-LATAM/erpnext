@@ -947,6 +947,188 @@ function refreshQuotationFields(frm) {
 	frm.refresh_fields(['rate', 'total', 'grand_total', 'net_total']);
 }
 
+// ---------------------------------------------------------------------------
+// Diagnosis-driven quotation builder
+// Reads the linked Project's diagnosis, detects labour jobs, and proposes parts
+// (from Sales Invoice history for the same car config) + a labour line whose
+// hours come from Standard Labour Hours (Manuren). See selling/quotation_builder.py
+// ---------------------------------------------------------------------------
+frappe.ui.form.on("Quotation", {
+	refresh(frm) {
+		if (frm.doc.docstatus !== 0 || !frm.doc.project_name) {
+			return;
+		}
+		frm.add_custom_button(__("Build from diagnosis"), () => build_from_diagnosis(frm));
+	},
+});
+
+function build_from_diagnosis(frm) {
+	frappe.dom.freeze(__("Reading diagnosis..."));
+	frappe
+		.call({
+			method: "erpnext.selling.quotation_builder.build_quotation_suggestions",
+			args: { quotation: frm.doc.name },
+		})
+		.then((r) => {
+			frappe.dom.unfreeze();
+			if (r && r.message) {
+				show_builder_dialog(frm, r.message);
+			}
+		})
+		.catch(() => frappe.dom.unfreeze());
+}
+
+function show_builder_dialog(frm, bundle) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Build from diagnosis"),
+		size: "large",
+		fields: [{ fieldtype: "HTML", fieldname: "body" }],
+		primary_action_label: __("Add to Quotation"),
+		primary_action: () => apply_builder_selection(frm, dialog, bundle),
+	});
+
+	const $body = dialog.fields_dict.body.$wrapper;
+	$body.append(render_builder_html(bundle));
+	dialog.show();
+}
+
+function render_builder_html(bundle) {
+	const esc = frappe.utils.escape_html;
+	const car = bundle.car || {};
+	let html = `<div class="builder-suggestions">`;
+	html += `<p class="text-muted">${__("Car")}: <b>${esc(car.dsg_family || "?")}</b>
+		(dsg ${esc(car.dsg_code || "?")}, engine ${esc(car.engine_code || "?")})</p>`;
+
+	(bundle.messages || []).forEach((m) => {
+		html += `<div class="alert alert-warning" style="padding:6px 10px">${esc(m)}</div>`;
+	});
+
+	if (!bundle.jobs || !bundle.jobs.length) {
+		html += `<p>${__("No jobs detected.")}</p></div>`;
+		return html;
+	}
+
+	bundle.jobs.forEach((job, ji) => {
+		html += `<div class="job-block" data-job="${esc(job.job)}" data-ji="${ji}"
+			style="border:1px solid var(--border-color);border-radius:6px;padding:10px;margin-bottom:12px">`;
+		html += `<h5 style="margin-top:0">${esc(job.job)}
+			<small class="text-muted">(${__("matched")}: "${esc(job.matched_keyword)}")</small></h5>`;
+
+		// Labour variant picker
+		const variants = (job.labour && job.labour.variants) || [];
+		const applicable = variants.filter((v) => v.applicable);
+		if (bundle.labour_item_code && applicable.length) {
+			html += `<div style="margin-bottom:8px">${__("Labour")}:
+				<select class="form-control labour-variant" style="display:inline-block;width:auto">
+				<option value="">${__("(no labour line)")}</option>`;
+			applicable.forEach((v, idx) => {
+				html += `<option value="${idx}" data-hours="${v.hours}" data-variant="${esc(v.vehicle_variant)}"
+					${idx === 0 ? "selected" : ""}>${esc(v.vehicle_variant)} — ${v.hours} ${__("h")}</option>`;
+			});
+			html += `</select></div>`;
+		} else {
+			html += `<div class="text-muted" style="margin-bottom:8px">${__("No standard labour hours for this car/job.")}</div>`;
+		}
+
+		// OEM reference parts
+		(job.oem_refs || []).forEach((ref) => {
+			if (ref.item_code) {
+				html += part_row(ref.item_code, `${esc(ref.part_no)} (${__("OEM")})`, "", true);
+			} else {
+				html += `<div class="text-muted small">${__("OEM part")} (${esc(ref.project_field)}):
+					<b>${esc(ref.part_no)}</b> — ${__("not in catalog, add manually")}</div>`;
+			}
+		});
+
+		// Historical part suggestions
+		const parts = job.suggested_parts || [];
+		if (parts.length) {
+			html += `<table class="table table-bordered" style="margin:6px 0">
+				<thead><tr><th width="30"></th><th>${__("Item")}</th><th width="90">${__("Used in")}</th>
+				<th width="80">${__("Qty")}</th></tr></thead><tbody>`;
+			parts.forEach((p) => {
+				html += part_row(p.item_code, esc(p.item_name || p.item_code), `${p.invoices}×`, false);
+			});
+			html += `</tbody></table>`;
+		} else {
+			html += `<div class="text-muted small">${__("No historical parts found for this job/car.")}</div>`;
+		}
+		html += `</div>`;
+	});
+
+	html += `</div>`;
+	return html;
+}
+
+function part_row(item_code, label, used, checked) {
+	const esc = frappe.utils.escape_html;
+	return `<tr class="part-row">
+		<td><input type="checkbox" class="part-check" data-item="${esc(item_code)}" ${checked ? "checked" : ""}></td>
+		<td>${label}<br><span class="text-muted small">${esc(item_code)}</span></td>
+		<td>${used || ""}</td>
+		<td><input type="number" class="form-control part-qty" value="1" min="0" step="0.5" style="width:70px"></td>
+	</tr>`;
+}
+
+function apply_builder_selection(frm, dialog, bundle) {
+	const $body = dialog.fields_dict.body.$wrapper;
+	const rows = [];
+
+	$body.find(".job-block").each(function () {
+		const $block = $(this);
+		const job = $block.data("job");
+
+		// selected parts
+		$block.find(".part-row").each(function () {
+			const $r = $(this);
+			if ($r.find(".part-check").is(":checked")) {
+				rows.push({
+					item_code: $r.find(".part-check").data("item"),
+					qty: flt($r.find(".part-qty").val()) || 1,
+				});
+			}
+		});
+
+		// labour line
+		const $sel = $block.find(".labour-variant");
+		if ($sel.length && $sel.val() !== "") {
+			const $opt = $sel.find("option:selected");
+			const hours = flt($opt.data("hours"));
+			if (bundle.labour_item_code && hours > 0) {
+				rows.push({
+					item_code: bundle.labour_item_code,
+					qty: hours,
+					description: `${job} – ${$opt.data("variant")} (${hours}u)`,
+				});
+			}
+		}
+	});
+
+	if (!rows.length) {
+		frappe.msgprint(__("Select at least one part or labour line."));
+		return;
+	}
+
+	frappe.dom.freeze(__("Adding to quotation..."));
+	frappe
+		.call({
+			method: "erpnext.selling.quotation_builder.apply_suggestions_to_quotation",
+			args: { quotation: frm.doc.name, rows: JSON.stringify(rows) },
+		})
+		.then((r) => {
+			frappe.dom.unfreeze();
+			dialog.hide();
+			if (r && r.message) {
+				frappe.show_alert(
+					{ message: __("Added {0} line(s) — review rates.", [r.message.added]), indicator: "green" },
+					7
+				);
+			}
+			frm.reload_doc();
+		})
+		.catch(() => frappe.dom.unfreeze());
+}
+
 async function insertResendQuotationApprovalButton(frm) {
 	if (!["Approved", "Ordered"].includes(frm.doc.status)) {
 		frm.add_custom_button(__('Resend Approve Message'), () => {

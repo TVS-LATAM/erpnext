@@ -8,7 +8,8 @@
  "field_order": [
   "job_name",
   "dutch_aliases",
-  "match_keywords"
+  "match_keywords",
+  "project_part_fields"
  ],
  "fields": [
   {
@@ -30,6 +31,12 @@
    "fieldname": "match_keywords",
    "fieldtype": "Small Text",
    "label": "Diagnosis Match Keywords"
+  },
+  {
+   "description": "Project fieldnames (comma-separated) holding the OEM part number that anchors this job, used by the quotation builder. e.g. \"mechatronic\" for a mechatronic job, \"clutch,flywheel\" for a combined job. Leave blank for jobs with no specific anchor part (parts come from history only).",
+   "fieldname": "project_part_fields",
+   "fieldtype": "Small Text",
+   "label": "Project Part Fields (quotation builder)"
   }
  ],
  "grid_page_length": 50,

@@ -21,14 +21,14 @@ VARIANT_SEED = [
 ]
 
 JOB_SEED = [
-	# job_name, dutch_aliases, diagnosis_keywords
-	("Oil Change", ["Oliewissel"], ["oil change", "olie", "oliewissel"]),
-	("Mechatronics", ["Mechatronic vervangen", "Mechatronic vervangen / TCU", "Mechatronic"], ["mechatronic", "tcu"]),
-	("Clutch", ["Koppeling vervangen"], ["clutch", "koppeling"]),
-	("Flywheel", ["Vliegwiel vervangen"], ["flywheel", "vliegwiel"]),
-	("Gearbox", ["Versnellingsbak vervangen"], ["gearbox", "transmission", "versnellingsbak"]),
-	("Clutch + Flywheel", ["Koppeling + Vliegwiel vervangen"], ["clutch and flywheel", "koppeling + vliegwiel"]),
-	("Ride-height Sensor", ["Rijstand sensor vervangen"], ["ride height sensor", "rijstand", "level sensor"]),
+	# job_name, dutch_aliases, diagnosis_keywords, project_part_fields (anchor OEM part)
+	("Oil Change", ["Oliewissel"], ["oil change", "olie", "oliewissel"], []),
+	("Mechatronics", ["Mechatronic vervangen", "Mechatronic vervangen / TCU", "Mechatronic"], ["mechatronic", "tcu"], ["mechatronic"]),
+	("Clutch", ["Koppeling vervangen"], ["clutch", "koppeling"], ["clutch"]),
+	("Flywheel", ["Vliegwiel vervangen"], ["flywheel", "vliegwiel"], ["flywheel"]),
+	("Gearbox", ["Versnellingsbak vervangen"], ["gearbox", "transmission", "versnellingsbak"], ["dsg_gearbox"]),
+	("Clutch + Flywheel", ["Koppeling + Vliegwiel vervangen"], ["clutch and flywheel", "koppeling + vliegwiel"], ["clutch", "flywheel"]),
+	("Ride-height Sensor", ["Rijstand sensor vervangen"], ["ride height sensor", "rijstand", "level sensor"], []),
 ]
 
 DSG_CODE_RE = re.compile(r"^(dq|dl)\d{3}$")
@@ -72,7 +72,7 @@ def ensure_masters():
 				}
 			).insert(ignore_permissions=True)
 
-	for name, aliases, keywords in JOB_SEED:
+	for name, aliases, keywords, part_fields in JOB_SEED:
 		if not frappe.db.exists("Labour Job", name):
 			frappe.get_doc(
 				{
@@ -80,8 +80,12 @@ def ensure_masters():
 					"job_name": name,
 					"dutch_aliases": "\n".join(aliases),
 					"match_keywords": "\n".join(keywords),
+					"project_part_fields": ", ".join(part_fields),
 				}
 			).insert(ignore_permissions=True)
+		elif part_fields and not frappe.db.get_value("Labour Job", name, "project_part_fields"):
+			# Backfill the anchor-part mapping on jobs seeded before this field existed.
+			frappe.db.set_value("Labour Job", name, "project_part_fields", ", ".join(part_fields))
 
 
 def _build_lookups():
