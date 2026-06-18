@@ -994,12 +994,10 @@ function show_builder_dialog(frm, bundle) {
 	const $body = dialog.fields_dict.body.$wrapper;
 	$body.append(render_builder_html(bundle));
 
-	// A template-level checkbox enables/disables its whole item set + labour.
+	// Selecting a template reveals (renders) its parts + labour; the list shows
+	// only template names until then.
 	$body.on("change", ".template-check", function () {
-		const on = $(this).is(":checked");
-		const $block = $(this).closest(".job-block");
-		$block.css("opacity", on ? "1" : "0.5");
-		$block.find(".part-check, .part-qty, .labour-variant").prop("disabled", !on);
+		$(this).closest(".job-block").find(".template-body").toggle($(this).is(":checked"));
 	});
 
 	dialog.show();
@@ -1021,12 +1019,19 @@ function render_builder_html(bundle) {
 		return html;
 	}
 
+	html += `<p class="small text-muted">${__(
+		"Select a template to see its parts and labour hours."
+	)}</p>`;
+
 	bundle.jobs.forEach((job, ji) => {
 		html += `<div class="job-block" data-job="${esc(job.job)}" data-ji="${ji}"
-			style="border:1px solid var(--border-color);border-radius:6px;padding:10px;margin-bottom:12px">`;
-		html += `<label style="margin-top:0;display:block;font-size:15px;font-weight:600;cursor:pointer">
-			<input type="checkbox" class="template-check" checked> ${esc(job.job)} ${__("template")}
+			style="border:1px solid var(--border-color);border-radius:6px;padding:10px;margin-bottom:10px">`;
+		html += `<label style="margin:0;display:block;font-size:15px;font-weight:600;cursor:pointer">
+			<input type="checkbox" class="template-check"> ${esc(job.job)} ${__("template")}
 			<small class="text-muted" style="font-weight:normal">(${__("matched")}: "${esc(job.matched_keyword)}")</small></label>`;
+
+		// Body is rendered up front but hidden; it appears when the template is selected.
+		html += `<div class="template-body" style="display:none;margin-top:8px">`;
 
 		// Labour variant picker
 		const variants = (job.labour && job.labour.variants) || [];
@@ -1047,7 +1052,9 @@ function render_builder_html(bundle) {
 		// OEM reference parts
 		(job.oem_refs || []).forEach((ref) => {
 			if (ref.item_code) {
+				html += `<table class="table table-bordered" style="margin:6px 0"><tbody>`;
 				html += part_row(ref.item_code, `${esc(ref.part_no)} (${__("OEM")})`, "", true);
+				html += `</tbody></table>`;
 			} else {
 				html += `<div class="text-muted small">${__("OEM part")} (${esc(ref.project_field)}):
 					<b>${esc(ref.part_no)}</b> — ${__("not in catalog, add manually")}</div>`;
@@ -1067,7 +1074,9 @@ function render_builder_html(bundle) {
 		} else {
 			html += `<div class="text-muted small">${__("No historical parts found for this job/car.")}</div>`;
 		}
-		html += `</div>`;
+
+		html += `</div>`; // .template-body
+		html += `</div>`; // .job-block
 	});
 
 	html += `</div>`;
