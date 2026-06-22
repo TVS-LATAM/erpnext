@@ -172,6 +172,44 @@ def suggest_parts_for_job(job, engine_code=None, dsg_code=None, limit=12):
 	return rows
 
 
+def fitting_parts_for_job(job, dsg_code, limit=50):
+	"""Catalogue items that fit the car AND belong to this job's category.
+
+	Fitment: items whose Item DSG Compatibility includes the car's VAG dsg_code
+	(e.g. 0AM, 0CW). Category: the item code or item name contains one of the job's
+	`item_match_keywords` tokens (e.g. 'mec' for Mechatronics, 'clu'/'kop' for Clutch).
+	So a Mechatronics template shows only the mechatronic items for that gearbox.
+	"""
+	if not dsg_code:
+		return []
+	tokens = [
+		_norm(t)
+		for t in re.split(r"[\n,]", frappe.db.get_value("Labour Job", job, "item_match_keywords") or "")
+		if _norm(t)
+	]
+	if not tokens:
+		return []
+
+	rows = frappe.db.sql(
+		"""
+		SELECT DISTINCT i.item_code, i.item_name, i.item_group
+		FROM `tabItem DSG Compatibility` c
+		JOIN `tabItem` i ON i.name = c.parent
+		WHERE c.dsg_code = %(dsg)s AND IFNULL(i.disabled, 0) = 0
+		""",
+		{"dsg": dsg_code},
+		as_dict=True,
+	)
+
+	out = []
+	for r in rows:
+		haystack = f"{r.item_code} {r.item_name or ''}".lower()
+		if any(tok in haystack for tok in tokens):
+			out.append({"item_code": r.item_code, "item_name": r.item_name, "item_group": r.item_group})
+	out.sort(key=lambda x: x["item_code"])
+	return out[:limit]
+
+
 def _resolve_item_from_partno(partno):
 	"""Best-effort map an OEM part-number string to an Item. Returns item_code or None."""
 	npn = re.sub(r"\s+", " ", (partno or "").strip())
@@ -266,7 +304,7 @@ def build_quotation_suggestions(project):
 			{
 				"job": job,
 				"matched_keyword": d["matched_keyword"],
-				"suggested_parts": suggest_parts_for_job(job, engine_code=engine_code, dsg_code=dsg_code),
+				"suggested_parts": fitting_parts_for_job(job, dsg_code),
 				"oem_refs": oem_reference_parts(job, project),
 				"labour": {"available": bool(variants), "variants": variants},
 			}

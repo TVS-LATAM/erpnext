@@ -1069,18 +1069,19 @@ function render_builder_html(bundle) {
 			}
 		});
 
-		// Historical part suggestions
+		// Catalogue items that fit the car and belong to this job's category
 		const parts = job.suggested_parts || [];
 		if (parts.length) {
 			html += `<table class="table table-bordered" style="margin:6px 0">
-				<thead><tr><th width="30"></th><th>${__("Item")}</th><th width="90">${__("Used in")}</th>
+				<thead><tr><th width="30"></th><th>${__("Item")}</th><th width="120">${__("Group")}</th>
 				<th width="80">${__("Qty")}</th></tr></thead><tbody>`;
 			parts.forEach((p) => {
-				html += part_row(p.item_code, esc(p.item_name || p.item_code), `${p.invoices}×`, true);
+				const hint = p.item_group && p.item_group !== "All Item Groups" ? esc(p.item_group) : "";
+				html += part_row(p.item_code, esc(p.item_name || p.item_code), hint, true);
 			});
 			html += `</tbody></table>`;
 		} else {
-			html += `<div class="text-muted small">${__("No historical parts found for this job/car.")}</div>`;
+			html += `<div class="text-muted small">${__("No fitting items found for this job/car.")}</div>`;
 		}
 
 		html += `</div>`; // .template-body

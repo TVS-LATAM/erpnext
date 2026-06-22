@@ -9,7 +9,8 @@
   "job_name",
   "dutch_aliases",
   "match_keywords",
-  "project_part_fields"
+  "project_part_fields",
+  "item_match_keywords"
  ],
  "fields": [
   {
@@ -37,6 +38,12 @@
    "fieldname": "project_part_fields",
    "fieldtype": "Small Text",
    "label": "Project Part Fields (quotation builder)"
+  },
+  {
+   "description": "Tokens (comma-separated) that identify items belonging to this job by matching the item code or item name, e.g. \"mec, mechatronic, tcu\" for Mechatronics or \"clu, kop, koppeling\" for Clutch. Used by the quotation builder to filter the DSG-compatible items down to this job's category.",
+   "fieldname": "item_match_keywords",
+   "fieldtype": "Small Text",
+   "label": "Item Match Keywords (quotation builder)"
   }
  ],
  "grid_page_length": 50,
