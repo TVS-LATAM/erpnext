@@ -277,21 +277,42 @@ def cross_reference_oe_pns(oe_pns):
 		return [], str(e)
 
 
-def _items_by_oem_pn(oem_pns):
-	"""Items whose oem_pn matches any of `oem_pns`, comparing whitespace-insensitively."""
+def _items_by_oem_pn(oem_pns, dsg_code=None):
+	"""Items whose oem_pn matches any of `oem_pns`, comparing whitespace-insensitively.
+
+	When `dsg_code` is given, prefer items that fit that gearbox (Item DSG
+	Compatibility); if none of the matches fit, fall back to all oem_pn matches.
+	"""
 	targets = {re.sub(r"\s+", "", str(p)).upper() for p in (oem_pns or []) if str(p).strip()}
 	if not targets:
 		return []
-	return frappe.db.sql(
-		"""
-		SELECT item_code, item_name, item_group
-		FROM `tabItem`
-		WHERE IFNULL(disabled, 0) = 0
-		  AND UPPER(REPLACE(oem_pn, ' ', '')) IN %(targets)s
-		""",
-		{"targets": tuple(targets)},
-		as_dict=True,
-	)
+
+	def _query(with_dsg):
+		cond = ""
+		params = {"targets": tuple(targets)}
+		if with_dsg:
+			cond = (
+				"AND EXISTS (SELECT 1 FROM `tabItem DSG Compatibility` c "
+				"WHERE c.parent = i.name AND c.dsg_code = %(dsg)s)"
+			)
+			params["dsg"] = dsg_code
+		return frappe.db.sql(
+			f"""
+			SELECT i.item_code, i.item_name, i.item_group
+			FROM `tabItem` i
+			WHERE IFNULL(i.disabled, 0) = 0
+			  AND UPPER(REPLACE(i.oem_pn, ' ', '')) IN %(targets)s
+			  {cond}
+			""",
+			params,
+			as_dict=True,
+		)
+
+	if dsg_code:
+		fitted = _query(True)
+		if fitted:
+			return fitted
+	return _query(False)
 
 
 def sold_with_items(item_codes, engine_code=None, dsg_code=None, exclude=None, exclude_tokens=None, limit=12):
@@ -367,7 +388,7 @@ def crossref_parts_for_job(job, project, engine_code=None, dsg_code=None):
 
 	oe_parts = []
 	seen = set()
-	for it in _items_by_oem_pn(oem_pns):
+	for it in _items_by_oem_pn(oem_pns, dsg_code=dsg_code):
 		if it["item_code"] in seen:
 			continue
 		seen.add(it["item_code"])
@@ -395,10 +416,19 @@ def crossref_parts_for_job(job, project, engine_code=None, dsg_code=None):
 		for t in re.split(r"[\n,]", frappe.db.get_value("Labour Job", job, "item_match_keywords") or "")
 		if _norm(t)
 	]
-	anchors = seen | category_codes
-	parts = list(parts) + sold_with_items(
-		list(anchors), engine_code=engine_code, dsg_code=dsg_code, exclude=anchors, exclude_tokens=job_tokens
+	# Sold-together search is based on the matched item(s) first (so we get what is sold
+	# WITH this specific part). Only if they carry no invoice history do we fall back to
+	# the job/car catalogue SKUs so common add-ons still surface. Same-category SKUs are
+	# always excluded from the results.
+	exclude = seen | category_codes
+	enrich = sold_with_items(
+		list(seen), engine_code=engine_code, dsg_code=dsg_code, exclude=exclude, exclude_tokens=job_tokens
 	)
+	if not enrich:
+		enrich = sold_with_items(
+			list(category_codes), engine_code=engine_code, dsg_code=dsg_code, exclude=exclude, exclude_tokens=job_tokens
+		)
+	parts = list(parts) + enrich
 	return parts, messages
 
 
