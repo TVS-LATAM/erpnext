@@ -261,9 +261,9 @@ def cross_reference_oe_pns(oe_pns):
 	if not oe_pns:
 		return [], None
 
-	base = (frappe.db.get_single_value("Parts Integration Settings", "base_url") or "").strip()
+	base = (frappe.db.get_single_value("Rest Config", "aws_url") or "").strip()
 	if not base:
-		return [], _("Parts Integration base URL is not configured.")
+		return [], _("Rest Config base URL (aws_url) is not configured.")
 
 	url = base.rstrip("/") + "/parts-integration/cross-reference"
 	try:
