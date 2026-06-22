@@ -358,22 +358,32 @@ def crossref_parts_for_job(job, project, engine_code=None, dsg_code=None):
 	for r in results:
 		oem_pns.extend(r.get("oem_pn") or [])
 
-	parts = []
+	oe_parts = []
 	seen = set()
 	for it in _items_by_oem_pn(oem_pns):
 		if it["item_code"] in seen:
 			continue
 		seen.add(it["item_code"])
-		parts.append({**it, "source": "oe"})
+		oe_parts.append({**it, "source": "oe"})
 
-	if not parts:
-		messages.append(_("No catalogue items matched the cross-referenced OEM numbers for {0}.").format(job))
+	# The catalogue-fitting SKUs for this job/car carry the invoice history (the OE
+	# part numbers often map to specific SKUs that were rarely invoiced), so use them
+	# to anchor the sold-together search — and as the fit list if no OE item matched.
+	category = fitting_parts_for_job(job, dsg_code)
+	category_codes = {p["item_code"] for p in category}
 
-	# Sold-together enrichment for the cross-reference path.
-	parts.extend(
-		sold_with_items(
-			[p["item_code"] for p in parts], engine_code=engine_code, dsg_code=dsg_code, exclude=seen
+	if oe_parts:
+		parts = oe_parts
+	else:
+		messages.append(
+			_("No catalogue items matched the cross-referenced OEM numbers for {0} — used catalogue fitment.").format(job)
 		)
+		parts = category
+		seen = set(category_codes)
+
+	anchors = seen | category_codes
+	parts = list(parts) + sold_with_items(
+		list(anchors), engine_code=engine_code, dsg_code=dsg_code, exclude=anchors
 	)
 	return parts, messages
 
