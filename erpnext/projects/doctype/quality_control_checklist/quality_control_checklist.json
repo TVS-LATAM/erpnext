@@ -1,0 +1,404 @@
+{
+ "actions": [],
+ "autoname": "format:QC-CHK-{#####}",
+ "creation": "2026-06-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "project",
+  "vehicle_details_section",
+  "vehicle_model",
+  "licence_plate",
+  "vehicle_details_column",
+  "check_date",
+  "checked_by",
+  "before_quality_control_section",
+  "customer_complaints_resolved",
+  "vehicle_drives_well",
+  "engine_runs_well",
+  "tuning_difference_noticeable",
+  "faults_or_defects_noticed",
+  "adaptation_values_saved",
+  "delivery_system_scan_completed",
+  "vehicle_fault_codes_cleared_before_qc",
+  "vehicle_aligned",
+  "steering_wheel_straight",
+  "during_quality_control_section",
+  "lift_leak_inspection_completed",
+  "undertray_installed",
+  "wheels_torqued",
+  "engine_bay_covers_cleaned",
+  "coolant_and_engine_oil_checked",
+  "vehicle_fault_codes_cleared_after_qc",
+  "trip_meter_reset",
+  "dashboard_clock_set",
+  "windows_initialized",
+  "maintenance_notification_present",
+  "defective_lamp_notification_present",
+  "washer_fluid_notification_present",
+  "vehicle_vacuumed",
+  "vehicle_washed",
+  "invoice_section",
+  "transport_costs_on_quote",
+  "pickup_delivery_costs_on_quote",
+  "loan_car_costs_on_quote",
+  "fuel_costs_on_quote",
+  "extra_work_on_quote",
+  "invoice_paid",
+  "notes_section",
+  "notes",
+  "attachments_section",
+  "photo",
+  "attachment"
+ ],
+ "fields": [
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Job Card",
+   "options": "Project",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_details_section",
+   "fieldtype": "Section Break",
+   "label": "Vehicle Details"
+  },
+  {
+   "fetch_from": "project.model",
+   "fieldname": "vehicle_model",
+   "fieldtype": "Data",
+   "label": "Vehicle Make / Model",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "project.plate",
+   "fieldname": "licence_plate",
+   "fieldtype": "Data",
+   "label": "Licence Plate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vehicle_details_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "check_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "default": "__user",
+   "fieldname": "checked_by",
+   "fieldtype": "Link",
+   "label": "Checked By / Mechanic",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "before_quality_control_section",
+   "fieldtype": "Section Break",
+   "label": "Before Quality Control"
+  },
+  {
+   "fieldname": "customer_complaints_resolved",
+   "fieldtype": "Select",
+   "label": "Customer Complaints Resolved",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_drives_well",
+   "fieldtype": "Select",
+   "label": "Vehicle Drives Well",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "engine_runs_well",
+   "fieldtype": "Select",
+   "label": "Engine Runs Well",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tuning_difference_noticeable",
+   "fieldtype": "Select",
+   "label": "Tuning / Software Difference Noticeable",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "faults_or_defects_noticed",
+   "fieldtype": "Select",
+   "label": "Faults or Defects Noticed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "adaptation_values_saved",
+   "fieldtype": "Select",
+   "label": "Adaptation Values Saved",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "delivery_system_scan_completed",
+   "fieldtype": "Select",
+   "label": "Delivery System Scan Completed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_fault_codes_cleared_before_qc",
+   "fieldtype": "Select",
+   "label": "Vehicle Fault Codes Cleared Before Quality Control",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_aligned",
+   "fieldtype": "Select",
+   "label": "Vehicle Aligned",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "steering_wheel_straight",
+   "fieldtype": "Select",
+   "label": "Steering Wheel Straight",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "during_quality_control_section",
+   "fieldtype": "Section Break",
+   "label": "During Quality Control"
+  },
+  {
+   "fieldname": "lift_leak_inspection_completed",
+   "fieldtype": "Select",
+   "label": "Vehicle Checked on Lift for Faults and Leaks",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "undertray_installed",
+   "fieldtype": "Select",
+   "label": "Undertray Installed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "wheels_torqued",
+   "fieldtype": "Select",
+   "label": "Wheels Tightened with Torque Wrench",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "engine_bay_covers_cleaned",
+   "fieldtype": "Select",
+   "label": "Covers Under Hood Cleaned",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "coolant_and_engine_oil_checked",
+   "fieldtype": "Select",
+   "label": "Coolant and Engine Oil Level Checked",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_fault_codes_cleared_after_qc",
+   "fieldtype": "Select",
+   "label": "Vehicle Fault Codes Cleared After Quality Control",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "trip_meter_reset",
+   "fieldtype": "Select",
+   "label": "Trip Meter Reset",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "dashboard_clock_set",
+   "fieldtype": "Select",
+   "label": "Dashboard Clock Set",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "windows_initialized",
+   "fieldtype": "Select",
+   "label": "Windows Initialized",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "maintenance_notification_present",
+   "fieldtype": "Select",
+   "label": "Maintenance Service Notification Present",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "defective_lamp_notification_present",
+   "fieldtype": "Select",
+   "label": "Defective Lamp Notification Present",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "washer_fluid_notification_present",
+   "fieldtype": "Select",
+   "label": "Windshield Washer Fluid Notification Present",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_vacuumed",
+   "fieldtype": "Select",
+   "label": "Vehicle Vacuumed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_washed",
+   "fieldtype": "Select",
+   "label": "Vehicle Washed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invoice_section",
+   "fieldtype": "Section Break",
+   "label": "Invoice and Delivery"
+  },
+  {
+   "fieldname": "transport_costs_on_quote",
+   "fieldtype": "Select",
+   "label": "Transport Costs Included on Quote",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pickup_delivery_costs_on_quote",
+   "fieldtype": "Select",
+   "label": "Pickup / Delivery Service Costs Included on Quote",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "loan_car_costs_on_quote",
+   "fieldtype": "Select",
+   "label": "Loan Car Costs Included on Quote",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fuel_costs_on_quote",
+   "fieldtype": "Select",
+   "label": "Fuel Costs Included on Quote",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "extra_work_on_quote",
+   "fieldtype": "Select",
+   "label": "All Extra Work Included on Quote",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invoice_paid",
+   "fieldtype": "Select",
+   "label": "Invoice Paid",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "description": "Explain every No answer.",
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "attachments_section",
+   "fieldtype": "Section Break",
+   "label": "Attachments"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
+  },
+  {
+   "fieldname": "attachment",
+   "fieldtype": "Attach",
+   "label": "File Attachment"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Projects",
+ "name": "Quality Control Checklist",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Manufacturing User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Manufacturing Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "project",
+ "track_changes": 1
+}

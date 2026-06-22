@@ -110,6 +110,10 @@ frappe.ui.form.on("Project", {
 			frm.trigger("show_dashboard");
 		}
 
+		if (!frm.is_new()) {
+			frm.trigger("setup_checklist_buttons");
+		}
+
 		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(frm);
 		const isMechanic = await erpnext.utils.isMechanic(frm);
 		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(frm);
@@ -154,6 +158,16 @@ frappe.ui.form.on("Project", {
 		if (!frm.previous_status) {
 			frm.previous_status = frm.doc.status
 		}
+	},
+
+	setup_checklist_buttons: function (frm) {
+		["Arrival Checklist", "Job Checklist", "Quality Control Checklist", "DSG Oil Change Checklist"].forEach((doctype) => {
+			frm.add_custom_button(
+				__(doctype),
+				() => frappe.new_doc(doctype, { project: frm.doc.name }),
+				__("Checklists")
+			);
+		});
 	},
 
 	set_custom_buttons: function (frm) {

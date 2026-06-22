@@ -11,6 +11,10 @@ def get_data():
 				"label": _("Project"),
 				"items": ["Task", "Timesheet", "Issue", "Project Update"],
 			},
+			{
+				"label": _("Checklists"),
+				"items": ["Arrival Checklist", "Job Checklist", "Quality Control Checklist", "DSG Oil Change Checklist"],
+			},
 			{"label": _("Material"), "items": ["Material Request", "BOM", "Stock Entry"]},
 			{"label": _("Sales"), "items": ["Sales Order", "Delivery Note", "Sales Invoice"]},
 			{"label": _("Purchase"), "items": ["Purchase Order", "Purchase Receipt", "Purchase Invoice"]},
