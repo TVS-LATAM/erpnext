@@ -1010,6 +1010,14 @@ function render_builder_html(bundle) {
 	html += `<p class="text-muted">${__("Car")}: <b>${esc(car.dsg_family || "?")}</b>
 		(dsg ${esc(car.dsg_code || "?")}, engine ${esc(car.engine_code || "?")})</p>`;
 
+	if (bundle.repair_advice) {
+		html += `<div style="background:var(--control-bg);border-radius:6px;padding:8px 10px;margin-bottom:10px">
+			<div class="text-muted small" style="text-transform:uppercase;letter-spacing:.04em">${__(
+				"Reparatie advies"
+			)}</div>
+			<div>${esc(bundle.repair_advice)}</div></div>`;
+	}
+
 	(bundle.messages || []).forEach((m) => {
 		html += `<div class="alert alert-warning" style="padding:6px 10px">${esc(m)}</div>`;
 	});

@@ -48,6 +48,40 @@ def _labour_skus():
 	return _resolve_labour_set()
 
 
+def extract_repair_advice(html):
+	"""Return only the 'Reparatie advies' (repair advice) section of diagnose_result.
+
+	The diagnosis is a structured Text Editor field with labelled sections
+	(Systemscan, Opgemerkte klachten, Diagnose data, Reparatie advies, ...). Only
+	the repair-advice section describes the work to quote, so job detection must run
+	on that part alone — not the whole text. Returns "" if the section is absent.
+	"""
+	if not html:
+		return ""
+	low = html.lower()
+	idx = low.find("reparatie advies")
+	if idx == -1:
+		idx = low.find("repair advice")
+	if idx == -1:
+		return ""
+
+	rest = html[idx:]
+	# The advice items sit in the first list right after the heading; capture it and
+	# stop there so later sections (e.g. a "Werkplaatsreceptie"/offerte block) are excluded.
+	m = re.search(r"<(ol|ul)\b[^>]*>(.*?)</\1>", rest, re.IGNORECASE | re.DOTALL)
+	if m:
+		segment = m.group(0)
+	else:
+		# No list — take text up to the next heading-like "<p>...:</p>" after the heading.
+		after = rest.split("</p>", 1)[1] if "</p>" in rest else rest
+		nxt = re.search(r"<p[^>]*>[^<]{0,60}:\s*</p>", after, re.IGNORECASE)
+		segment = after[: nxt.start()] if nxt else after
+
+	text = re.sub(r"<[^>]+>", " ", segment)
+	text = frappe.utils.unescape_html(text) if hasattr(frappe.utils, "unescape_html") else text
+	return re.sub(r"\s+", " ", text).strip()
+
+
 def detect_jobs_from_text(text):
 	"""Match free-text diagnosis against Labour Job.match_keywords.
 
@@ -204,8 +238,19 @@ def build_quotation_suggestions(project):
 			_("Could not determine the DSG family from the Project (dsg_model) — labour hours will be unavailable.")
 		)
 
-	diagnosis = project.get("diagnose_result") or project.get("client_description")
-	detected = detect_jobs_from_text(diagnosis)
+	# Detect jobs from the 'Reparatie advies' section only (the work to quote), not
+	# the whole diagnosis. Fall back to the full text / problem description if absent.
+	diag_html = project.get("diagnose_result")
+	repair_advice = extract_repair_advice(diag_html)
+	if repair_advice:
+		diagnosis_text = repair_advice
+	elif diag_html:
+		diagnosis_text = _strip_html(diag_html)
+		messages.append(_("No 'Reparatie advies' section found — scanned the full diagnosis."))
+	else:
+		diagnosis_text = project.get("client_description") or ""
+
+	detected = detect_jobs_from_text(diagnosis_text)
 	if not detected:
 		messages.append(_("No labour jobs detected in the Project diagnosis."))
 
@@ -236,6 +281,7 @@ def build_quotation_suggestions(project):
 			"dsg_family": family,
 		},
 		"labour_item_code": labour_sku,
+		"repair_advice": repair_advice,
 		"jobs": jobs,
 		"messages": messages,
 	}
