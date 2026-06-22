@@ -205,7 +205,9 @@ def fitting_parts_for_job(job, dsg_code, limit=50):
 	for r in rows:
 		haystack = f"{r.item_code} {r.item_name or ''}".lower()
 		if any(tok in haystack for tok in tokens):
-			out.append({"item_code": r.item_code, "item_name": r.item_name, "item_group": r.item_group})
+			out.append(
+				{"item_code": r.item_code, "item_name": r.item_name, "item_group": r.item_group, "source": "fit"}
+			)
 	out.sort(key=lambda x: x["item_code"])
 	return out[:limit]
 
@@ -247,6 +249,133 @@ def oem_reference_parts(job, project):
 			}
 		)
 	return refs
+
+
+def cross_reference_oe_pns(oe_pns):
+	"""POST the OE part numbers to the parts-integration cross-reference service.
+
+	Returns (results, error). `results` is the list of per-oe_pn entries from the
+	service (each with an `oem_pn` array); `error` is a message string on failure.
+	"""
+	oe_pns = [p for p in (oe_pns or []) if p and str(p).strip()]
+	if not oe_pns:
+		return [], None
+
+	base = (frappe.db.get_single_value("Parts Integration Settings", "base_url") or "").strip()
+	if not base:
+		return [], _("Parts Integration base URL is not configured.")
+
+	url = base.rstrip("/") + "/parts-integration/cross-reference"
+	try:
+		import requests
+
+		resp = requests.post(url, json={"oe_pns": oe_pns}, timeout=15)
+		resp.raise_for_status()
+		return (resp.json() or {}).get("results", []), None
+	except Exception as e:  # noqa: BLE001 — surface any failure as a soft message + fallback
+		frappe.log_error(frappe.get_traceback(), "Parts cross-reference failed")
+		return [], str(e)
+
+
+def _items_by_oem_pn(oem_pns):
+	"""Items whose oem_pn matches any of `oem_pns`, comparing whitespace-insensitively."""
+	targets = {re.sub(r"\s+", "", str(p)).upper() for p in (oem_pns or []) if str(p).strip()}
+	if not targets:
+		return []
+	return frappe.db.sql(
+		"""
+		SELECT item_code, item_name, item_group
+		FROM `tabItem`
+		WHERE IFNULL(disabled, 0) = 0
+		  AND UPPER(REPLACE(oem_pn, ' ', '')) IN %(targets)s
+		""",
+		{"targets": tuple(targets)},
+		as_dict=True,
+	)
+
+
+def sold_with_items(item_codes, engine_code=None, dsg_code=None, exclude=None, limit=12):
+	"""Items historically sold alongside `item_codes` on the same car config.
+
+	Reuses get_item_insights' co-occurrence (frequently_used_with), filtered to the
+	car's engine/DSG, excluding labour lines and anything already in `exclude`.
+	"""
+	from erpnext.stock.doctype.item.item import get_item_insights
+
+	seen = set(exclude or [])
+	out = []
+	for code in item_codes:
+		try:
+			insights = get_item_insights(code, engine_codes=engine_code or "", dsg_codes=dsg_code or "")
+		except Exception:  # noqa: BLE001
+			continue
+		for f in insights.get("frequently_used_with") or []:
+			if f.get("is_labour"):
+				continue
+			ic = f.get("item_code")
+			if not ic or ic in seen:
+				continue
+			seen.add(ic)
+			out.append(
+				{
+					"item_code": ic,
+					"item_name": f.get("item_name"),
+					"item_group": None,
+					"source": "sold_with",
+					"co_occurrence": f.get("co_occurrence_count"),
+				}
+			)
+			if len(out) >= limit:
+				return out
+	return out
+
+
+def crossref_parts_for_job(job, project, engine_code=None, dsg_code=None):
+	"""Clutch/Flywheel parts via OE→OEM cross-reference, then sold-together enrichment.
+
+	Takes the car's oe_pn from the Project fields in `project_part_fields`, cross-
+	references them to OEM numbers, matches Items by oem_pn, then adds items sold
+	with those. Falls back to the category fitment when no oe_pn / no service / no match.
+	Returns (parts, messages).
+	"""
+	messages = []
+	fields = [
+		f.strip()
+		for f in (frappe.db.get_value("Labour Job", job, "project_part_fields") or "").split(",")
+		if f.strip()
+	]
+	oe_pns = [(project.get(f) or "").strip() for f in fields]
+	oe_pns = [p for p in oe_pns if p]
+	if not oe_pns:
+		return fitting_parts_for_job(job, dsg_code), messages
+
+	results, error = cross_reference_oe_pns(oe_pns)
+	if error:
+		messages.append(_("Parts cross-reference failed for {0} — used catalogue fitment instead.").format(job))
+		return fitting_parts_for_job(job, dsg_code), messages
+
+	oem_pns = []
+	for r in results:
+		oem_pns.extend(r.get("oem_pn") or [])
+
+	parts = []
+	seen = set()
+	for it in _items_by_oem_pn(oem_pns):
+		if it["item_code"] in seen:
+			continue
+		seen.add(it["item_code"])
+		parts.append({**it, "source": "oe"})
+
+	if not parts:
+		messages.append(_("No catalogue items matched the cross-referenced OEM numbers for {0}.").format(job))
+
+	# Sold-together enrichment for the cross-reference path.
+	parts.extend(
+		sold_with_items(
+			[p["item_code"] for p in parts], engine_code=engine_code, dsg_code=dsg_code, exclude=seen
+		)
+	)
+	return parts, messages
 
 
 @frappe.whitelist()
@@ -300,11 +429,20 @@ def build_quotation_suggestions(project):
 		variants = []
 		if family:
 			variants = get_standard_labour_hours(dsg_code=family, job=job) or []
+
+		# Clutch/Flywheel resolve parts via OE→OEM cross-reference; others by catalogue
+		# fitment on the job's item-match keywords.
+		if frappe.db.get_value("Labour Job", job, "use_oe_crossref"):
+			parts, part_msgs = crossref_parts_for_job(job, project, engine_code=engine_code, dsg_code=dsg_code)
+			messages.extend(part_msgs)
+		else:
+			parts = fitting_parts_for_job(job, dsg_code)
+
 		jobs.append(
 			{
 				"job": job,
 				"matched_keyword": d["matched_keyword"],
-				"suggested_parts": fitting_parts_for_job(job, dsg_code),
+				"suggested_parts": parts,
 				"oem_refs": oem_reference_parts(job, project),
 				"labour": {"available": bool(variants), "variants": variants},
 			}

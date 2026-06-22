@@ -21,14 +21,14 @@ VARIANT_SEED = [
 ]
 
 JOB_SEED = [
-	# job_name, dutch_aliases, diagnosis_keywords, project_part_fields (anchor OEM part), item_match_tokens
-	("Oil Change", ["Oliewissel"], ["oil change", "olie", "oliewissel"], [], ["oil", "olie", "oliewissel"]),
-	("Mechatronics", ["Mechatronic vervangen", "Mechatronic vervangen / TCU", "Mechatronic"], ["mechatronic", "tcu"], ["mechatronic"], ["mec", "mechatronic", "tcu"]),
-	("Clutch", ["Koppeling vervangen"], ["clutch", "koppeling"], ["clutch"], ["clu", "kop", "koppeling", "clutch"]),
-	("Flywheel", ["Vliegwiel vervangen"], ["flywheel", "vliegwiel"], ["flywheel"], ["fly", "vli", "vliegwiel", "flywheel"]),
-	("Gearbox", ["Versnellingsbak vervangen"], ["gearbox", "transmission", "versnellingsbak"], ["dsg_gearbox"], ["bak", "gear", "versnellingsbak", "gearbox"]),
-	("Clutch + Flywheel", ["Koppeling + Vliegwiel vervangen"], ["clutch and flywheel", "koppeling + vliegwiel"], ["clutch", "flywheel"], ["clu", "kop", "koppeling", "fly", "vli", "vliegwiel"]),
-	("Ride-height Sensor", ["Rijstand sensor vervangen"], ["ride height sensor", "rijstand", "level sensor"], [], ["rijstand", "niveau", "level", "sensor"]),
+	# job_name, dutch_aliases, diagnosis_keywords, project_part_fields (anchor OEM part), item_match_tokens, use_oe_crossref
+	("Oil Change", ["Oliewissel"], ["oil change", "olie", "oliewissel"], [], ["oil", "olie", "oliewissel"], 0),
+	("Mechatronics", ["Mechatronic vervangen", "Mechatronic vervangen / TCU", "Mechatronic"], ["mechatronic", "tcu"], ["mechatronic"], ["mec", "mechatronic", "tcu"], 0),
+	("Clutch", ["Koppeling vervangen"], ["clutch", "koppeling"], ["clutch"], ["clu", "kop", "koppeling", "clutch"], 1),
+	("Flywheel", ["Vliegwiel vervangen"], ["flywheel", "vliegwiel"], ["flywheel"], ["fly", "vli", "vliegwiel", "flywheel"], 1),
+	("Gearbox", ["Versnellingsbak vervangen"], ["gearbox", "transmission", "versnellingsbak"], ["dsg_gearbox"], ["bak", "gear", "versnellingsbak", "gearbox"], 0),
+	("Clutch + Flywheel", ["Koppeling + Vliegwiel vervangen"], ["clutch and flywheel", "koppeling + vliegwiel"], ["clutch", "flywheel"], ["clu", "kop", "koppeling", "fly", "vli", "vliegwiel"], 1),
+	("Ride-height Sensor", ["Rijstand sensor vervangen"], ["ride height sensor", "rijstand", "level sensor"], [], ["rijstand", "niveau", "level", "sensor"], 0),
 ]
 
 DSG_CODE_RE = re.compile(r"^(dq|dl)\d{3}$")
@@ -72,7 +72,7 @@ def ensure_masters():
 				}
 			).insert(ignore_permissions=True)
 
-	for name, aliases, keywords, part_fields, item_tokens in JOB_SEED:
+	for name, aliases, keywords, part_fields, item_tokens, use_crossref in JOB_SEED:
 		if not frappe.db.exists("Labour Job", name):
 			frappe.get_doc(
 				{
@@ -82,6 +82,7 @@ def ensure_masters():
 					"match_keywords": "\n".join(keywords),
 					"project_part_fields": ", ".join(part_fields),
 					"item_match_keywords": ", ".join(item_tokens),
+					"use_oe_crossref": use_crossref,
 				}
 			).insert(ignore_permissions=True)
 		else:
@@ -90,6 +91,8 @@ def ensure_masters():
 				frappe.db.set_value("Labour Job", name, "project_part_fields", ", ".join(part_fields))
 			if item_tokens and not frappe.db.get_value("Labour Job", name, "item_match_keywords"):
 				frappe.db.set_value("Labour Job", name, "item_match_keywords", ", ".join(item_tokens))
+			if use_crossref and not frappe.db.get_value("Labour Job", name, "use_oe_crossref"):
+				frappe.db.set_value("Labour Job", name, "use_oe_crossref", use_crossref)
 
 
 def _build_lookups():

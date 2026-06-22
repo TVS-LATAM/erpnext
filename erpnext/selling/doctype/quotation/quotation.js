@@ -1069,15 +1069,26 @@ function render_builder_html(bundle) {
 			}
 		});
 
-		// Catalogue items that fit the car and belong to this job's category
+		// Items that fit the car for this job (catalogue fitment, or OE cross-reference
+		// + sold-together for Clutch/Flywheel).
 		const parts = job.suggested_parts || [];
+		const SOURCE_LABEL = {
+			oe: __("OE match"),
+			sold_with: __("sold together"),
+			fit: "",
+		};
 		if (parts.length) {
 			html += `<table class="table table-bordered" style="margin:6px 0">
-				<thead><tr><th width="30"></th><th>${__("Item")}</th><th width="120">${__("Group")}</th>
+				<thead><tr><th width="30"></th><th>${__("Item")}</th><th width="120">${__("Source")}</th>
 				<th width="80">${__("Qty")}</th></tr></thead><tbody>`;
 			parts.forEach((p) => {
-				const hint = p.item_group && p.item_group !== "All Item Groups" ? esc(p.item_group) : "";
-				html += part_row(p.item_code, esc(p.item_name || p.item_code), hint, true);
+				let hint = SOURCE_LABEL[p.source] !== undefined ? SOURCE_LABEL[p.source] : "";
+				if (p.source === "sold_with" && p.co_occurrence) {
+					hint += ` (${p.co_occurrence}×)`;
+				} else if (!hint && p.item_group && p.item_group !== "All Item Groups") {
+					hint = esc(p.item_group);
+				}
+				html += part_row(p.item_code, esc(p.item_name || p.item_code), hint, p.source !== "sold_with");
 			});
 			html += `</tbody></table>`;
 		} else {

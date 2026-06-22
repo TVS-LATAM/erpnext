@@ -10,7 +10,8 @@
   "dutch_aliases",
   "match_keywords",
   "project_part_fields",
-  "item_match_keywords"
+  "item_match_keywords",
+  "use_oe_crossref"
  ],
  "fields": [
   {
@@ -44,6 +45,13 @@
    "fieldname": "item_match_keywords",
    "fieldtype": "Small Text",
    "label": "Item Match Keywords (quotation builder)"
+  },
+  {
+   "default": "0",
+   "description": "When set, the quotation builder resolves this job's parts via the OE→OEM cross-reference service (using the Project oe_pn fields above) and Item.oem_pn, instead of the item-match-keyword fitment. Used for Clutch/Flywheel.",
+   "fieldname": "use_oe_crossref",
+   "fieldtype": "Check",
+   "label": "Use OE Cross-Reference (quotation builder)"
   }
  ],
  "grid_page_length": 50,
