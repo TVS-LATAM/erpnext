@@ -294,15 +294,18 @@ def _items_by_oem_pn(oem_pns):
 	)
 
 
-def sold_with_items(item_codes, engine_code=None, dsg_code=None, exclude=None, limit=12):
+def sold_with_items(item_codes, engine_code=None, dsg_code=None, exclude=None, exclude_tokens=None, limit=12):
 	"""Items historically sold alongside `item_codes` on the same car config.
 
 	Reuses get_item_insights' co-occurrence (frequently_used_with), filtered to the
-	car's engine/DSG, excluding labour lines and anything already in `exclude`.
+	car's engine/DSG, excluding labour lines, anything already in `exclude`, and any
+	item of the same category as `exclude_tokens` (so e.g. a Flywheel job's
+	sold-together list doesn't surface other flywheel SKUs — those are alternatives).
 	"""
 	from erpnext.stock.doctype.item.item import get_item_insights
 
 	seen = set(exclude or [])
+	tokens = [t for t in (exclude_tokens or []) if t]
 	out = []
 	for code in item_codes:
 		try:
@@ -315,6 +318,10 @@ def sold_with_items(item_codes, engine_code=None, dsg_code=None, exclude=None, l
 			ic = f.get("item_code")
 			if not ic or ic in seen:
 				continue
+			if tokens:
+				hay = f"{ic} {f.get('item_name') or ''}".lower()
+				if any(tok in hay for tok in tokens):
+					continue
 			seen.add(ic)
 			out.append(
 				{
@@ -381,9 +388,16 @@ def crossref_parts_for_job(job, project, engine_code=None, dsg_code=None):
 		parts = category
 		seen = set(category_codes)
 
+	# Don't let the sold-together list surface other SKUs of the same job (e.g. other
+	# flywheels for a Flywheel job) — those are alternatives, not complements.
+	job_tokens = [
+		_norm(t)
+		for t in re.split(r"[\n,]", frappe.db.get_value("Labour Job", job, "item_match_keywords") or "")
+		if _norm(t)
+	]
 	anchors = seen | category_codes
 	parts = list(parts) + sold_with_items(
-		list(anchors), engine_code=engine_code, dsg_code=dsg_code, exclude=anchors
+		list(anchors), engine_code=engine_code, dsg_code=dsg_code, exclude=anchors, exclude_tokens=job_tokens
 	)
 	return parts, messages
 
