@@ -110,6 +110,10 @@ frappe.ui.form.on("Project", {
 			frm.trigger("show_dashboard");
 		}
 
+		if (!frm.is_new()) {
+			frm.trigger("setup_checklist_buttons");
+		}
+
 		const isWorkshopViewer = await erpnext.utils.isWorkshopViewer(frm);
 		const isMechanic = await erpnext.utils.isMechanic(frm);
 		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(frm);
@@ -154,6 +158,16 @@ frappe.ui.form.on("Project", {
 		if (!frm.previous_status) {
 			frm.previous_status = frm.doc.status
 		}
+	},
+
+	setup_checklist_buttons: function (frm) {
+		["Arrival Checklist", "Job Checklist", "Quality Control Checklist", "DSG Oil Change Checklist"].forEach((doctype) => {
+			frm.add_custom_button(
+				__(doctype),
+				() => frappe.new_doc(doctype, { project: frm.doc.name }),
+				__("Checklists")
+			);
+		});
 	},
 
 	set_custom_buttons: function (frm) {
@@ -519,14 +533,10 @@ async function installChat(frm) {
 		chat.setAttribute('url', aws_url)
 		chat.setAttribute('user-name', frappe.user_info().fullname)
 
-		frappe.realtime.off(`msg-${conversation.name}`)
-		frappe.realtime.on(`msg-${conversation.name}`, (data) => {
-			chat._instance.exposed.addMessage(data);
-		})
-		frappe.realtime.off(`translation-${frm.doc.name}`)
-		frappe.realtime.on(`translation-${frm.doc.name}`, (data) => {
-			chat._instance.exposed.onTranslate(data);
-		})
+		// Realtime wiring lives inside the component now — it subscribes to
+		// `msg-{id}` / `translation-{id}` off the conversation we pass to
+		// setConversation. (Previously this hooked `translation-${frm.doc.name}`,
+		// i.e. the Project name, so translations never reached the chat here.)
 		frappe.require('erp-whatsapp-chat.bundle.js')
 			.then(() => {
 				chatContainer.appendChild(chat)

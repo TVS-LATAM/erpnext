@@ -1,0 +1,338 @@
+{
+ "actions": [],
+ "autoname": "format:DSG-CHK-{#####}",
+ "creation": "2026-06-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "project",
+  "vehicle_details_section",
+  "vehicle_model",
+  "licence_plate",
+  "vehicle_details_column",
+  "check_date",
+  "checked_by",
+  "mileage",
+  "before_dsg_oil_change_section",
+  "appointment_scheduled_in_erp",
+  "oil_change_quote_submitted",
+  "vehicle_modification_confirmed",
+  "tvs_software_offered",
+  "existing_complaints_confirmed",
+  "pre_check_test_drive_completed",
+  "vehicle_shifts_correctly",
+  "during_dsg_oil_change_section",
+  "dsg_oil_change_completed",
+  "used_dsg_oil_sample_collected",
+  "dsg_oil_filter_replaced",
+  "fill_drain_plug_seal_replaced",
+  "after_dsg_oil_change_section",
+  "post_service_test_drive_completed",
+  "dashboard_clock_set",
+  "windows_initialized",
+  "vehicle_fault_codes_cleared",
+  "final_check_section",
+  "interior_exterior_cleanliness_checked",
+  "service_record_completed",
+  "invoice_submitted_in_erp",
+  "invoice_paid_in_erp",
+  "vehicle_ready_for_delivery",
+  "notes_section",
+  "notes",
+  "attachments_section",
+  "photo",
+  "attachment"
+ ],
+ "fields": [
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Job Card",
+   "options": "Project",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_details_section",
+   "fieldtype": "Section Break",
+   "label": "Vehicle Details"
+  },
+  {
+   "fetch_from": "project.model",
+   "fieldname": "vehicle_model",
+   "fieldtype": "Data",
+   "label": "Vehicle Make / Model",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "project.plate",
+   "fieldname": "licence_plate",
+   "fieldtype": "Data",
+   "label": "Licence Plate",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vehicle_details_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "check_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date",
+   "reqd": 1
+  },
+  {
+   "default": "__user",
+   "fieldname": "checked_by",
+   "fieldtype": "Link",
+   "label": "Checked By / Mechanic",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "project.client_mileage_state",
+   "fieldname": "mileage",
+   "fieldtype": "Data",
+   "label": "Mileage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "before_dsg_oil_change_section",
+   "fieldtype": "Section Break",
+   "label": "Before DSG Oil Change"
+  },
+  {
+   "fieldname": "appointment_scheduled_in_erp",
+   "fieldtype": "Select",
+   "label": "Appointment Scheduled in ERP",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "oil_change_quote_submitted",
+   "fieldtype": "Select",
+   "label": "Oil Change Quote Prepared and Submitted",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_modification_confirmed",
+   "fieldtype": "Select",
+   "label": "Customer Asked Whether Vehicle Is Modified / Tuned",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "tvs_software_offered",
+   "fieldtype": "Select",
+   "label": "TVS Software Offered to Customer",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "existing_complaints_confirmed",
+   "fieldtype": "Select",
+   "label": "Customer Asked About Existing Complaints / Defects",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "pre_check_test_drive_completed",
+   "fieldtype": "Select",
+   "label": "Pre-check / Test Drive Completed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_shifts_correctly",
+   "fieldtype": "Select",
+   "label": "Vehicle Shifts Correctly and Oil Change Can Be Performed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "during_dsg_oil_change_section",
+   "fieldtype": "Section Break",
+   "label": "During DSG Oil Change"
+  },
+  {
+   "fieldname": "dsg_oil_change_completed",
+   "fieldtype": "Select",
+   "label": "DSG Oil Change Completed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "used_dsg_oil_sample_collected",
+   "fieldtype": "Select",
+   "label": "Used DSG Oil Sample Collected with Brake Cleaner Container",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "dsg_oil_filter_replaced",
+   "fieldtype": "Select",
+   "label": "DSG Oil Filter Replaced",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "fill_drain_plug_seal_replaced",
+   "fieldtype": "Select",
+   "label": "Fill / Drain Plug Seal Replaced",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "after_dsg_oil_change_section",
+   "fieldtype": "Section Break",
+   "label": "After DSG Oil Change"
+  },
+  {
+   "fieldname": "post_service_test_drive_completed",
+   "fieldtype": "Select",
+   "label": "DSG Post-service Test Drive Completed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "dashboard_clock_set",
+   "fieldtype": "Select",
+   "label": "Dashboard Clock Set",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "windows_initialized",
+   "fieldtype": "Select",
+   "label": "Door Windows Initialized",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_fault_codes_cleared",
+   "fieldtype": "Select",
+   "label": "Fault Codes Cleared for Entire Vehicle",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "final_check_section",
+   "fieldtype": "Section Break",
+   "label": "Final Check"
+  },
+  {
+   "fieldname": "interior_exterior_cleanliness_checked",
+   "fieldtype": "Select",
+   "label": "Steering Wheel, Gear Lever, Hood and Screens Checked for Dirty Marks",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "service_record_completed",
+   "fieldtype": "Select",
+   "label": "Maintenance Booklet / Digital Service Plan Completed",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invoice_submitted_in_erp",
+   "fieldtype": "Select",
+   "label": "Invoice Submitted in ERP",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "invoice_paid_in_erp",
+   "fieldtype": "Select",
+   "label": "Invoice Paid in ERP",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "vehicle_ready_for_delivery",
+   "fieldtype": "Select",
+   "label": "All Steps Completed and Vehicle Ready for Delivery",
+   "options": "Yes\nNo\nN/A",
+   "reqd": 1
+  },
+  {
+   "fieldname": "notes_section",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "description": "Explain every No answer.",
+   "fieldname": "notes",
+   "fieldtype": "Text",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "attachments_section",
+   "fieldtype": "Section Break",
+   "label": "Attachments"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
+  },
+  {
+   "fieldname": "attachment",
+   "fieldtype": "Attach",
+   "label": "File Attachment"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Projects",
+ "name": "DSG Oil Change Checklist",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Manufacturing User",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Manufacturing Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "project",
+ "track_changes": 1
+}
