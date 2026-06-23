@@ -1285,17 +1285,34 @@ function show_builder_dialog(frm, bundle) {
 			frappe.msgprint(__("Select at least one item or labour line."));
 			return;
 		}
-		const setters = rows.map((r) => {
-			const child = frm.add_child("items", { qty: r.qty });
-			return frappe.model.set_value(child.doctype, child.name, "item_code", r.item_code).then(() => {
-				if (r.description) return frappe.model.set_value(child.doctype, child.name, "description", r.description);
-			});
-		});
-		Promise.all(setters).then(() => {
-			frm.refresh_field("items");
-			dialog.hide();
-			frappe.show_alert({ message: __("Added {0} line(s) — review rates.", [rows.length]), indicator: "green" }, 7);
-		});
+
+		// Confirm before pushing the lines into the quotation.
+		const esc = frappe.utils.escape_html;
+		const summary = rows
+			.map((r) => `<tr><td>${esc(r.item_code)}</td><td style="text-align:right">${r.qty}</td></tr>`)
+			.join("");
+		frappe.confirm(
+			`${__("Add the following {0} line(s) to the quotation?", [rows.length])}
+			<table class="table table-bordered" style="margin-top:8px">
+				<thead><tr><th>${__("Item")}</th><th style="text-align:right;width:90px">${__("Qty")}</th></tr></thead>
+				<tbody>${summary}</tbody></table>`,
+			() => {
+				const setters = rows.map((r) => {
+					const child = frm.add_child("items", { qty: r.qty });
+					return frappe.model.set_value(child.doctype, child.name, "item_code", r.item_code).then(() => {
+						if (r.description) return frappe.model.set_value(child.doctype, child.name, "description", r.description);
+					});
+				});
+				Promise.all(setters).then(() => {
+					frm.refresh_field("items");
+					dialog.hide();
+					frappe.show_alert(
+						{ message: __("Added {0} line(s) — review rates.", [rows.length]), indicator: "green" },
+						7
+					);
+				});
+			}
+		);
 	});
 
 	dialog.show();
