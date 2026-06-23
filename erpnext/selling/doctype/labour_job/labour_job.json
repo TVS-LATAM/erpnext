@@ -11,7 +11,9 @@
   "match_keywords",
   "project_part_fields",
   "item_match_keywords",
-  "use_oe_crossref"
+  "use_oe_crossref",
+  "use_oe_pn_search",
+  "use_transmission_search"
  ],
  "fields": [
   {
@@ -52,6 +54,20 @@
    "fieldname": "use_oe_crossref",
    "fieldtype": "Check",
    "label": "Use OE Cross-Reference (quotation builder)"
+  },
+  {
+   "default": "0",
+   "description": "When set, the quotation builder resolves this job's parts by searching Item.oe_pn for the Project oe_pn value (and the value minus its last 3 chars, to drop a software-code suffix), spaces ignored. Used for Mechatronics.",
+   "fieldname": "use_oe_pn_search",
+   "fieldtype": "Check",
+   "label": "Use OE-PN Search (quotation builder)"
+  },
+  {
+   "default": "0",
+   "description": "When set, the quotation builder resolves this job's parts by matching the Project transmission_code against each Item's transmission_code_list compatibility table. Used for Gearbox.",
+   "fieldname": "use_transmission_search",
+   "fieldtype": "Check",
+   "label": "Use Transmission-Code Search (quotation builder)"
   }
  ],
  "grid_page_length": 50,
