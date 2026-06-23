@@ -172,16 +172,19 @@ def suggest_parts_for_job(job, engine_code=None, dsg_code=None, limit=12):
 	return rows
 
 
-def fitting_parts_for_job(job, dsg_code, limit=50):
+def fitting_parts_for_job(job, dsg_code, family=None, limit=50):
 	"""Catalogue items that fit the car AND belong to this job's category.
 
 	Fitment: items whose Item DSG Compatibility includes the car's VAG dsg_code
 	(e.g. 0AM, 0CW). Category: the item code or item name contains one of the job's
 	`item_match_keywords` tokens (e.g. 'mec' for Mechatronics, 'clu'/'kop' for Clutch).
 	So a Mechatronics template shows only the mechatronic items for that gearbox.
+
+	Some categories (e.g. Oil Change) are not DSG-code-tagged but are keyed by the
+	gearbox family in the item code/name (200OIL0001 / "DQ200 Olie..."). When the
+	DSG-compatibility fitment finds nothing, fall back to a catalogue token match
+	narrowed to the car's DSG family.
 	"""
-	if not dsg_code:
-		return []
 	tokens = [
 		_norm(t)
 		for t in re.split(r"[\n,]", frappe.db.get_value("Labour Job", job, "item_match_keywords") or "")
@@ -190,26 +193,187 @@ def fitting_parts_for_job(job, dsg_code, limit=50):
 	if not tokens:
 		return []
 
-	rows = frappe.db.sql(
-		"""
-		SELECT DISTINCT i.item_code, i.item_name, i.item_group
-		FROM `tabItem DSG Compatibility` c
-		JOIN `tabItem` i ON i.name = c.parent
-		WHERE c.dsg_code = %(dsg)s AND IFNULL(i.disabled, 0) = 0
-		""",
-		{"dsg": dsg_code},
-		as_dict=True,
-	)
-
 	out = []
-	for r in rows:
-		haystack = f"{r.item_code} {r.item_name or ''}".lower()
-		if any(tok in haystack for tok in tokens):
+	if dsg_code:
+		rows = frappe.db.sql(
+			"""
+			SELECT DISTINCT i.item_code, i.item_name, i.item_group
+			FROM `tabItem DSG Compatibility` c
+			JOIN `tabItem` i ON i.name = c.parent
+			WHERE c.dsg_code = %(dsg)s AND IFNULL(i.disabled, 0) = 0
+			""",
+			{"dsg": dsg_code},
+			as_dict=True,
+		)
+		for r in rows:
+			haystack = f"{r.item_code} {r.item_name or ''}".lower()
+			if any(tok in haystack for tok in tokens):
+				out.append(
+					{"item_code": r.item_code, "item_name": r.item_name, "item_group": r.item_group, "source": "fit"}
+				)
+
+	# Fallback for family-keyed (non-DSG-tagged) categories like Oil Change.
+	if not out:
+		# e.g. family "DQ200" -> match items whose code/name contains "dq200" or "200".
+		fam_keys = []
+		if family:
+			fl = family.lower()
+			fam_keys = [fl, re.sub(r"^d[ql]", "", fl)]
+			fam_keys = [k for k in fam_keys if k]
+		cat = frappe.db.sql(
+			"""
+			SELECT item_code, item_name, item_group
+			FROM `tabItem`
+			WHERE IFNULL(disabled, 0) = 0
+			""",
+			as_dict=True,
+		)
+		for r in cat:
+			haystack = f"{r.item_code} {r.item_name or ''}".lower()
+			if not any(tok in haystack for tok in tokens):
+				continue
+			if fam_keys and not any(k in haystack for k in fam_keys):
+				continue
 			out.append(
 				{"item_code": r.item_code, "item_name": r.item_name, "item_group": r.item_group, "source": "fit"}
 			)
+
 	out.sort(key=lambda x: x["item_code"])
 	return out[:limit]
+
+
+def transmission_parts_for_job(job, project, dsg_code=None, limit=50):
+	"""Gearbox parts: the item that fits the car's transmission code.
+
+	The car's transmission code (Project.transmission_code, a VAG 3-letter code such as
+	'NSK') is matched against each Item's `transmission_code_list` compatibility table,
+	yielding the gearbox SKU(s) built for that code. Falls back to the category fitment
+	when the Project has no transmission code or nothing matches.
+	"""
+	code = (project.get("transmission_code") or "").strip()
+	if not code:
+		return fitting_parts_for_job(job, dsg_code)
+
+	rows = frappe.db.sql(
+		"""
+		SELECT DISTINCT i.item_code, i.item_name, i.item_group
+		FROM `tabTransmission code compatibility` t
+		JOIN `tabItem` i ON i.name = t.parent
+		WHERE t.transmission_code = %(code)s AND IFNULL(i.disabled, 0) = 0
+		""",
+		{"code": code},
+		as_dict=True,
+	)
+	if not rows:
+		return fitting_parts_for_job(job, dsg_code)
+
+	return [
+		{
+			"item_code": r.item_code,
+			"item_name": r.item_name,
+			"item_group": r.item_group,
+			"source": "oe",
+			"match": "exact",
+		}
+		for r in rows
+	][:limit]
+
+
+def _tail4(value):
+	"""Last 4 chars, spaces removed, upper-cased."""
+	s = re.sub(r"\s+", "", str(value or "")).upper()
+	return s[-4:]
+
+
+def oe_pn_search_parts(job, project, dsg_code=None, engine_code=None, limit=50):
+	"""Resolve a job's items by searching Item.oe_pn for the Project oe_pn value.
+
+	For each Project field in `project_part_fields` (e.g. `mechatronic`), search
+	Item.oe_pn (spaces ignored) for the value AND the value minus its last 3 chars
+	— mechatronic numbers often carry a 3-char software suffix (e.g. "0AM 325 026 E
+	Z3C") that must be dropped to match the bare part number. When several items
+	match, the one whose item code ends with the same last 4 chars as the (trimmed)
+	value is flagged `match="exact"` (rendered green); the rest are `candidate`.
+	Falls back to catalogue fitment when the Project has no value.
+	"""
+	fields = [
+		f.strip()
+		for f in (frappe.db.get_value("Labour Job", job, "project_part_fields") or "").split(",")
+		if f.strip()
+	]
+
+	results = []
+	seen = set()
+	any_value = False
+	for fld in fields:
+		raw = (project.get(fld) or "").strip()
+		if not raw:
+			continue
+		any_value = True
+		ns = re.sub(r"\s+", "", raw).upper()
+		variants = [ns]
+		if len(ns) > 3:
+			variants.append(ns[:-3])
+
+		conds, params = [], {}
+		for i, v in enumerate(variants):
+			params[f"v{i}"] = f"%{v}%"
+			conds.append(f"UPPER(REPLACE(oe_pn, ' ', '')) LIKE %(v{i})s")
+
+		rows = frappe.db.sql(
+			f"""
+			SELECT item_code, item_name, item_group
+			FROM `tabItem`
+			WHERE IFNULL(disabled, 0) = 0 AND ({' OR '.join(conds)})
+			""",
+			params,
+			as_dict=True,
+		)
+
+		tails = {_tail4(v) for v in variants}
+		for r in rows:
+			if r.item_code in seen:
+				continue
+			seen.add(r.item_code)
+			results.append(
+				{
+					"item_code": r.item_code,
+					"item_name": r.item_name,
+					"item_group": r.item_group,
+					"source": "oe",
+					"match": "exact" if _tail4(r.item_code) in tails else "candidate",
+				}
+			)
+
+	if not any_value:
+		return fitting_parts_for_job(job, dsg_code)
+
+	# Exact (green) matches first.
+	results.sort(key=lambda x: (x["match"] != "exact", x["item_code"]))
+	matched = results[:limit]
+
+	# Sold-together: anchor on the matched mechatronic, exact first, then fall through
+	# the candidates until one has sales-invoice history (the exact part may never
+	# have been invoiced even though a superseding/candidate variant was). Search the
+	# broad history first (the mechatronic part number is already car-specific); only
+	# if nothing is found, retry with the engine/DSG filter. Redundant sold-with items
+	# that duplicate a sub-category already matched in another job are removed globally
+	# in build_quotation_suggestions.
+	matched_codes = {p["item_code"] for p in matched}
+	enrich = []
+	for filt in (False, True):
+		for p in matched:
+			enrich = sold_with_items(
+				[p["item_code"]],
+				engine_code=engine_code if filt else None,
+				dsg_code=dsg_code if filt else None,
+				exclude=matched_codes,
+			)
+			if enrich:
+				break
+		if enrich:
+			break
+	return matched + enrich
 
 
 def _resolve_item_from_partno(partno):
@@ -275,6 +439,17 @@ def cross_reference_oe_pns(oe_pns):
 	except Exception as e:  # noqa: BLE001 — surface any failure as a soft message + fallback
 		frappe.log_error(frappe.get_traceback(), "Parts cross-reference failed")
 		return [], str(e)
+
+
+def _item_subcats(item_codes):
+	"""Map each item_code -> its Item.sub_category_name (e.g. FLYWHEEL / CLUTCH)."""
+	codes = [c for c in (item_codes or []) if c]
+	if not codes:
+		return {}
+	rows = frappe.get_all(
+		"Item", filters={"name": ["in", codes]}, fields=["name", "sub_category_name"]
+	)
+	return {r.name: r.sub_category_name for r in rows}
 
 
 def _items_by_oem_pn(oem_pns):
@@ -364,7 +539,7 @@ def crossref_parts_for_job(job, project, engine_code=None, dsg_code=None):
 		if it["item_code"] in seen:
 			continue
 		seen.add(it["item_code"])
-		oe_parts.append({**it, "source": "oe"})
+		oe_parts.append({**it, "source": "oe", "match": "exact"})
 
 	# The catalogue-fitting SKUs for this job/car carry the invoice history (the OE
 	# part numbers often map to specific SKUs that were rarely invoiced), so use them
@@ -382,10 +557,110 @@ def crossref_parts_for_job(job, project, engine_code=None, dsg_code=None):
 		seen = set(category_codes)
 
 	anchors = seen | category_codes
-	parts = list(parts) + sold_with_items(
+	# Sold-together history. Redundant sold-with items (e.g. another flywheel/clutch that
+	# duplicates a part already matched in another job) are removed globally afterwards in
+	# build_quotation_suggestions, where the whole bundle's sub-categories are known.
+	sold = sold_with_items(
 		list(anchors), engine_code=engine_code, dsg_code=dsg_code, exclude=anchors
 	)
+	parts = list(parts) + sold
 	return parts, messages
+
+
+def _attach_bundle_subitems(parts):
+	"""Attach each suggested part's component sub-items so they follow it into the quote.
+
+	Sub-items come from the Item's own `subitems_list` child table (Items Relate:
+	item_code, qty, ...). If the item has none, fall back to a Product Bundle definition
+	keyed by the same item_code. We tag `sub_items_source` so the client knows how to add
+	them: "item" rows must be appended explicitly; "bundle" rows are expanded automatically
+	by the Quotation Item product-bundle trigger.
+	"""
+	for p in parts or []:
+		code = p.get("item_code")
+		if not code:
+			continue
+
+		subs = []
+		for row in frappe.get_all(
+			"Items Relate",
+			filters={"parent": code, "parenttype": "Item", "parentfield": "subitems_list"},
+			fields=["item_code", "qty"],
+			order_by="idx",
+		):
+			if not row.item_code:
+				continue
+			subs.append(
+				{
+					"item_code": row.item_code,
+					"item_name": frappe.db.get_value("Item", row.item_code, "item_name") or row.item_code,
+					"qty": frappe.utils.flt(row.qty) or 1,
+				}
+			)
+		if subs:
+			p["sub_items"] = subs
+			p["sub_items_source"] = "item"
+			continue
+
+		# Fallback: a Product Bundle keyed by this item_code (expanded by the JS trigger).
+		if frappe.db.exists("Product Bundle", {"name": code, "disabled": 0}, cache=True):
+			for row in frappe.get_all(
+				"Product Bundle Item",
+				filters={"parent": code, "parenttype": "Product Bundle"},
+				fields=["item_code", "qty", "description"],
+				order_by="idx",
+			):
+				if not row.item_code:
+					continue
+				subs.append(
+					{
+						"item_code": row.item_code,
+						"item_name": frappe.db.get_value("Item", row.item_code, "item_name") or row.description or row.item_code,
+						"qty": frappe.utils.flt(row.qty) or 1,
+					}
+				)
+			if subs:
+				p["sub_items"] = subs
+				p["sub_items_source"] = "bundle"
+	return parts
+
+
+def _dedupe_sold_with_by_subcategory(jobs):
+	"""Drop sold-with items whose sub-category is already matched elsewhere in the bundle.
+
+	Across all jobs, the primary (OE-matched / catalogue-fit) suggestions establish which
+	part sub-categories the quotation already covers — e.g. the Flywheel job matches a
+	FLYWHEEL, the Clutch job a CLUTCH. The Mechatronics job's sold-together history then
+	lists another flywheel/clutch that was invoiced alongside the mechatronic; those are
+	duplicates of parts already in the list, so any sold-with item whose sub-category is
+	already covered by a primary part is removed. Sold-with items of a NOT-yet-covered
+	sub-category are kept (genuine complements). Mutates `jobs` in place.
+	"""
+	# Sub-categories already covered by a primary (non sold-with) suggestion anywhere.
+	primary_codes = [
+		p["item_code"]
+		for jb in jobs
+		for p in jb["suggested_parts"]
+		if p.get("source") != "sold_with" and p.get("item_code")
+	]
+	primary_subcats = {sc for sc in _item_subcats(primary_codes).values() if sc}
+	if not primary_subcats:
+		return
+
+	for jb in jobs:
+		sold_codes = [
+			p["item_code"]
+			for p in jb["suggested_parts"]
+			if p.get("source") == "sold_with" and p.get("item_code")
+		]
+		if not sold_codes:
+			continue
+		sub_map = _item_subcats(sold_codes)
+		jb["suggested_parts"] = [
+			p
+			for p in jb["suggested_parts"]
+			if not (p.get("source") == "sold_with" and sub_map.get(p["item_code"]) in primary_subcats)
+		]
 
 
 @frappe.whitelist()
@@ -440,13 +715,23 @@ def build_quotation_suggestions(project):
 		if family:
 			variants = get_standard_labour_hours(dsg_code=family, job=job) or []
 
-		# Clutch/Flywheel resolve parts via OE→OEM cross-reference; others by catalogue
-		# fitment on the job's item-match keywords.
-		if frappe.db.get_value("Labour Job", job, "use_oe_crossref"):
+		# Resolve parts: Clutch/Flywheel via OE→OEM cross-reference, Mechatronics via
+		# local Item.oe_pn search, Gearbox via the transmission-code compatibility table,
+		# everything else by item-match-keyword fitment.
+		flags = frappe.db.get_value(
+			"Labour Job", job, ["use_oe_crossref", "use_oe_pn_search", "use_transmission_search"], as_dict=True
+		) or {}
+		if flags.get("use_oe_crossref"):
 			parts, part_msgs = crossref_parts_for_job(job, project, engine_code=engine_code, dsg_code=dsg_code)
 			messages.extend(part_msgs)
+		elif flags.get("use_oe_pn_search"):
+			parts = oe_pn_search_parts(job, project, dsg_code=dsg_code, engine_code=engine_code)
+		elif flags.get("use_transmission_search"):
+			parts = transmission_parts_for_job(job, project, dsg_code=dsg_code)
 		else:
-			parts = fitting_parts_for_job(job, dsg_code)
+			parts = fitting_parts_for_job(job, dsg_code, family=family)
+
+		_attach_bundle_subitems(parts)
 
 		jobs.append(
 			{
@@ -457,6 +742,8 @@ def build_quotation_suggestions(project):
 				"labour": {"available": bool(variants), "variants": variants},
 			}
 		)
+
+	_dedupe_sold_with_by_subcategory(jobs)
 
 	return {
 		"project": project.get("name"),
