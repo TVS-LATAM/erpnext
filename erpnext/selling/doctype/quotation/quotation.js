@@ -1304,6 +1304,13 @@ function show_builder_dialog(frm, bundle) {
 					});
 				});
 				Promise.all(setters).then(() => {
+					// Drop the grid's leftover blank row (a new Quotation starts with one
+					// empty item row, which otherwise shows as a blank first line).
+					const cleaned = (frm.doc.items || []).filter((r) => r.item_code);
+					if (cleaned.length !== (frm.doc.items || []).length) {
+						frm.doc.items = cleaned;
+						frm.doc.items.forEach((r, i) => (r.idx = i + 1));
+					}
 					frm.refresh_field("items");
 					dialog.hide();
 					frappe.show_alert(
