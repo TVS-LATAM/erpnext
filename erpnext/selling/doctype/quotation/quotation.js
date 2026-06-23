@@ -1078,7 +1078,7 @@ function show_builder_dialog(frm, bundle) {
 
 	// ----- deduplicated pool of parts across all templates -----
 	const poolMap = new Map();
-	function addPool(item_code, item_name, source, job) {
+	function addPool(item_code, item_name, source, job, match, sub_items, sub_items_source) {
 		if (!item_code) return;
 		let e = poolMap.get(item_code);
 		if (!e) {
@@ -1087,12 +1087,21 @@ function show_builder_dialog(frm, bundle) {
 		}
 		e.templates.add(job);
 		if (source === "oe") e.source = "oe";
+		// exact wins over candidate wins over none
+		if (match === "exact" || (match === "candidate" && e.match !== "exact")) e.match = match;
+		// Component sub-items that follow this item into the quotation.
+		if (sub_items && sub_items.length) {
+			e.sub_items = sub_items;
+			e.sub_items_source = sub_items_source;
+		}
 	}
 	jobs.forEach((j) => {
 		(j.oem_refs || []).forEach((ref) => {
 			if (ref.item_code) addPool(ref.item_code, `${ref.part_no} (OEM)`, "oe", j.job);
 		});
-		(j.suggested_parts || []).forEach((p) => addPool(p.item_code, p.item_name, p.source, j.job));
+		(j.suggested_parts || []).forEach((p) =>
+			addPool(p.item_code, p.item_name, p.source, j.job, p.match, p.sub_items, p.sub_items_source)
+		);
 	});
 	const pool = Array.from(poolMap.values());
 
@@ -1121,12 +1130,23 @@ function show_builder_dialog(frm, bundle) {
 				{
 					class: "btn btn-sm btn-default",
 					onclick: () => {
-						pool
-							.filter((p) => p.templates.has(j.job))
-							.forEach((p) => {
-								selected.add(p.item_code);
-								if (qty[p.item_code] == null) qty[p.item_code] = 1;
-							});
+						// Switch to this template: return any current items to the
+						// right pane, then load only this template's items on the left.
+						selected.clear();
+						Object.keys(labourBoxes).forEach((job) => (labourBoxes[job].cb.checked = false));
+						const items = pool.filter((p) => p.templates.has(j.job));
+						// Colour-matched candidates (e.g. mechatronics) — auto-select only one:
+						// the green (exact) match, or the first if none is green. The other
+						// candidates stay on the right for the user to pick manually.
+						const matched = items.filter((p) => p.match);
+						const keep = matched.length
+							? matched.find((p) => p.match === "exact") || matched[0]
+							: null;
+						items.forEach((p) => {
+							if (p.match && p !== keep) return;
+							selected.add(p.item_code);
+							if (qty[p.item_code] == null) qty[p.item_code] = 1;
+						});
 						if (labourBoxes[j.job]) labourBoxes[j.job].cb.checked = true;
 						rerender();
 					},
@@ -1136,6 +1156,39 @@ function show_builder_dialog(frm, bundle) {
 		);
 	});
 	root.appendChild(btnBar);
+
+	// legend explaining the source badges, match colors and bundle indicator
+	const legendItem = (node, label) =>
+		bldEl("span", { style: "display:inline-flex;align-items:center;gap:4px" }, node, label);
+	const swatch = (color) =>
+		bldEl("span", {
+			style: `display:inline-block;width:10px;height:10px;background:${color};border-radius:2px`,
+		});
+	const legend = bldEl("div", {
+		class: "small text-muted",
+		style: "display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px;align-items:center",
+	});
+	legend.appendChild(bldEl("span", { style: "font-weight:600" }, __("Legend:")));
+	legend.appendChild(legendItem(bldSourceBadge("oe"), __("OE part for this car")));
+	legend.appendChild(legendItem(bldSourceBadge("fit"), __("fits this car")));
+	legend.appendChild(legendItem(bldSourceBadge("sold_with"), __("sold together (history)")));
+	if (pool.some((p) => p.sub_items && p.sub_items.length)) {
+		legend.appendChild(
+			legendItem(
+				bldEl(
+					"span",
+					{ style: "font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;color:#7c3aed;background:#ede9fe" },
+					"+N"
+				),
+				__("includes sub-items")
+			)
+		);
+	}
+	if (pool.some((p) => p.match)) {
+		legend.appendChild(legendItem(swatch("#16a34a"), __("exact match")));
+		legend.appendChild(legendItem(swatch("#f59e0b"), __("candidate")));
+	}
+	root.appendChild(legend);
 
 	// ----- two panes -----
 	const panes = bldEl("div", { style: "display:flex;gap:12px" });
@@ -1188,13 +1241,20 @@ function show_builder_dialog(frm, bundle) {
 	});
 	rightCol.appendChild(availBox);
 
+	// Colored left border for OE-PN matches: green = exact, amber = candidate.
+	function matchBorder(p) {
+		if (p.match === "exact") return "border-left:4px solid #16a34a;";
+		if (p.match === "candidate") return "border-left:4px solid #f59e0b;";
+		return "border-left:4px solid transparent;";
+	}
+
 	// ----- row builders -----
 	function poolRow(p) {
 		return bldEl(
 			"div",
 			{
 				class: "pool-row",
-				style: "display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border-color);cursor:pointer",
+				style: `display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border-color);cursor:pointer;${matchBorder(p)}`,
 				onclick: () => {
 					selected.add(p.item_code);
 					if (qty[p.item_code] == null) qty[p.item_code] = 1;
@@ -1209,6 +1269,13 @@ function show_builder_dialog(frm, bundle) {
 			),
 			bldSourceBadge(p.source),
 			...Array.from(p.templates).map(bldTplBadge),
+			p.sub_items && p.sub_items.length
+				? bldEl(
+						"span",
+						{ style: "font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;color:#7c3aed;background:#ede9fe" },
+						`+${p.sub_items.length}`
+				  )
+				: null,
 			bldEl("span", { class: "text-muted", style: "font-size:18px;line-height:1" }, "+")
 		);
 	}
@@ -1227,7 +1294,7 @@ function show_builder_dialog(frm, bundle) {
 		});
 		return bldEl(
 			"div",
-			{ style: "display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border-color)" },
+			{ style: `display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border-color);${matchBorder(p)}` },
 			bldEl(
 				"span",
 				{ style: "flex:1;min-width:0" },
@@ -1241,6 +1308,24 @@ function show_builder_dialog(frm, bundle) {
 				{ class: "btn btn-xs btn-default", onclick: () => { selected.delete(p.item_code); rerender(); } },
 				"×"
 			)
+		);
+	}
+
+	// Read-only indented line for a product-bundle component (follows its parent).
+	function subItemRow(s) {
+		return bldEl(
+			"div",
+			{
+				style: "display:flex;align-items:center;gap:8px;padding:3px 8px 3px 22px;border-bottom:1px solid var(--border-color);background:var(--control-bg)",
+			},
+			bldEl("span", { class: "text-muted", style: "font-size:12px" }, "↳"),
+			bldEl(
+				"span",
+				{ style: "flex:1;min-width:0" },
+				bldEl("div", { class: "small", style: "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" }, s.item_name),
+				bldEl("div", { class: "text-muted small" }, s.item_code)
+			),
+			bldEl("span", { class: "text-muted small" }, `× ${s.qty}`)
 		);
 	}
 
@@ -1259,7 +1344,12 @@ function show_builder_dialog(frm, bundle) {
 				bldEl("div", { class: "text-muted small", style: "padding:10px" }, __("Click items on the right, or a template above."))
 			);
 		}
-		Array.from(selected).forEach((code) => selectedBox.appendChild(selRow(poolMap.get(code))));
+		Array.from(selected).forEach((code) => {
+			const p = poolMap.get(code);
+			selectedBox.appendChild(selRow(p));
+			// A product bundle drags its components in — show them under the parent.
+			(p.sub_items || []).forEach((s) => selectedBox.appendChild(subItemRow(s)));
+		});
 		selCount.textContent = String(selected.size);
 	}
 
@@ -1268,7 +1358,18 @@ function show_builder_dialog(frm, bundle) {
 	// ----- apply: append chosen lines to the items grid (mirrors quotation_template) -----
 	dialog.set_primary_action(__("Add to Quotation"), () => {
 		const rows = [];
-		selected.forEach((code) => rows.push({ item_code: code, qty: qty[code] || 1 }));
+		selected.forEach((code) => {
+			const p = poolMap.get(code) || {};
+			const pqty = qty[code] || 1;
+			rows.push({ item_code: code, qty: pqty });
+			// Sub-items from the Item's `subitems_list` must be appended explicitly.
+			// (Real product-bundle components expand via the Quotation Item trigger.)
+			if (p.sub_items_source === "item") {
+				(p.sub_items || []).forEach((s) =>
+					rows.push({ item_code: s.item_code, qty: (s.qty || 1) * pqty })
+				);
+			}
+		});
 		Object.keys(labourBoxes).forEach((job) => {
 			const { cb, sel } = labourBoxes[job];
 			if (!cb.checked) return;
