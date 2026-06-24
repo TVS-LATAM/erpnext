@@ -36,7 +36,8 @@ erpnext.checklists.injectStyle = function () {
 	const style = document.createElement("style");
 	style.id = "ckl-uploader-style";
 	style.textContent = `
-		.ckl-uploader { margin-top: 4px; }
+		.ckl-uploader { margin-top: 10px; }
+		.ckl-uploader-attachments { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-color, #ebeef0); }
 		.ckl-upload-btn { margin-bottom: 10px; }
 		.ckl-gallery { display: flex; flex-wrap: wrap; gap: 10px; }
 		.ckl-tile { position: relative; width: 90px; height: 90px; border: 1px solid var(--border-color, #d1d8dd); border-radius: 6px; overflow: hidden; background: var(--control-bg, #f4f5f6); cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -68,7 +69,7 @@ erpnext.checklists.renderTable = function (frm, cfg) {
 	let $ui = field.$wrapper.find(".ckl-uploader");
 	if (!$ui.length) {
 		$ui = $(
-			`<div class="ckl-uploader">
+			`<div class="ckl-uploader ckl-uploader-${cfg.fieldname}">
 				<button class="btn btn-primary btn-sm ckl-upload-btn" type="button">
 					${cfg.icon} ${frappe.utils.escape_html(cfg.buttonLabel)}
 				</button>
