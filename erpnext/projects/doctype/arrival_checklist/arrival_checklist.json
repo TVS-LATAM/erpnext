@@ -22,8 +22,8 @@
   "notes_section",
   "notes",
   "attachments_section",
-  "photo",
-  "attachment"
+  "photos",
+  "attachments"
  ],
  "fields": [
   {
@@ -138,14 +138,16 @@
    "label": "Attachments"
   },
   {
-   "fieldname": "photo",
-   "fieldtype": "Attach Image",
-   "label": "Photo"
+   "fieldname": "photos",
+   "fieldtype": "Table",
+   "label": "Photos",
+   "options": "Checklist Photo"
   },
   {
-   "fieldname": "attachment",
-   "fieldtype": "Attach",
-   "label": "File Attachment"
+   "fieldname": "attachments",
+   "fieldtype": "Table",
+   "label": "File Attachments",
+   "options": "Checklist Attachment"
   }
  ],
  "links": [],

@@ -1305,8 +1305,8 @@ const CHECKLIST_NON_ANSWER_FIELDS = new Set(["vehicle_model", "licence_plate", "
 
 // Header/attachment fields rendered separately from the field grid, plus
 // layout-only fieldtypes that hold no data.
-const CHECKLIST_HEADER_FIELDS = new Set(["project", "check_date", "checked_by", "notes", "photo", "attachment"]);
-const CHECKLIST_LAYOUT_FIELDTYPES = new Set(["Section Break", "Column Break", "Tab Break", "HTML", "Button"]);
+const CHECKLIST_HEADER_FIELDS = new Set(["project", "check_date", "checked_by", "notes", "photos", "attachments"]);
+const CHECKLIST_LAYOUT_FIELDTYPES = new Set(["Section Break", "Column Break", "Tab Break", "HTML", "Button", "Table"]);
 
 // Escapes a value for safe insertion into HTML. Returns an em dash for empties.
 function cklEsc(value) {
@@ -1397,6 +1397,7 @@ function insertViewChecklistsButton(frm) {
 							order_by: "modified desc",
 							limit: 0,
 						});
+						if (docs.length) await attachChecklistFiles(doctype, docs);
 						return { doctype, docs };
 					})
 				);
@@ -1412,6 +1413,25 @@ function insertViewChecklistsButton(frm) {
 				frappe.dom.unfreeze();
 			}
 		}
+	);
+}
+
+// Child-table file fields (photos, attachments) are not returned by get_list on
+// the parent. Querying the child DocTypes directly is blocked because they are
+// `istable`, so fetch each checklist's full document (child rows come embedded)
+// and stash the urls on each doc as __photos / __files for the card renderer.
+async function attachChecklistFiles(doctype, docs) {
+	await Promise.all(
+		docs.map(async (doc) => {
+			try {
+				const full = await frappe.db.get_doc(doctype, doc.name);
+				doc.__photos = (full.photos || []).map((row) => row.image).filter(Boolean);
+				doc.__files = (full.attachments || []).map((row) => row.file).filter(Boolean);
+			} catch (error) {
+				doc.__photos = [];
+				doc.__files = [];
+			}
+		})
 	);
 }
 
@@ -1492,8 +1512,12 @@ function renderChecklistCard(doctype, doc) {
 	const checkedBy = doc.checked_by || "—";
 
 	const tiles = [];
-	if (doc.photo) tiles.push(renderChecklistAttachmentTile(doc.photo, __("Photo")));
-	if (doc.attachment) tiles.push(renderChecklistAttachmentTile(doc.attachment, __("File")));
+	(doc.__photos || []).forEach((url, i) =>
+		tiles.push(renderChecklistAttachmentTile(url, doc.__photos.length > 1 ? __("Photo {0}", [i + 1]) : __("Photo")))
+	);
+	(doc.__files || []).forEach((url, i) =>
+		tiles.push(renderChecklistAttachmentTile(url, doc.__files.length > 1 ? __("File {0}", [i + 1]) : __("File")))
+	);
 	const attachBlock = tiles.length
 		? `<div class="ckl-subsection">${__("Attachments")}</div><div class="ckl-attachments">${tiles.join("")}</div>`
 		: "";
@@ -1509,10 +1533,13 @@ function renderChecklistCard(doctype, doc) {
 					<a class="ckl-name" href="${route}">${cklEsc(doc.name)}</a>
 					<div class="ckl-meta">${date} &nbsp;·&nbsp; ${cklEsc(checkedBy)}</div>
 				</div>
-				<div class="ckl-chips">
-					<span class="ckl-chip ckl-yes">✓ ${yes}</span>
-					<span class="ckl-chip ${no > 0 ? "ckl-no" : "ckl-zero"}">✗ ${no}</span>
-					<span class="ckl-chip ckl-na">N/A ${na}</span>
+				<div class="ckl-head-right">
+					<div class="ckl-chips">
+						<span class="ckl-chip ckl-yes">✓ ${yes}</span>
+						<span class="ckl-chip ${no > 0 ? "ckl-no" : "ckl-zero"}">✗ ${no}</span>
+						<span class="ckl-chip ckl-na">N/A ${na}</span>
+					</div>
+					<button class="btn btn-xs btn-primary ckl-edit-btn" data-ckl-doctype="${cklEsc(doctype)}" data-ckl-name="${cklEsc(doc.name)}">${__("Edit")}</button>
 				</div>
 			</div>
 			<div class="ckl-card-body">
@@ -1578,6 +1605,8 @@ function showChecklistsDialog(frm, groups) {
 			.ckl-thumb-img { width: 100%; height: 84px; object-fit: cover; display: block; background: #f3f4f6; }
 			.ckl-thumb-file { width: 100%; height: 84px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #6b7280; background: #f3f4f6; }
 			.ckl-attach-label { font-size: 11px; color: #4b5563; padding: 6px 8px; border-top: 1px solid #f1f3f5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+			.ckl-head-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+			.ckl-edit-btn { white-space: nowrap; }
 		</style>
 		<div class="ckl-wrap">${sections}</div>`;
 
@@ -1597,6 +1626,11 @@ function showChecklistsDialog(frm, groups) {
 	// Open a preview when an attachment tile or link is clicked (both carry data-url).
 	$body.on("click", "[data-url]", function () {
 		openChecklistAttachmentPreview($(this).attr("data-url"), $(this).attr("data-title"));
+	});
+	$body.on("click", ".ckl-edit-btn", function (event) {
+		event.stopPropagation();
+		dialog.hide();
+		frappe.set_route("Form", $(this).attr("data-ckl-doctype"), $(this).attr("data-ckl-name"));
 	});
 
 	// Expand the dialog close to full screen so dense checklist data is readable.

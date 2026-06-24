@@ -37,10 +37,25 @@ class TestTVSJobCardChecklists(unittest.TestCase):
 				self.assertTrue(all(field.get("reqd") == 1 for field in answer_fields))
 
 				self.assertEqual(fields["notes"]["fieldtype"], "Text")
-				self.assertEqual(fields["photo"]["fieldtype"], "Attach Image")
-				self.assertEqual(fields["attachment"]["fieldtype"], "Attach")
-				self.assertFalse(fields["photo"].get("reqd", 0))
-				self.assertFalse(fields["attachment"].get("reqd", 0))
+				self.assertEqual(fields["photos"]["fieldtype"], "Table")
+				self.assertEqual(fields["photos"]["options"], "Checklist Photo")
+				self.assertEqual(fields["attachments"]["fieldtype"], "Table")
+				self.assertEqual(fields["attachments"]["options"], "Checklist Attachment")
+				self.assertFalse(fields["photos"].get("reqd", 0))
+				self.assertFalse(fields["attachments"].get("reqd", 0))
+
+	def test_attachment_child_tables_contract(self):
+		photo = self._load_metadata("checklist_photo")
+		photo_fields = {f["fieldname"]: f for f in photo["fields"]}
+		self.assertEqual(photo["name"], "Checklist Photo")
+		self.assertTrue(photo.get("istable"))
+		self.assertEqual(photo_fields["image"]["fieldtype"], "Attach Image")
+
+		attachment = self._load_metadata("checklist_attachment")
+		attachment_fields = {f["fieldname"]: f for f in attachment["fields"]}
+		self.assertEqual(attachment["name"], "Checklist Attachment")
+		self.assertTrue(attachment.get("istable"))
+		self.assertEqual(attachment_fields["file"]["fieldtype"], "Attach")
 
 	def test_quality_control_matches_source_form(self):
 		required_fields = {
