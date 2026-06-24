@@ -168,6 +168,8 @@ frappe.ui.form.on("Project", {
 				__("Checklists")
 			);
 		});
+
+		insertViewChecklistsButton(frm);
 	},
 
 	set_custom_buttons: function (frm) {
@@ -1282,6 +1284,188 @@ function viewCustomerDetails(frm) {
 		d.show();
 		d.get_field('preview').$wrapper.html(html);
 	});
+}
+
+
+// Checklist doctypes linked to a Project via the `project` field. Labels are
+// translated at render time (not here) so the right translation dictionary is in
+// place when the dialog is built.
+const PROJECT_CHECKLIST_DOCTYPES = [
+	"Arrival Checklist",
+	"Job Checklist",
+	"Quality Control Checklist",
+	"DSG Oil Change Checklist",
+];
+
+// Data fields that can hold free text and must NOT be counted as Yes/No/N/A
+// answers (they exist on the Quality Control and DSG checklists).
+const CHECKLIST_NON_ANSWER_FIELDS = new Set(["vehicle_model", "licence_plate", "mileage"]);
+
+// Adds a "View Checklists" button that opens a read-only summary of every
+// checklist created against the current Project.
+function insertViewChecklistsButton(frm) {
+	frm.add_custom_button(
+		__("View Checklists"),
+		async () => {
+			frappe.dom.freeze(__("Loading checklists..."));
+			try {
+				const groups = await Promise.all(
+					PROJECT_CHECKLIST_DOCTYPES.map(async (doctype) => {
+						const docs = await frappe.db.get_list(doctype, {
+							filters: { project: frm.doc.name },
+							fields: ["*"],
+							order_by: "modified desc",
+							limit: 0,
+						});
+						return { doctype, docs };
+					})
+				);
+				showChecklistsDialog(frm, groups);
+			} catch (error) {
+				console.error("Error loading checklists", error);
+				frappe.msgprint({
+					title: __("Error"),
+					indicator: "red",
+					message: __("Could not load the checklists for this project."),
+				});
+			} finally {
+				frappe.dom.unfreeze();
+			}
+		},
+		__("Checklists")
+	);
+}
+
+// Counts Yes / No / N/A answers across a checklist document. The select fields
+// hold exactly these three values, so we can summarize without hardcoding every
+// fieldname per doctype.
+function summarizeChecklistAnswers(doc) {
+	let yes = 0;
+	let no = 0;
+	let na = 0;
+	for (const key in doc) {
+		if (CHECKLIST_NON_ANSWER_FIELDS.has(key)) continue;
+		const value = doc[key];
+		if (value === "Yes") yes++;
+		else if (value === "No") no++;
+		else if (value === "N/A") na++;
+	}
+	return { yes, no, na };
+}
+
+function renderChecklistCard(doctype, doc, esc) {
+	const { yes, no, na } = summarizeChecklistAnswers(doc);
+	const route = `/app/${frappe.router.slug(doctype)}/${encodeURIComponent(doc.name)}`;
+	const date = doc.check_date ? frappe.datetime.str_to_user(doc.check_date) : "—";
+	const checkedBy = doc.checked_by || "—";
+
+	// Only allow site-relative or http(s) URLs in attachment links; blocks
+	// javascript: and other schemes that escape_html would not neutralize.
+	const safeUrl = (url) => (/^(https?:\/\/|\/)/i.test(String(url)) ? esc(url) : "#");
+
+	// Vehicle fields only exist on Quality Control and DSG checklists.
+	const vehicleBits = [];
+	if (doc.vehicle_model) vehicleBits.push(esc(doc.vehicle_model));
+	if (doc.licence_plate) vehicleBits.push(esc(doc.licence_plate));
+	if (doc.mileage) vehicleBits.push(`${esc(doc.mileage)} km`);
+	const vehicleLine = vehicleBits.length
+		? `<div class="ckl-veh">${vehicleBits.join(" · ")}</div>`
+		: "";
+
+	const attachments = [];
+	if (doc.photo)
+		attachments.push(
+			`<a href="${safeUrl(doc.photo)}" target="_blank" rel="noopener">📷 ${__("Photo")}</a>`
+		);
+	if (doc.attachment)
+		attachments.push(
+			`<a href="${safeUrl(doc.attachment)}" target="_blank" rel="noopener">📎 ${__("File")}</a>`
+		);
+	const attachLine = attachments.length
+		? `<div class="ckl-att">${attachments.join("&nbsp;&nbsp;&nbsp;")}</div>`
+		: `<div class="ckl-att ckl-muted">— ${__("No attachments")}</div>`;
+
+	const notesLine = doc.notes ? `<div class="ckl-notes">${esc(doc.notes)}</div>` : "";
+
+	return `
+		<div class="ckl-card">
+			<div class="ckl-card-head">
+				<a class="ckl-name" href="${route}">${esc(doc.name)}</a>
+				<div class="ckl-chips">
+					<span class="ckl-chip ckl-yes">✓ ${yes}</span>
+					<span class="ckl-chip ${no > 0 ? "ckl-no" : "ckl-zero"}">✗ ${no}</span>
+					<span class="ckl-chip ckl-na">N/A ${na}</span>
+				</div>
+			</div>
+			<div class="ckl-meta">${date} · ${esc(checkedBy)}</div>
+			${vehicleLine}
+			${attachLine}
+			${notesLine}
+		</div>`;
+}
+
+function showChecklistsDialog(frm, groups) {
+	const esc = (value) => {
+		if (value === null || value === undefined) return "—";
+		if (frappe.utils && frappe.utils.escape_html) return frappe.utils.escape_html(String(value));
+		return String(value)
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#039;");
+	};
+
+	const sections = groups
+		.map((group) => {
+			const count = group.docs.length;
+			const body = count
+				? group.docs.map((doc) => renderChecklistCard(group.doctype, doc, esc)).join("")
+				: `<div class="ckl-empty">— ${__("None created yet")}</div>`;
+			return `
+				<div class="ckl-section">
+					<div class="ckl-section-title">
+						${esc(__(group.doctype))} <span class="ckl-badge">${count}</span>
+					</div>
+					${body}
+				</div>`;
+		})
+		.join("");
+
+	const html = `
+		<style>
+			.ckl-wrap { font-size: 13px; line-height: 1.45; }
+			.ckl-section { margin-bottom: 18px; }
+			.ckl-section-title { font-weight: 600; font-size: 14px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+			.ckl-badge { display: inline-block; min-width: 20px; text-align: center; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #f3f4f6; color: #374151; }
+			.ckl-empty { color: #9ca3af; padding: 4px 0 8px; }
+			.ckl-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+			.ckl-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+			.ckl-name { font-weight: 600; }
+			.ckl-meta { color: #6b7280; font-size: 12px; margin-top: 4px; }
+			.ckl-veh { color: #374151; font-size: 12px; margin-top: 4px; }
+			.ckl-att { font-size: 12px; margin-top: 6px; }
+			.ckl-muted { color: #9ca3af; }
+			.ckl-notes { font-size: 12px; color: #4b5563; margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e5e7eb; white-space: pre-wrap; }
+			.ckl-chips { display: flex; gap: 6px; }
+			.ckl-chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+			.ckl-yes { background: #dcfce7; color: #166534; }
+			.ckl-no { background: #fee2e2; color: #991b1b; }
+			.ckl-zero { background: #f3f4f6; color: #6b7280; }
+			.ckl-na { background: #f3f4f6; color: #6b7280; }
+		</style>
+		<div class="ckl-wrap">${sections}</div>`;
+
+	const dialog = new frappe.ui.Dialog({
+		title: __("Checklists for {0}", [frm.doc.name]),
+		fields: [{ fieldtype: "HTML", fieldname: "preview" }],
+		size: "large",
+		primary_action_label: __("Close"),
+		primary_action: () => dialog.hide(),
+	});
+
+	dialog.show();
+	dialog.get_field("preview").$wrapper.html(html);
 }
 
 
