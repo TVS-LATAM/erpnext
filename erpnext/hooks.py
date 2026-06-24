@@ -35,6 +35,10 @@ doctype_js = {
 	"Newsletter": "public/js/newsletter.js",
 	"Contact": "public/js/contact.js",
 	"Project": "public/js/projects/payment_validation.js",
+	"Arrival Checklist": "public/js/checklist_attachments.js",
+	"Job Checklist": "public/js/checklist_attachments.js",
+	"Quality Control Checklist": "public/js/checklist_attachments.js",
+	"DSG Oil Change Checklist": "public/js/checklist_attachments.js",
 }
 doctype_list_js = {
 	"Code List": [

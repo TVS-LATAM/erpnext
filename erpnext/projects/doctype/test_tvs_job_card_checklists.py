@@ -97,6 +97,20 @@ class TestTVSJobCardChecklists(unittest.TestCase):
 		}
 		self.assertEqual(answer_fields, expected)
 
+	def test_checklist_attachments_ui_is_wired(self):
+		app_root = DOCTYPE_ROOT.parents[1]
+		script_path = app_root / "public" / "js" / "checklist_attachments.js"
+		self.assertTrue(script_path.exists(), f"Missing shared uploader script: {script_path}")
+		script = script_path.read_text()
+		hooks = (app_root / "hooks.py").read_text()
+		for doctype_name in CHECKLISTS:
+			with self.subTest(doctype=doctype_name):
+				# the shared script registers a form handler for each checklist
+				self.assertIn(f'"{doctype_name}"', script)
+				# and the doctype is wired to the script via the doctype_js hook
+				self.assertIn(doctype_name, hooks)
+		self.assertIn("public/js/checklist_attachments.js", hooks)
+
 	def test_project_job_card_exposes_checklist_entry_points(self):
 		project_directory = DOCTYPE_ROOT / "project"
 		client_script = (project_directory / "project.js").read_text()
