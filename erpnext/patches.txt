@@ -402,5 +402,6 @@ erpnext.patches.v15_0.recalculate_amount_difference_field #2025-03-18
 erpnext.patches.v15_0.rename_sla_fields #2025-03-12
 erpnext.patches.v15_0.set_purchase_receipt_row_item_to_capitalization_stock_item
 erpnext.patches.v15_0.update_payment_schedule_fields_in_invoices
-
+erpnext.automotive.patches.backfill_vehicles
+erpnext.automotive.patches.backfill_vehicle_model_typical_codes
 erpnext.patches.v14_0.migrate_checklist_attachments_to_child_tables

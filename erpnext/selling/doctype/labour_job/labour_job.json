@@ -1,0 +1,122 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:job_name",
+ "creation": "2026-06-16 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "job_name",
+  "dutch_aliases",
+  "match_keywords",
+  "project_part_fields",
+  "item_match_keywords",
+  "use_oe_crossref",
+  "use_oe_pn_search",
+  "use_transmission_search"
+ ],
+ "fields": [
+  {
+   "fieldname": "job_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Job Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "description": "Dutch labels for this job as they appear in the Manuren sheet (one per line). Used to match rows on import. Matching is exact after normalising case and whitespace.",
+   "fieldname": "dutch_aliases",
+   "fieldtype": "Small Text",
+   "label": "Dutch Aliases (import matching)"
+  },
+  {
+   "description": "Keywords used later to resolve a free-text project diagnosis (e.g. \"change mechatronic\") to this job. Not used by the import.",
+   "fieldname": "match_keywords",
+   "fieldtype": "Small Text",
+   "label": "Diagnosis Match Keywords"
+  },
+  {
+   "description": "Project fieldnames (comma-separated) holding the OEM part number that anchors this job, used by the quotation builder. e.g. \"mechatronic\" for a mechatronic job, \"clutch,flywheel\" for a combined job. Leave blank for jobs with no specific anchor part (parts come from history only).",
+   "fieldname": "project_part_fields",
+   "fieldtype": "Small Text",
+   "label": "Project Part Fields (quotation builder)"
+  },
+  {
+   "description": "Tokens (comma-separated) that identify items belonging to this job by matching the item code or item name, e.g. \"mec, mechatronic, tcu\" for Mechatronics or \"clu, kop, koppeling\" for Clutch. Used by the quotation builder to filter the DSG-compatible items down to this job's category.",
+   "fieldname": "item_match_keywords",
+   "fieldtype": "Small Text",
+   "label": "Item Match Keywords (quotation builder)"
+  },
+  {
+   "default": "0",
+   "description": "When set, the quotation builder resolves this job's parts via the OE→OEM cross-reference service (using the Project oe_pn fields above) and Item.oem_pn, instead of the item-match-keyword fitment. Used for Clutch/Flywheel.",
+   "fieldname": "use_oe_crossref",
+   "fieldtype": "Check",
+   "label": "Use OE Cross-Reference (quotation builder)"
+  },
+  {
+   "default": "0",
+   "description": "When set, the quotation builder resolves this job's parts by searching Item.oe_pn for the Project oe_pn value (and the value minus its last 3 chars, to drop a software-code suffix), spaces ignored. Used for Mechatronics.",
+   "fieldname": "use_oe_pn_search",
+   "fieldtype": "Check",
+   "label": "Use OE-PN Search (quotation builder)"
+  },
+  {
+   "default": "0",
+   "description": "When set, the quotation builder resolves this job's parts by matching the Project transmission_code against each Item's transmission_code_list compatibility table. Used for Gearbox.",
+   "fieldname": "use_transmission_search",
+   "fieldtype": "Check",
+   "label": "Use Transmission-Code Search (quotation builder)"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-06-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Selling",
+ "name": "Labour Job",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales User",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "job_name",
+ "sort_order": "ASC",
+ "states": []
+}

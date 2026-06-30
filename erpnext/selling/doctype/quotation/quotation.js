@@ -947,6 +947,485 @@ function refreshQuotationFields(frm) {
 	frm.refresh_fields(['rate', 'total', 'grand_total', 'net_total']);
 }
 
+// ---------------------------------------------------------------------------
+// Diagnosis-driven quotation builder
+// Reads the linked Project's diagnosis, detects labour jobs, and proposes parts
+// (from Sales Invoice history for the same car config) + a labour line whose
+// hours come from Standard Labour Hours (Manuren). See selling/quotation_builder.py
+// ---------------------------------------------------------------------------
+frappe.ui.form.on("Quotation", {
+	refresh(frm) {
+		if (frm.doc.docstatus !== 0 || !frm.doc.project_name) {
+			return;
+		}
+		frm.add_custom_button(__("Build from diagnosis"), () => build_from_diagnosis(frm));
+	},
+});
+
+function build_from_diagnosis(frm) {
+	if (!frm.doc.project_name) {
+		frappe.msgprint(__("Link this Quotation to a Project first."));
+		return;
+	}
+	frappe.dom.freeze(__("Reading diagnosis..."));
+	frappe
+		.call({
+			method: "erpnext.selling.quotation_builder.build_quotation_suggestions",
+			args: { project: frm.doc.project_name },
+		})
+		.then((r) => {
+			frappe.dom.unfreeze();
+			if (r && r.message) {
+				show_builder_dialog(frm, r.message);
+			}
+		})
+		.catch(() => frappe.dom.unfreeze());
+}
+
+// Small DOM helper (translate-style plain JS — no Vue / web components).
+function bldEl(tag, attrs, ...kids) {
+	const n = document.createElement(tag);
+	attrs = attrs || {};
+	for (const k in attrs) {
+		const v = attrs[k];
+		if (v == null) continue;
+		if (k === "style") n.style.cssText = v;
+		else if (k === "class") n.className = v;
+		else if (k === "html") n.innerHTML = v;
+		else if (k.slice(0, 2) === "on") n.addEventListener(k.slice(2).toLowerCase(), v);
+		else n.setAttribute(k, v);
+	}
+	kids.flat().forEach((c) => {
+		if (c == null || c === false) return;
+		n.appendChild(
+			typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c
+		);
+	});
+	return n;
+}
+
+function bldSourceBadge(source) {
+	const map = {
+		oe: ["OE", "#16794c", "#d6f0e0"],
+		sold_with: ["sold", "#1f6feb", "#dbeafe"],
+		fit: ["fit", "#6b7280", "#eef0f2"],
+	};
+	const [t, fg, bg] = map[source] || map.fit;
+	return bldEl(
+		"span",
+		{ style: `font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;color:${fg};background:${bg}` },
+		t
+	);
+}
+
+function bldTplBadge(job) {
+	return bldEl(
+		"span",
+		{ style: "font-size:10px;padding:1px 6px;border-radius:10px;background:var(--control-bg);color:var(--text-muted)" },
+		job
+	);
+}
+
+// Dynamic two-pane builder: deduplicated parts pool on the right, chosen lines on the
+// left, template buttons on top that bulk-select all items belonging to a template.
+function show_builder_dialog(frm, bundle) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Build from diagnosis"),
+		size: "extra-large",
+		fields: [{ fieldtype: "HTML", fieldname: "body" }],
+	});
+	dialog.$wrapper.find(".modal-dialog").css("max-width", "1120px");
+
+	const $body = dialog.fields_dict.body.$wrapper;
+	const root = bldEl("div", { class: "builder-suggestions" });
+	$body.append(root);
+
+	// ----- header: car + repair advice + messages -----
+	const car = bundle.car || {};
+	root.appendChild(
+		bldEl(
+			"p",
+			{ class: "text-muted", style: "margin-bottom:6px" },
+			`${__("Car")}: `,
+			bldEl("b", {}, car.dsg_family || "?"),
+			` (dsg ${car.dsg_code || "?"}, engine ${car.engine_code || "?"})`
+		)
+	);
+	if (bundle.repair_advice) {
+		root.appendChild(
+			bldEl(
+				"div",
+				{ style: "background:var(--control-bg);border-radius:6px;padding:8px 10px;margin-bottom:10px" },
+				bldEl(
+					"div",
+					{ class: "text-muted small", style: "text-transform:uppercase;letter-spacing:.04em" },
+					__("Reparatie advies")
+				),
+				bldEl("div", {}, bundle.repair_advice)
+			)
+		);
+	}
+	(bundle.messages || []).forEach((m) =>
+		root.appendChild(bldEl("div", { class: "alert alert-warning", style: "padding:6px 10px" }, m))
+	);
+
+	const jobs = bundle.jobs || [];
+	if (!jobs.length) {
+		root.appendChild(bldEl("p", {}, __("No jobs detected.")));
+		dialog.show();
+		return;
+	}
+
+	// ----- deduplicated pool of parts across all templates -----
+	const poolMap = new Map();
+	function addPool(item_code, item_name, source, job, match, sub_items, sub_items_source) {
+		if (!item_code) return;
+		let e = poolMap.get(item_code);
+		if (!e) {
+			e = { item_code, item_name: item_name || item_code, source: source || "fit", templates: new Set() };
+			poolMap.set(item_code, e);
+		}
+		e.templates.add(job);
+		if (source === "oe") e.source = "oe";
+		// exact wins over candidate wins over none
+		if (match === "exact" || (match === "candidate" && e.match !== "exact")) e.match = match;
+		// Component sub-items that follow this item into the quotation.
+		if (sub_items && sub_items.length) {
+			e.sub_items = sub_items;
+			e.sub_items_source = sub_items_source;
+		}
+	}
+	jobs.forEach((j) => {
+		(j.oem_refs || []).forEach((ref) => {
+			if (ref.item_code) addPool(ref.item_code, `${ref.part_no} (OEM)`, "oe", j.job);
+		});
+		(j.suggested_parts || []).forEach((p) =>
+			addPool(p.item_code, p.item_name, p.source, j.job, p.match, p.sub_items, p.sub_items_source)
+		);
+	});
+	const pool = Array.from(poolMap.values());
+
+	// labour variants per template
+	const labour = {};
+	jobs.forEach((j) => {
+		const apps = ((j.labour && j.labour.variants) || []).filter((v) => v.applicable);
+		if (bundle.labour_item_code && apps.length) labour[j.job] = apps;
+	});
+
+	// ----- state -----
+	const selected = new Set();
+	const qty = {};
+	const labourBoxes = {};
+
+	// ----- template buttons -----
+	const btnBar = bldEl("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px" });
+	btnBar.appendChild(
+		bldEl("span", { class: "text-muted small", style: "align-self:center;margin-right:4px" }, __("Add template:"))
+	);
+	jobs.forEach((j) => {
+		const count = pool.filter((p) => p.templates.has(j.job)).length;
+		btnBar.appendChild(
+			bldEl(
+				"button",
+				{
+					class: "btn btn-sm btn-default",
+					onclick: () => {
+						// Switch to this template: return any current items to the
+						// right pane, then load only this template's items on the left.
+						selected.clear();
+						Object.keys(labourBoxes).forEach((job) => (labourBoxes[job].cb.checked = false));
+						const items = pool.filter((p) => p.templates.has(j.job));
+						// Colour-matched candidates (e.g. mechatronics) — auto-select only one:
+						// the green (exact) match, or the first if none is green. The other
+						// candidates stay on the right for the user to pick manually.
+						const matched = items.filter((p) => p.match);
+						const keep = matched.length
+							? matched.find((p) => p.match === "exact") || matched[0]
+							: null;
+						items.forEach((p) => {
+							if (p.match && p !== keep) return;
+							selected.add(p.item_code);
+							if (qty[p.item_code] == null) qty[p.item_code] = 1;
+						});
+						if (labourBoxes[j.job]) labourBoxes[j.job].cb.checked = true;
+						rerender();
+					},
+				},
+				`${j.job} (${count})`
+			)
+		);
+	});
+	root.appendChild(btnBar);
+
+	// legend explaining the source badges, match colors and bundle indicator
+	const legendItem = (node, label) =>
+		bldEl("span", { style: "display:inline-flex;align-items:center;gap:4px" }, node, label);
+	const swatch = (color) =>
+		bldEl("span", {
+			style: `display:inline-block;width:10px;height:10px;background:${color};border-radius:2px`,
+		});
+	const legend = bldEl("div", {
+		class: "small text-muted",
+		style: "display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px;align-items:center",
+	});
+	legend.appendChild(bldEl("span", { style: "font-weight:600" }, __("Legend:")));
+	legend.appendChild(legendItem(bldSourceBadge("oe"), __("OE part for this car")));
+	legend.appendChild(legendItem(bldSourceBadge("fit"), __("fits this car")));
+	legend.appendChild(legendItem(bldSourceBadge("sold_with"), __("sold together (history)")));
+	if (pool.some((p) => p.sub_items && p.sub_items.length)) {
+		legend.appendChild(
+			legendItem(
+				bldEl(
+					"span",
+					{ style: "font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;color:#7c3aed;background:#ede9fe" },
+					"+N"
+				),
+				__("includes sub-items")
+			)
+		);
+	}
+	if (pool.some((p) => p.match)) {
+		legend.appendChild(legendItem(swatch("#16a34a"), __("exact match")));
+		legend.appendChild(legendItem(swatch("#f59e0b"), __("candidate")));
+	}
+	root.appendChild(legend);
+
+	// ----- two panes -----
+	const panes = bldEl("div", { style: "display:flex;gap:12px" });
+	const leftCol = bldEl("div", { style: "flex:1;min-width:0" });
+	const rightCol = bldEl("div", { style: "flex:1;min-width:0" });
+	panes.appendChild(leftCol);
+	panes.appendChild(rightCol);
+	root.appendChild(panes);
+
+	const selCount = bldEl("b", {}, "0");
+	leftCol.appendChild(bldEl("div", { style: "font-weight:600;margin-bottom:4px" }, __("To add"), " (", selCount, ")"));
+	const selectedBox = bldEl("div", {
+		style: "border:1px solid var(--border-color);border-radius:6px;height:340px;overflow:auto",
+	});
+	leftCol.appendChild(selectedBox);
+
+	// labour block under the selected list
+	const labourKeys = Object.keys(labour);
+	if (labourKeys.length) {
+		leftCol.appendChild(bldEl("div", { style: "font-weight:600;margin:10px 0 4px" }, __("Labour")));
+		const labourBox = bldEl("div", {
+			style: "border:1px solid var(--border-color);border-radius:6px;padding:4px 8px",
+		});
+		labourKeys.forEach((job) => {
+			const cb = bldEl("input", { type: "checkbox" });
+			const sel = bldEl("select", { class: "form-control input-xs", style: "width:auto;display:inline-block" });
+			labour[job].forEach((v, i) =>
+				sel.appendChild(bldEl("option", { value: String(i) }, `${v.vehicle_variant} — ${v.hours} ${__("h")}`))
+			);
+			labourBoxes[job] = { cb, sel };
+			labourBox.appendChild(
+				bldEl(
+					"label",
+					{ style: "display:flex;align-items:center;gap:8px;padding:4px 0;margin:0;cursor:pointer" },
+					cb,
+					bldEl("span", { style: "flex:1" }, job),
+					sel
+				)
+			);
+		});
+		leftCol.appendChild(labourBox);
+	}
+
+	const availCount = bldEl("b", {}, String(pool.length));
+	rightCol.appendChild(
+		bldEl("div", { style: "font-weight:600;margin-bottom:4px" }, __("Available items"), " (", availCount, ")")
+	);
+	const availBox = bldEl("div", {
+		style: "border:1px solid var(--border-color);border-radius:6px;height:340px;overflow:auto",
+	});
+	rightCol.appendChild(availBox);
+
+	// Colored left border for OE-PN matches: green = exact, amber = candidate.
+	function matchBorder(p) {
+		if (p.match === "exact") return "border-left:4px solid #16a34a;";
+		if (p.match === "candidate") return "border-left:4px solid #f59e0b;";
+		return "border-left:4px solid transparent;";
+	}
+
+	// ----- row builders -----
+	function poolRow(p) {
+		return bldEl(
+			"div",
+			{
+				class: "pool-row",
+				style: `display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border-color);cursor:pointer;${matchBorder(p)}`,
+				onclick: () => {
+					selected.add(p.item_code);
+					if (qty[p.item_code] == null) qty[p.item_code] = 1;
+					rerender();
+				},
+			},
+			bldEl(
+				"span",
+				{ style: "flex:1;min-width:0" },
+				bldEl("div", { style: "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" }, p.item_name),
+				bldEl("div", { class: "text-muted small" }, p.item_code)
+			),
+			bldSourceBadge(p.source),
+			...Array.from(p.templates).map(bldTplBadge),
+			p.sub_items && p.sub_items.length
+				? bldEl(
+						"span",
+						{ style: "font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;color:#7c3aed;background:#ede9fe" },
+						`+${p.sub_items.length}`
+				  )
+				: null,
+			bldEl("span", { class: "text-muted", style: "font-size:18px;line-height:1" }, "+")
+		);
+	}
+
+	function selRow(p) {
+		const input = bldEl("input", {
+			type: "number",
+			class: "form-control input-xs",
+			style: "width:64px",
+			min: "0",
+			step: "0.5",
+			value: String(qty[p.item_code] == null ? 1 : qty[p.item_code]),
+		});
+		input.addEventListener("input", () => {
+			qty[p.item_code] = flt(input.value) || 0;
+		});
+		return bldEl(
+			"div",
+			{ style: `display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid var(--border-color);${matchBorder(p)}` },
+			bldEl(
+				"span",
+				{ style: "flex:1;min-width:0" },
+				bldEl("div", { style: "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" }, p.item_name),
+				bldEl("div", { class: "text-muted small" }, p.item_code)
+			),
+			bldSourceBadge(p.source),
+			input,
+			bldEl(
+				"button",
+				{ class: "btn btn-xs btn-default", onclick: () => { selected.delete(p.item_code); rerender(); } },
+				"×"
+			)
+		);
+	}
+
+	// Read-only indented line for a product-bundle component (follows its parent).
+	function subItemRow(s) {
+		return bldEl(
+			"div",
+			{
+				style: "display:flex;align-items:center;gap:8px;padding:3px 8px 3px 22px;border-bottom:1px solid var(--border-color);background:var(--control-bg)",
+			},
+			bldEl("span", { class: "text-muted", style: "font-size:12px" }, "↳"),
+			bldEl(
+				"span",
+				{ style: "flex:1;min-width:0" },
+				bldEl("div", { class: "small", style: "white-space:nowrap;overflow:hidden;text-overflow:ellipsis" }, s.item_name),
+				bldEl("div", { class: "text-muted small" }, s.item_code)
+			),
+			bldEl("span", { class: "text-muted small" }, `× ${s.qty}`)
+		);
+	}
+
+	function rerender() {
+		availBox.innerHTML = "";
+		const avail = pool.filter((p) => !selected.has(p.item_code));
+		if (!avail.length) {
+			availBox.appendChild(bldEl("div", { class: "text-muted small", style: "padding:10px" }, __("All items added.")));
+		}
+		avail.forEach((p) => availBox.appendChild(poolRow(p)));
+		availCount.textContent = String(avail.length);
+
+		selectedBox.innerHTML = "";
+		if (!selected.size) {
+			selectedBox.appendChild(
+				bldEl("div", { class: "text-muted small", style: "padding:10px" }, __("Click items on the right, or a template above."))
+			);
+		}
+		Array.from(selected).forEach((code) => {
+			const p = poolMap.get(code);
+			selectedBox.appendChild(selRow(p));
+			// A product bundle drags its components in — show them under the parent.
+			(p.sub_items || []).forEach((s) => selectedBox.appendChild(subItemRow(s)));
+		});
+		selCount.textContent = String(selected.size);
+	}
+
+	rerender();
+
+	// ----- apply: append chosen lines to the items grid (mirrors quotation_template) -----
+	dialog.set_primary_action(__("Add to Quotation"), () => {
+		const rows = [];
+		selected.forEach((code) => {
+			const p = poolMap.get(code) || {};
+			const pqty = qty[code] || 1;
+			rows.push({ item_code: code, qty: pqty });
+			// Sub-items from the Item's `subitems_list` must be appended explicitly.
+			// (Real product-bundle components expand via the Quotation Item trigger.)
+			if (p.sub_items_source === "item") {
+				(p.sub_items || []).forEach((s) =>
+					rows.push({ item_code: s.item_code, qty: (s.qty || 1) * pqty })
+				);
+			}
+		});
+		Object.keys(labourBoxes).forEach((job) => {
+			const { cb, sel } = labourBoxes[job];
+			if (!cb.checked) return;
+			const v = labour[job][Number(sel.value)];
+			if (v && bundle.labour_item_code && v.hours > 0) {
+				rows.push({
+					item_code: bundle.labour_item_code,
+					qty: v.hours,
+					description: `${job} – ${v.vehicle_variant} (${v.hours}u)`,
+				});
+			}
+		});
+		if (!rows.length) {
+			frappe.msgprint(__("Select at least one item or labour line."));
+			return;
+		}
+
+		// Confirm before pushing the lines into the quotation.
+		const esc = frappe.utils.escape_html;
+		const summary = rows
+			.map((r) => `<tr><td>${esc(r.item_code)}</td><td style="text-align:right">${r.qty}</td></tr>`)
+			.join("");
+		frappe.confirm(
+			`${__("Add the following {0} line(s) to the quotation?", [rows.length])}
+			<table class="table table-bordered" style="margin-top:8px">
+				<thead><tr><th>${__("Item")}</th><th style="text-align:right;width:90px">${__("Qty")}</th></tr></thead>
+				<tbody>${summary}</tbody></table>`,
+			() => {
+				const setters = rows.map((r) => {
+					const child = frm.add_child("items", { qty: r.qty });
+					return frappe.model.set_value(child.doctype, child.name, "item_code", r.item_code).then(() => {
+						if (r.description) return frappe.model.set_value(child.doctype, child.name, "description", r.description);
+					});
+				});
+				Promise.all(setters).then(() => {
+					// Drop the grid's leftover blank row (a new Quotation starts with one
+					// empty item row, which otherwise shows as a blank first line).
+					const cleaned = (frm.doc.items || []).filter((r) => r.item_code);
+					if (cleaned.length !== (frm.doc.items || []).length) {
+						frm.doc.items = cleaned;
+						frm.doc.items.forEach((r, i) => (r.idx = i + 1));
+					}
+					frm.refresh_field("items");
+					dialog.hide();
+					frappe.show_alert(
+						{ message: __("Added {0} line(s) — review rates.", [rows.length]), indicator: "green" },
+						7
+					);
+				});
+			}
+		);
+	});
+
+	dialog.show();
+}
+
 async function insertResendQuotationApprovalButton(frm) {
 	if (!["Approved", "Ordered"].includes(frm.doc.status)) {
 		frm.add_custom_button(__('Resend Approve Message'), () => {

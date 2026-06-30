@@ -2273,6 +2273,12 @@ def run_ledger_health_checks():
 					doc.save()
 
 
+def build_qb_match_conditions(doctype: str, user: str | None = None) -> list:
+	from frappe.desk.reportview import build_match_conditions
+
+	return build_match_conditions(doctype, user=user, as_condition=False)
+
+
 def sync_auto_reconcile_config(auto_reconciliation_job_trigger: int = 15):
 	auto_reconciliation_job_trigger = auto_reconciliation_job_trigger or frappe.db.get_single_value(
 		"Accounts Settings", "auto_reconciliation_job_trigger"

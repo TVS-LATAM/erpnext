@@ -1,0 +1,91 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:display_name",
+ "creation": "2026-05-22 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "display_name",
+  "brand",
+  "model",
+  "engine_liters",
+  "hp_kw",
+  "typical_engine_codes",
+  "typical_dsg_codes"
+ ],
+ "fields": [
+  {
+   "fieldname": "display_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Display Name",
+   "read_only": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Brand"
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Model"
+  },
+  {
+   "fieldname": "engine_liters",
+   "fieldtype": "Data",
+   "label": "Engine Liters"
+  },
+  {
+   "fieldname": "hp_kw",
+   "fieldtype": "Data",
+   "label": "HP / kW"
+  },
+  {
+   "fieldname": "typical_engine_codes",
+   "fieldtype": "Table",
+   "label": "Typical Engine Codes",
+   "options": "Vehicle Model Engine Code"
+  },
+  {
+   "fieldname": "typical_dsg_codes",
+   "fieldtype": "Table",
+   "label": "Typical DSG Codes",
+   "options": "Vehicle Model DSG Code"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-05-22 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Automotive",
+ "name": "Vehicle Model",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
