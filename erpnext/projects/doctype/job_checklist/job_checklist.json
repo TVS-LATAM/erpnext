@@ -60,70 +60,70 @@
    "fieldname": "work_instructions_reviewed",
    "fieldtype": "Select",
    "label": "Work Instructions Reviewed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "parts_and_fluids_verified",
    "fieldtype": "Select",
    "label": "Parts and Fluids Verified",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_protected",
    "fieldtype": "Select",
    "label": "Vehicle Protected Before Work",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "work_performed_to_specification",
    "fieldtype": "Select",
    "label": "Work Performed to Specification",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "fasteners_torqued",
    "fieldtype": "Select",
    "label": "Fasteners Torqued to Specification",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "fluid_levels_checked",
    "fieldtype": "Select",
    "label": "Fluid Levels Checked",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "leaks_checked",
    "fieldtype": "Select",
    "label": "Leaks Checked",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "faults_or_deviations_recorded",
    "fieldtype": "Select",
    "label": "Faults or Deviations Recorded",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "work_area_cleaned",
    "fieldtype": "Select",
    "label": "Work Area Cleaned",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "post_work_test_completed",
    "fieldtype": "Select",
    "label": "Post-work Test Completed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {

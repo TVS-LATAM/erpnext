@@ -47,6 +47,7 @@ erpnext.checklists.injectStyle = function () {
 		.ckl-del { position: absolute; top: 2px; right: 4px; width: 18px; height: 18px; border-radius: 50%; background: rgba(0,0,0,0.6); color: #fff; font-size: 14px; line-height: 16px; text-align: center; cursor: pointer; }
 		.ckl-del:hover { background: #e24c4c; }
 		.ckl-empty { font-size: 12px; padding: 6px 0; }
+		.ckl-private-locked .config-area label:last-child { display: none !important; }
 	`;
 	document.head.appendChild(style);
 };
@@ -86,11 +87,13 @@ erpnext.checklists.renderTable = function (frm, cfg) {
 };
 
 erpnext.checklists.openUploader = function (frm, cfg) {
-	new frappe.ui.FileUploader({
+	const uploader = new frappe.ui.FileUploader({
 		doctype: frm.doc.doctype,
 		docname: frm.doc.name,
 		allow_multiple: true,
 		dialog_title: cfg.buttonLabel,
+		// Default every upload to private; the server (ChecklistFile) enforces it.
+		make_attachments_public: 0,
 		restrictions: cfg.imagesOnly ? { allowed_file_types: ["image/*"] } : {},
 		on_success: (file_doc) => {
 			if (!file_doc || !file_doc.file_url) return;
@@ -101,6 +104,14 @@ erpnext.checklists.openUploader = function (frm, cfg) {
 			frm.dirty();
 		},
 	});
+
+	// Privacy cannot be changed from the UI: hide the per-file "Private" toggle
+	// (via the ckl-private-locked style) and the dialog's "Set all public" button.
+	if (uploader && uploader.dialog) {
+		uploader.dialog.$wrapper.addClass("ckl-private-locked");
+		const $secondary = uploader.dialog.get_secondary_btn && uploader.dialog.get_secondary_btn();
+		if ($secondary) $secondary.hide();
+	}
 };
 
 erpnext.checklists.renderGallery = function (frm, cfg, $gallery) {
