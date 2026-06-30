@@ -37,10 +37,25 @@ class TestTVSJobCardChecklists(unittest.TestCase):
 				self.assertTrue(all(field.get("reqd") == 1 for field in answer_fields))
 
 				self.assertEqual(fields["notes"]["fieldtype"], "Text")
-				self.assertEqual(fields["photo"]["fieldtype"], "Attach Image")
-				self.assertEqual(fields["attachment"]["fieldtype"], "Attach")
-				self.assertFalse(fields["photo"].get("reqd", 0))
-				self.assertFalse(fields["attachment"].get("reqd", 0))
+				self.assertEqual(fields["photos"]["fieldtype"], "Table")
+				self.assertEqual(fields["photos"]["options"], "Checklist Photo")
+				self.assertEqual(fields["attachments"]["fieldtype"], "Table")
+				self.assertEqual(fields["attachments"]["options"], "Checklist Attachment")
+				self.assertFalse(fields["photos"].get("reqd", 0))
+				self.assertFalse(fields["attachments"].get("reqd", 0))
+
+	def test_attachment_child_tables_contract(self):
+		photo = self._load_metadata("checklist_photo")
+		photo_fields = {f["fieldname"]: f for f in photo["fields"]}
+		self.assertEqual(photo["name"], "Checklist Photo")
+		self.assertTrue(photo.get("istable"))
+		self.assertEqual(photo_fields["image"]["fieldtype"], "Attach Image")
+
+		attachment = self._load_metadata("checklist_attachment")
+		attachment_fields = {f["fieldname"]: f for f in attachment["fields"]}
+		self.assertEqual(attachment["name"], "Checklist Attachment")
+		self.assertTrue(attachment.get("istable"))
+		self.assertEqual(attachment_fields["file"]["fieldtype"], "Attach")
 
 	def test_quality_control_matches_source_form(self):
 		required_fields = {
@@ -81,6 +96,20 @@ class TestTVSJobCardChecklists(unittest.TestCase):
 			if field.get("options") == ANSWER_OPTIONS
 		}
 		self.assertEqual(answer_fields, expected)
+
+	def test_checklist_attachments_ui_is_wired(self):
+		app_root = DOCTYPE_ROOT.parents[1]
+		script_path = app_root / "public" / "js" / "checklist_attachments.js"
+		self.assertTrue(script_path.exists(), f"Missing shared uploader script: {script_path}")
+		script = script_path.read_text()
+		hooks = (app_root / "hooks.py").read_text()
+		for doctype_name in CHECKLISTS:
+			with self.subTest(doctype=doctype_name):
+				# the shared script registers a form handler for each checklist
+				self.assertIn(f'"{doctype_name}"', script)
+				# and the doctype is wired to the script via the doctype_js hook
+				self.assertIn(doctype_name, hooks)
+		self.assertIn("public/js/checklist_attachments.js", hooks)
 
 	def test_project_job_card_exposes_checklist_entry_points(self):
 		project_directory = DOCTYPE_ROOT / "project"

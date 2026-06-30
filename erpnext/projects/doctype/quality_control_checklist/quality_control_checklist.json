@@ -48,8 +48,8 @@
   "notes_section",
   "notes",
   "attachments_section",
-  "photo",
-  "attachment"
+  "photos",
+  "attachments"
  ],
  "fields": [
   {
@@ -109,70 +109,70 @@
    "fieldname": "customer_complaints_resolved",
    "fieldtype": "Select",
    "label": "Customer Complaints Resolved",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_drives_well",
    "fieldtype": "Select",
    "label": "Vehicle Drives Well",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "engine_runs_well",
    "fieldtype": "Select",
    "label": "Engine Runs Well",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "tuning_difference_noticeable",
    "fieldtype": "Select",
    "label": "Tuning / Software Difference Noticeable",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "faults_or_defects_noticed",
    "fieldtype": "Select",
    "label": "Faults or Defects Noticed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "adaptation_values_saved",
    "fieldtype": "Select",
    "label": "Adaptation Values Saved",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "delivery_system_scan_completed",
    "fieldtype": "Select",
    "label": "Delivery System Scan Completed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_fault_codes_cleared_before_qc",
    "fieldtype": "Select",
    "label": "Vehicle Fault Codes Cleared Before Quality Control",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_aligned",
    "fieldtype": "Select",
    "label": "Vehicle Aligned",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "steering_wheel_straight",
    "fieldtype": "Select",
    "label": "Steering Wheel Straight",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -184,98 +184,98 @@
    "fieldname": "lift_leak_inspection_completed",
    "fieldtype": "Select",
    "label": "Vehicle Checked on Lift for Faults and Leaks",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "undertray_installed",
    "fieldtype": "Select",
    "label": "Undertray Installed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "wheels_torqued",
    "fieldtype": "Select",
    "label": "Wheels Tightened with Torque Wrench",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "engine_bay_covers_cleaned",
    "fieldtype": "Select",
    "label": "Covers Under Hood Cleaned",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "coolant_and_engine_oil_checked",
    "fieldtype": "Select",
    "label": "Coolant and Engine Oil Level Checked",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_fault_codes_cleared_after_qc",
    "fieldtype": "Select",
    "label": "Vehicle Fault Codes Cleared After Quality Control",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "trip_meter_reset",
    "fieldtype": "Select",
    "label": "Trip Meter Reset",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "dashboard_clock_set",
    "fieldtype": "Select",
    "label": "Dashboard Clock Set",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "windows_initialized",
    "fieldtype": "Select",
    "label": "Windows Initialized",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "maintenance_notification_present",
    "fieldtype": "Select",
    "label": "Maintenance Service Notification Present",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "defective_lamp_notification_present",
    "fieldtype": "Select",
    "label": "Defective Lamp Notification Present",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "washer_fluid_notification_present",
    "fieldtype": "Select",
    "label": "Windshield Washer Fluid Notification Present",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_vacuumed",
    "fieldtype": "Select",
    "label": "Vehicle Vacuumed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_washed",
    "fieldtype": "Select",
    "label": "Vehicle Washed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -287,42 +287,42 @@
    "fieldname": "transport_costs_on_quote",
    "fieldtype": "Select",
    "label": "Transport Costs Included on Quote",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "pickup_delivery_costs_on_quote",
    "fieldtype": "Select",
    "label": "Pickup / Delivery Service Costs Included on Quote",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "loan_car_costs_on_quote",
    "fieldtype": "Select",
    "label": "Loan Car Costs Included on Quote",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "fuel_costs_on_quote",
    "fieldtype": "Select",
    "label": "Fuel Costs Included on Quote",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "extra_work_on_quote",
    "fieldtype": "Select",
    "label": "All Extra Work Included on Quote",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "invoice_paid",
    "fieldtype": "Select",
    "label": "Invoice Paid",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -342,14 +342,16 @@
    "label": "Attachments"
   },
   {
-   "fieldname": "photo",
-   "fieldtype": "Attach Image",
-   "label": "Photo"
+   "fieldname": "photos",
+   "fieldtype": "Table",
+   "label": "Photos",
+   "options": "Checklist Photo"
   },
   {
-   "fieldname": "attachment",
-   "fieldtype": "Attach",
-   "label": "File Attachment"
+   "fieldname": "attachments",
+   "fieldtype": "Table",
+   "label": "File Attachments",
+   "options": "Checklist Attachment"
   }
  ],
  "links": [],

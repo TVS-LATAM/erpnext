@@ -22,8 +22,8 @@
   "notes_section",
   "notes",
   "attachments_section",
-  "photo",
-  "attachment"
+  "photos",
+  "attachments"
  ],
  "fields": [
   {
@@ -70,56 +70,56 @@
    "fieldname": "appointment_confirmed",
    "fieldtype": "Select",
    "label": "Appointment Confirmed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_identity_verified",
    "fieldtype": "Select",
    "label": "Vehicle Identity Verified",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "customer_concerns_recorded",
    "fieldtype": "Select",
    "label": "Customer Concerns Recorded",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "visible_damage_recorded",
    "fieldtype": "Select",
    "label": "Visible Damage Recorded",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "warning_lights_checked",
    "fieldtype": "Select",
    "label": "Warning Lights Checked",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "personal_items_noted",
    "fieldtype": "Select",
    "label": "Personal Items Noted",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "pre_work_test_drive_completed",
    "fieldtype": "Select",
    "label": "Pre-work Test Drive Completed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_safe_to_work_on",
    "fieldtype": "Select",
    "label": "Vehicle Safe to Work On",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -138,14 +138,16 @@
    "label": "Attachments"
   },
   {
-   "fieldname": "photo",
-   "fieldtype": "Attach Image",
-   "label": "Photo"
+   "fieldname": "photos",
+   "fieldtype": "Table",
+   "label": "Photos",
+   "options": "Checklist Photo"
   },
   {
-   "fieldname": "attachment",
-   "fieldtype": "Attach",
-   "label": "File Attachment"
+   "fieldname": "attachments",
+   "fieldtype": "Table",
+   "label": "File Attachments",
+   "options": "Checklist Attachment"
   }
  ],
  "links": [],

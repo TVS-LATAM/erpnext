@@ -158,6 +158,8 @@ frappe.ui.form.on("Project", {
 		if (!frm.previous_status) {
 			frm.previous_status = frm.doc.status
 		}
+
+		hideProjectToolbarButtons(frm);
 	},
 
 	setup_checklist_buttons: function (frm) {
@@ -168,6 +170,8 @@ frappe.ui.form.on("Project", {
 				__("Checklists")
 			);
 		});
+
+		insertViewChecklistsButton(frm);
 	},
 
 	set_custom_buttons: function (frm) {
@@ -1285,7 +1289,384 @@ function viewCustomerDetails(frm) {
 }
 
 
+// Checklist doctypes linked to a Project via the `project` field. Labels are
+// translated at render time (not here) so the right translation dictionary is in
+// place when the dialog is built.
+const PROJECT_CHECKLIST_DOCTYPES = [
+	"Arrival Checklist",
+	"Job Checklist",
+	"Quality Control Checklist",
+	"DSG Oil Change Checklist",
+];
+
+// Data fields that can hold free text and must NOT be counted as Yes/No/N/A
+// answers (they exist on the Quality Control and DSG checklists).
+const CHECKLIST_NON_ANSWER_FIELDS = new Set(["vehicle_model", "licence_plate", "mileage"]);
+
+// Header/attachment fields rendered separately from the field grid, plus
+// layout-only fieldtypes that hold no data.
+const CHECKLIST_HEADER_FIELDS = new Set(["project", "check_date", "checked_by", "notes", "photos", "attachments"]);
+const CHECKLIST_LAYOUT_FIELDTYPES = new Set(["Section Break", "Column Break", "Tab Break", "HTML", "Button", "Table"]);
+
+// Escapes a value for safe insertion into HTML. Returns an em dash for empties.
+function cklEsc(value) {
+	if (value === null || value === undefined) return "—";
+	if (frappe.utils && frappe.utils.escape_html) return frappe.utils.escape_html(String(value));
+	return String(value)
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#039;");
+}
+
+// Only allow site-relative or http(s) URLs in links; blocks javascript: and
+// other schemes that escape_html would not neutralize.
+function cklSafeUrl(url) {
+	return /^(https?:\/\/|\/)/i.test(String(url)) ? cklEsc(url) : "#";
+}
+
+const CHECKLIST_IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "avif"]);
+
+// Returns the lowercased file extension from a URL, ignoring query/hash.
+function cklFileExt(url) {
+	const clean = String(url).split("?")[0].split("#")[0];
+	const match = clean.match(/\.([a-z0-9]+)$/i);
+	return match ? match[1].toLowerCase() : "";
+}
+
+// Renders a clickable attachment tile: an image thumbnail for images, or a typed
+// file badge otherwise. The click is wired via delegation in showChecklistsDialog.
+function renderChecklistAttachmentTile(url, label) {
+	const ext = cklFileExt(url);
+	const thumb = CHECKLIST_IMAGE_EXTS.has(ext)
+		? `<img class="ckl-thumb-img" src="${cklSafeUrl(url)}" loading="lazy" alt="${cklEsc(label)}">`
+		: `<div class="ckl-thumb-file">${ext ? cklEsc(ext.toUpperCase()) : __("FILE")}</div>`;
+	return `<div class="ckl-attach" data-url="${cklEsc(url)}" data-title="${cklEsc(label)}" title="${cklEsc(label)}">
+			${thumb}
+			<div class="ckl-attach-label">${cklEsc(label)}</div>
+		</div>`;
+}
+
+// Opens a preview dialog for an attachment: inline image or embedded PDF; other
+// types open in a new tab.
+function openChecklistAttachmentPreview(url, title) {
+	const ext = cklFileExt(url);
+	let inner;
+	if (CHECKLIST_IMAGE_EXTS.has(ext)) {
+		inner = `<img src="${cklSafeUrl(url)}" style="max-width:100%;max-height:78vh;display:block;margin:0 auto;border-radius:6px;">`;
+	} else if (ext === "pdf") {
+		inner = `<iframe src="${cklSafeUrl(url)}" style="width:100%;height:78vh;border:none;border-radius:6px;"></iframe>`;
+	} else {
+		window.open(url, "_blank", "noopener");
+		return;
+	}
+
+	const preview = new frappe.ui.Dialog({
+		title: title || __("Attachment"),
+		fields: [{ fieldtype: "HTML", fieldname: "body" }],
+		size: "extra-large",
+		primary_action_label: __("Open in new tab"),
+		primary_action: () => window.open(url, "_blank", "noopener"),
+	});
+	preview.show();
+	preview.get_field("body").$wrapper.html(inner);
+	preview.$wrapper.find(".modal-dialog").css({ "max-width": "90vw", width: "90vw" });
+}
+
+// Adds a "View Checklists" button that opens a read-only detail view of every
+// checklist created against the current Project.
+function insertViewChecklistsButton(frm) {
+	frm.add_custom_button(
+		__("View Checklists"),
+		async () => {
+			frappe.dom.freeze(__("Loading checklists..."));
+			try {
+				// Load doctype metadata first so we can render field labels and sections.
+				await Promise.all(
+					PROJECT_CHECKLIST_DOCTYPES.map(
+						(doctype) => new Promise((resolve) => frappe.model.with_doctype(doctype, resolve))
+					)
+				);
+
+				const groups = await Promise.all(
+					PROJECT_CHECKLIST_DOCTYPES.map(async (doctype) => {
+						const docs = await frappe.db.get_list(doctype, {
+							filters: { project: frm.doc.name },
+							fields: ["*"],
+							order_by: "modified desc",
+							limit: 0,
+						});
+						if (docs.length) await attachChecklistFiles(doctype, docs);
+						return { doctype, docs };
+					})
+				);
+				showChecklistsDialog(frm, groups);
+			} catch (error) {
+				console.error("Error loading checklists", error);
+				frappe.msgprint({
+					title: __("Error"),
+					indicator: "red",
+					message: __("Could not load the checklists for this project."),
+				});
+			} finally {
+				frappe.dom.unfreeze();
+			}
+		}
+	);
+}
+
+// Child-table file fields (photos, attachments) are not returned by get_list on
+// the parent. Querying the child DocTypes directly is blocked because they are
+// `istable`, so fetch each checklist's full document (child rows come embedded)
+// and stash the urls on each doc as __photos / __files for the card renderer.
+async function attachChecklistFiles(doctype, docs) {
+	await Promise.all(
+		docs.map(async (doc) => {
+			try {
+				const full = await frappe.db.get_doc(doctype, doc.name);
+				doc.__photos = (full.photos || []).map((row) => row.image).filter(Boolean);
+				doc.__files = (full.attachments || []).map((row) => row.file).filter(Boolean);
+			} catch (error) {
+				doc.__photos = [];
+				doc.__files = [];
+			}
+		})
+	);
+}
+
+// Counts Yes / No / N/A answers across a checklist document. The select fields
+// hold exactly these three values, so we can summarize without hardcoding every
+// fieldname per doctype.
+function summarizeChecklistAnswers(doc) {
+	let yes = 0;
+	let no = 0;
+	let na = 0;
+	for (const key in doc) {
+		if (CHECKLIST_NON_ANSWER_FIELDS.has(key)) continue;
+		const value = doc[key];
+		if (value === "Yes") yes++;
+		else if (value === "No") no++;
+		else if (value === "N/A") na++;
+	}
+	return { yes, no, na };
+}
+
+// Renders a single field as a label/value row, color-coding Yes/No/N/A answers
+// and turning attachment fields into links.
+function renderChecklistFieldRow(field, value) {
+	let valHtml;
+	if (field.fieldtype === "Attach" || field.fieldtype === "Attach Image") {
+		valHtml = value
+			? `<span class="ckl-val ckl-attach-link" data-url="${cklEsc(value)}" data-title="${cklEsc(field.label || "")}">${__("View")}</span>`
+			: `<span class="ckl-val ckl-muted">—</span>`;
+	} else if (value === "Yes") {
+		valHtml = `<span class="ckl-val ckl-pill ckl-pill-yes">${__("Yes")}</span>`;
+	} else if (value === "No") {
+		valHtml = `<span class="ckl-val ckl-pill ckl-pill-no">${__("No")}</span>`;
+	} else if (value === "N/A") {
+		valHtml = `<span class="ckl-val ckl-pill ckl-pill-na">N/A</span>`;
+	} else if (value === null || value === undefined || value === "") {
+		valHtml = `<span class="ckl-val ckl-muted">—</span>`;
+	} else {
+		valHtml = `<span class="ckl-val">${cklEsc(value)}</span>`;
+	}
+	return `<div class="ckl-field"><span class="ckl-field-label">${cklEsc(field.label || field.fieldname)}</span>${valHtml}</div>`;
+}
+
+// Walks the doctype meta to render every data field grouped under its section,
+// so new fields appear automatically without code changes here.
+function renderChecklistFields(doctype, doc) {
+	const meta = frappe.get_meta(doctype);
+	const fields = (meta && meta.fields) || [];
+	const sections = [];
+	let current = { title: null, rows: [] };
+
+	for (const field of fields) {
+		if (field.fieldtype === "Section Break") {
+			if (current.rows.length) sections.push(current);
+			current = { title: field.label || null, rows: [] };
+			continue;
+		}
+		if (CHECKLIST_LAYOUT_FIELDTYPES.has(field.fieldtype)) continue;
+		if (CHECKLIST_HEADER_FIELDS.has(field.fieldname)) continue;
+		current.rows.push({ field, value: doc[field.fieldname] });
+	}
+	if (current.rows.length) sections.push(current);
+
+	return sections
+		.map((section) => {
+			const title = section.title
+				? `<div class="ckl-subsection">${cklEsc(section.title)}</div>`
+				: "";
+			const rows = section.rows.map((r) => renderChecklistFieldRow(r.field, r.value)).join("");
+			return `${title}<div class="ckl-fields">${rows}</div>`;
+		})
+		.join("");
+}
+
+function renderChecklistCard(doctype, doc) {
+	const { yes, no, na } = summarizeChecklistAnswers(doc);
+	const route = `/app/${frappe.router.slug(doctype)}/${encodeURIComponent(doc.name)}`;
+	const date = doc.check_date ? frappe.datetime.str_to_user(doc.check_date) : "—";
+	const checkedBy = doc.checked_by || "—";
+
+	const tiles = [];
+	(doc.__photos || []).forEach((url, i) =>
+		tiles.push(renderChecklistAttachmentTile(url, doc.__photos.length > 1 ? __("Photo {0}", [i + 1]) : __("Photo")))
+	);
+	(doc.__files || []).forEach((url, i) =>
+		tiles.push(renderChecklistAttachmentTile(url, doc.__files.length > 1 ? __("File {0}", [i + 1]) : __("File")))
+	);
+	const attachBlock = tiles.length
+		? `<div class="ckl-subsection">${__("Attachments")}</div><div class="ckl-attachments">${tiles.join("")}</div>`
+		: "";
+
+	const notesLine = doc.notes
+		? `<div class="ckl-subsection">${__("Notes")}</div><div class="ckl-notes">${cklEsc(doc.notes)}</div>`
+		: "";
+
+	return `
+		<div class="ckl-card">
+			<div class="ckl-card-head">
+				<div class="ckl-card-id">
+					<a class="ckl-name" href="${route}">${cklEsc(doc.name)}</a>
+					<div class="ckl-meta">${date} &nbsp;·&nbsp; ${cklEsc(checkedBy)}</div>
+				</div>
+				<div class="ckl-head-right">
+					<div class="ckl-chips">
+						<span class="ckl-chip ckl-yes">✓ ${yes}</span>
+						<span class="ckl-chip ${no > 0 ? "ckl-no" : "ckl-zero"}">✗ ${no}</span>
+						<span class="ckl-chip ckl-na">N/A ${na}</span>
+					</div>
+					<button class="btn btn-xs btn-primary ckl-edit-btn" data-ckl-doctype="${cklEsc(doctype)}" data-ckl-name="${cklEsc(doc.name)}">${__("Edit")}</button>
+				</div>
+			</div>
+			<div class="ckl-card-body">
+				${renderChecklistFields(doctype, doc)}
+				${notesLine}
+				${attachBlock}
+			</div>
+		</div>`;
+}
+
+function showChecklistsDialog(frm, groups) {
+	const sections = groups
+		.map((group) => {
+			const count = group.docs.length;
+			const body = count
+				? group.docs.map((doc) => renderChecklistCard(group.doctype, doc)).join("")
+				: `<div class="ckl-empty">— ${__("None created yet")}</div>`;
+			return `
+				<div class="ckl-section">
+					<div class="ckl-section-title">
+						${cklEsc(__(group.doctype))} <span class="ckl-badge">${count}</span>
+					</div>
+					${body}
+				</div>`;
+		})
+		.join("");
+
+	const html = `
+		<style>
+			.ckl-wrap { font-size: 13px; line-height: 1.45; color: #1f2937; }
+			.ckl-section { margin-bottom: 26px; }
+			.ckl-section-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+			.ckl-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; font-size: 11px; padding: 0 7px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-weight: 600; }
+			.ckl-empty { color: #9ca3af; padding: 4px 0 8px; }
+			.ckl-card { border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 14px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); overflow: hidden; }
+			.ckl-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 18px; background: #f9fafb; border-bottom: 1px solid #eef0f2; }
+			.ckl-card-id { display: flex; flex-direction: column; gap: 2px; }
+			.ckl-name { font-weight: 600; font-size: 14px; color: #111827; }
+			.ckl-meta { color: #6b7280; font-size: 12px; }
+			.ckl-card-body { padding: 6px 18px 18px; }
+			.ckl-notes { font-size: 12px; color: #4b5563; margin-top: 4px; white-space: pre-wrap; background: #f9fafb; border: 1px solid #eef0f2; border-radius: 8px; padding: 10px 12px; }
+			.ckl-chips { display: flex; gap: 6px; }
+			.ckl-chip { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
+			.ckl-yes { background: #dcfce7; color: #166534; }
+			.ckl-no { background: #fee2e2; color: #991b1b; }
+			.ckl-zero { background: #f3f4f6; color: #6b7280; }
+			.ckl-na { background: #f3f4f6; color: #6b7280; }
+			.ckl-subsection { font-weight: 600; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: #9ca3af; margin: 18px 0 6px; }
+			.ckl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0 32px; }
+			.ckl-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f3f5; min-height: 34px; }
+			.ckl-field-label { color: #4b5563; font-size: 12px; }
+			.ckl-val { font-weight: 600; font-size: 12px; text-align: right; white-space: nowrap; }
+			.ckl-muted { color: #cbd5e1; }
+			.ckl-pill { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+			.ckl-pill-yes { background: #dcfce7; color: #166534; }
+			.ckl-pill-no { background: #fee2e2; color: #991b1b; }
+			.ckl-pill-na { background: #f1f3f5; color: #6b7280; }
+			.ckl-attach-link { color: #2563eb; cursor: pointer; }
+			.ckl-attach-link:hover { text-decoration: underline; }
+			.ckl-attachments { display: flex; flex-wrap: wrap; gap: 12px; }
+			.ckl-attach { width: 120px; cursor: pointer; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fff; transition: box-shadow .15s, border-color .15s; }
+			.ckl-attach:hover { border-color: #c7d2fe; box-shadow: 0 2px 8px rgba(16,24,40,.08); }
+			.ckl-thumb-img { width: 100%; height: 84px; object-fit: cover; display: block; background: #f3f4f6; }
+			.ckl-thumb-file { width: 100%; height: 84px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: #6b7280; background: #f3f4f6; }
+			.ckl-attach-label { font-size: 11px; color: #4b5563; padding: 6px 8px; border-top: 1px solid #f1f3f5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+			.ckl-head-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+			.ckl-edit-btn { white-space: nowrap; }
+		</style>
+		<div class="ckl-wrap">${sections}</div>`;
+
+	const dialog = new frappe.ui.Dialog({
+		title: __("Checklists for {0}", [frm.doc.name]),
+		fields: [{ fieldtype: "HTML", fieldname: "preview" }],
+		size: "extra-large",
+		primary_action_label: __("Close"),
+		primary_action: () => dialog.hide(),
+	});
+
+	dialog.show();
+
+	const $body = dialog.get_field("preview").$wrapper;
+	$body.html(html);
+
+	// Open a preview when an attachment tile or link is clicked (both carry data-url).
+	$body.on("click", "[data-url]", function () {
+		openChecklistAttachmentPreview($(this).attr("data-url"), $(this).attr("data-title"));
+	});
+	$body.on("click", ".ckl-edit-btn", function (event) {
+		event.stopPropagation();
+		dialog.hide();
+		frappe.set_route("Form", $(this).attr("data-ckl-doctype"), $(this).attr("data-ckl-name"));
+	});
+
+	// Expand the dialog close to full screen so dense checklist data is readable.
+	dialog.$wrapper.find(".modal-dialog").css({ "max-width": "95vw", width: "95vw" });
+	dialog.$wrapper.find(".modal-body").css({ "max-height": "82vh", "overflow-y": "auto" });
+}
+
+
 // Las funciones relacionadas con la validación de pagos se han movido al archivo payment_validation.js
+
+// Hides toolbar controls we don't want on the Project form: the custom "Actions"
+// and "View" dropdown groups and the previous/next record arrows.
+//
+// Uses injected CSS scoped to a class we add only to the Project form page, so it
+// (a) survives Frappe re-rendering the custom buttons after refresh — a plain
+// hide() loses that race — and (b) affects the Project doctype only. Frappe stores
+// each group label as data-label="encodeURIComponent(label)", so we build the
+// selector the same way to stay correct under any UI language.
+function hideProjectToolbarButtons(frm) {
+	const STYLE_ID = "project-toolbar-tweaks";
+	if (!document.getElementById(STYLE_ID)) {
+		const actionsLabel = encodeURIComponent(__("Actions"));
+		const viewLabel = encodeURIComponent(__("View"));
+		const style = document.createElement("style");
+		style.id = STYLE_ID;
+		style.textContent = `
+			.project-hide-toolbar .inner-group-button[data-label="${actionsLabel}"],
+			.project-hide-toolbar .inner-group-button[data-label="${viewLabel}"],
+			.project-hide-toolbar .prev-doc,
+			.project-hide-toolbar .next-doc { display: none !important; }
+		`;
+		document.head.appendChild(style);
+	}
+
+	frm.page.wrapper.addClass("project-hide-toolbar");
+}
 
 function insertValidateBankTransferPaymentButton(frm) {
 	frm.add_custom_button(__('Validate Bank Transfer Payment'), () => {

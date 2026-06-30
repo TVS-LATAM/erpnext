@@ -40,8 +40,8 @@
   "notes_section",
   "notes",
   "attachments_section",
-  "photo",
-  "attachment"
+  "photos",
+  "attachments"
  ],
  "fields": [
   {
@@ -108,49 +108,49 @@
    "fieldname": "appointment_scheduled_in_erp",
    "fieldtype": "Select",
    "label": "Appointment Scheduled in ERP",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "oil_change_quote_submitted",
    "fieldtype": "Select",
    "label": "Oil Change Quote Prepared and Submitted",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_modification_confirmed",
    "fieldtype": "Select",
    "label": "Customer Asked Whether Vehicle Is Modified / Tuned",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "tvs_software_offered",
    "fieldtype": "Select",
    "label": "TVS Software Offered to Customer",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "existing_complaints_confirmed",
    "fieldtype": "Select",
    "label": "Customer Asked About Existing Complaints / Defects",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "pre_check_test_drive_completed",
    "fieldtype": "Select",
    "label": "Pre-check / Test Drive Completed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_shifts_correctly",
    "fieldtype": "Select",
    "label": "Vehicle Shifts Correctly and Oil Change Can Be Performed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -162,28 +162,28 @@
    "fieldname": "dsg_oil_change_completed",
    "fieldtype": "Select",
    "label": "DSG Oil Change Completed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "used_dsg_oil_sample_collected",
    "fieldtype": "Select",
    "label": "Used DSG Oil Sample Collected with Brake Cleaner Container",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "dsg_oil_filter_replaced",
    "fieldtype": "Select",
    "label": "DSG Oil Filter Replaced",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "fill_drain_plug_seal_replaced",
    "fieldtype": "Select",
    "label": "Fill / Drain Plug Seal Replaced",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -195,28 +195,28 @@
    "fieldname": "post_service_test_drive_completed",
    "fieldtype": "Select",
    "label": "DSG Post-service Test Drive Completed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "dashboard_clock_set",
    "fieldtype": "Select",
    "label": "Dashboard Clock Set",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "windows_initialized",
    "fieldtype": "Select",
    "label": "Door Windows Initialized",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_fault_codes_cleared",
    "fieldtype": "Select",
    "label": "Fault Codes Cleared for Entire Vehicle",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -228,35 +228,35 @@
    "fieldname": "interior_exterior_cleanliness_checked",
    "fieldtype": "Select",
    "label": "Steering Wheel, Gear Lever, Hood and Screens Checked for Dirty Marks",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "service_record_completed",
    "fieldtype": "Select",
    "label": "Maintenance Booklet / Digital Service Plan Completed",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "invoice_submitted_in_erp",
    "fieldtype": "Select",
    "label": "Invoice Submitted in ERP",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "invoice_paid_in_erp",
    "fieldtype": "Select",
    "label": "Invoice Paid in ERP",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
    "fieldname": "vehicle_ready_for_delivery",
    "fieldtype": "Select",
    "label": "All Steps Completed and Vehicle Ready for Delivery",
-   "options": "Yes\nNo\nN/A",
+   "options": "\nYes\nNo\nN/A",
    "reqd": 1
   },
   {
@@ -276,14 +276,16 @@
    "label": "Attachments"
   },
   {
-   "fieldname": "photo",
-   "fieldtype": "Attach Image",
-   "label": "Photo"
+   "fieldname": "photos",
+   "fieldtype": "Table",
+   "label": "Photos",
+   "options": "Checklist Photo"
   },
   {
-   "fieldname": "attachment",
-   "fieldtype": "Attach",
-   "label": "File Attachment"
+   "fieldname": "attachments",
+   "fieldtype": "Table",
+   "label": "File Attachments",
+   "options": "Checklist Attachment"
   }
  ],
  "links": [],
