@@ -607,3 +607,32 @@ def handle_mandatory_error(e, customer, lead_name):
 	message += _("Please create Customer from Lead {0}.").format(get_link_to_form("Lead", lead_name))
 
 	frappe.throw(message, title=_("Mandatory Missing"))
+
+
+def _get_project_customer_email(doc):
+	"""Resolve the recipient email from the Quotation's Project -> Customer.
+
+	Returns the customer's email (from Customer.email_id, fetched from the
+	primary contact) or None when it cannot be determined.
+	"""
+	if not doc.project_name:
+		return None
+
+	customer = frappe.db.get_value("Project", doc.project_name, "customer")
+	if not customer:
+		return None
+
+	return frappe.db.get_value("Customer", customer, "email_id")
+
+
+@frappe.whitelist()
+def get_quotation_recipient(name: str):
+	"""Return the email the Quotation would be sent to (Project's customer).
+
+	Used by the "Send by Email" button to show the recipient for confirmation.
+	The actual send is performed by the backend endpoint POST /quotation/send-email
+	(see quotation.js), which handles the SendGrid dynamic template.
+	"""
+	doc = frappe.get_doc("Quotation", name)
+	doc.check_permission("read")
+	return _get_project_customer_email(doc)

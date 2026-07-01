@@ -1426,6 +1426,82 @@ function show_builder_dialog(frm, bundle) {
 	dialog.show();
 }
 
+// ---------------------------------------------------------------------------
+// Send a submitted Quotation by email.
+// Shows a "Send by Email" button once the Quotation is submitted (docstatus 1).
+// The recipient is resolved from the linked Project's customer; on confirm we
+// POST to {aws_url}quotation/send-email (aws_url from the Rest Config doctype),
+// which sends the SendGrid dynamic template on the backend.
+// ---------------------------------------------------------------------------
+frappe.ui.form.on("Quotation", {
+	refresh(frm) {
+		if (frm.doc.docstatus !== 1) {
+			return;
+		}
+		frm.add_custom_button(__("Send by Email"), () => send_quotation_by_email(frm));
+	},
+});
+
+function send_quotation_by_email(frm) {
+	if (!frm.doc.project_name) {
+		frappe.msgprint(__("Link this Quotation to a Project first."));
+		return;
+	}
+	// Resolve the recipient (Project's customer email) so the user can confirm it.
+	frappe
+		.call({
+			method: "erpnext.selling.doctype.quotation.quotation.get_quotation_recipient",
+			args: { name: frm.doc.name },
+		})
+		.then((r) => {
+			const recipient = r && r.message;
+			if (!recipient) {
+				frappe.msgprint(__("No email found on the Project's customer."));
+				return;
+			}
+			frappe.confirm(__("Send quotation {0} to {1}?", [frm.doc.name, recipient]), () =>
+				post_quotation_send_email(frm, recipient)
+			);
+		});
+}
+
+async function post_quotation_send_email(frm, recipient) {
+	const { aws_url } = await frappe.db.get_doc("Rest Config");
+	if (!aws_url) {
+		frappe.msgprint(__("Set the AWS URL in Rest Config first."));
+		return;
+	}
+	const url = `${aws_url}quotation/send-email`;
+	const payload = {
+		doctype: "Quotation",
+		name: frm.doc.name,
+		email: recipient,
+		party_name: frm.doc.party_name,
+		customer_name: frm.doc.customer_name,
+		project: frm.doc.project_name,
+		grand_total: frm.doc.grand_total,
+	};
+
+	frappe.dom.freeze(__("Sending..."));
+	fetch(url, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify(payload),
+	})
+		.then((response) => {
+			frappe.dom.unfreeze();
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+			frappe.show_alert({ message: __("Quotation sent to {0}", [recipient]), indicator: "green" }, 7);
+		})
+		.catch((error) => {
+			frappe.dom.unfreeze();
+			frappe.show_alert({ message: __("An error occurred while sending the email"), indicator: "red" }, 10);
+			console.error("Error:", error);
+		});
+}
+
 async function insertResendQuotationApprovalButton(frm) {
 	if (!["Approved", "Ordered"].includes(frm.doc.status)) {
 		frm.add_custom_button(__('Resend Approve Message'), () => {
