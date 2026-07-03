@@ -1435,7 +1435,8 @@ function show_builder_dialog(frm, bundle) {
 // ---------------------------------------------------------------------------
 frappe.ui.form.on("Quotation", {
 	refresh(frm) {
-		if (frm.doc.docstatus !== 1) {
+		// Only on submitted quotations, and not once the customer has responded.
+		if (frm.doc.docstatus !== 1 || ["Approved", "Declined"].includes(frm.doc.status)) {
 			return;
 		}
 		frm.add_custom_button(__("Send by Email"), () => send_quotation_by_email(frm));
