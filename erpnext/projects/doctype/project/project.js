@@ -1738,3 +1738,130 @@ async function deactivateChatbot(phone_number) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Conflict-safe save
+// 3-way merge on save so "Document has been modified after you have opened it"
+// only appears when you and someone else edited the SAME field. Changes to
+// fields you did not touch (e.g. queue_position set by the Change-position
+// button) are adopted automatically and your save goes through.
+// ---------------------------------------------------------------------------
+frappe.ui.form.on("Project", {
+	onload(frm) {
+		// snapshot the doc as it was when opened -> the "base" for the merge
+		frm.__baseline = JSON.parse(JSON.stringify(frm.doc));
+	},
+	after_save(frm) {
+		// reset the base after each successful save
+		frm.__baseline = JSON.parse(JSON.stringify(frm.doc));
+	},
+	async validate(frm) {
+		if (frm.is_new() || !frm.__baseline) return;
+
+		// current server copy ("theirs").
+		// NB: use a raw frappe.client.get call, NOT frappe.db.get_doc — the latter
+		// runs frappe.model.sync() which overwrites the user's in-memory edits in
+		// locals and clears the dirty flag ("No changes in document").
+		let server;
+		try {
+			const r = await frappe.call({
+				method: "frappe.client.get",
+				type: "GET",
+				args: { doctype: "Project", name: frm.doc.name }
+			});
+			server = r && r.message;
+		} catch (e) {
+			return; // network issue -> fall back to normal Frappe behaviour
+		}
+		if (!server) return;
+
+		// nobody else touched it since we opened -> normal save
+		if (server.modified === frm.__baseline.modified) return;
+
+		const base = frm.__baseline;
+		const conflicts = [];
+		const fieldnames = new Set([...Object.keys(base), ...Object.keys(server)]);
+		const skip = ["modified", "modified_by", "docstatus", "__last_sync_on"];
+
+		for (const f of fieldnames) {
+			if (skip.includes(f)) continue;
+
+			const serverVal = server[f];
+			const baseVal = base[f];
+			const myVal = frm.doc[f];
+
+			// child tables / structured fields cannot be safely auto-merged
+			const structured = Array.isArray(serverVal) || (serverVal && typeof serverVal === "object");
+			if (structured) {
+				if (JSON.stringify(serverVal ?? null) !== JSON.stringify(baseVal ?? null)) {
+					conflicts.push({ field: f, label: project_conflict_label(frm, f), structured: true });
+				}
+				continue;
+			}
+
+			const s = String(serverVal ?? "");
+			const b = String(baseVal ?? "");
+			const m = String(myVal ?? "");
+			const theyChanged = s !== b;
+			const iChanged = m !== b;
+
+			if (theyChanged && iChanged && s !== m) {
+				// both edited the same field to different values -> real conflict
+				conflicts.push({ field: f, label: project_conflict_label(frm, f), mine: myVal, theirs: serverVal });
+			} else if (theyChanged && !iChanged) {
+				// they changed a field I left alone -> keep their value, no conflict
+				frm.doc[f] = serverVal;
+			}
+		}
+
+		if (conflicts.length) {
+			frappe.validated = false; // cancel the save
+			project_show_conflict_dialog(conflicts);
+			return;
+		}
+
+		// no real conflict: adopt the server's timestamp so the save passes the check
+		frm.doc.modified = server.modified;
+	}
+});
+
+function project_conflict_label(frm, fieldname) {
+	const fd = frm.fields_dict[fieldname];
+	return (fd && fd.df && fd.df.label) || fieldname;
+}
+
+// Text Editor / HTML fields store markup (e.g. "<div class='ql-editor'><p>..</p></div>").
+// For the comparison dialog we only need the readable text, not the tags.
+function project_plain_text(val) {
+	const s = String(val ?? "");
+	if (!/<[a-z][\s\S]*>/i.test(s)) return s; // not HTML -> return as-is
+	const tmp = document.createElement("div");
+	tmp.innerHTML = s;
+	return (tmp.textContent || tmp.innerText || "").trim();
+}
+
+function project_show_conflict_dialog(conflicts) {
+	const esc = frappe.utils.escape_html;
+	const rows = conflicts.map((c) => {
+		if (c.structured) {
+			return `<tr><td><b>${esc(c.label)}</b></td>`
+				+ `<td colspan="2"><i>${__("Table changed by someone else — reload required")}</i></td></tr>`;
+		}
+		return `<tr><td><b>${esc(c.label)}</b></td>`
+			+ `<td>${esc(project_plain_text(c.theirs))}</td>`
+			+ `<td>${esc(project_plain_text(c.mine))}</td></tr>`;
+	}).join("");
+
+	frappe.msgprint({
+		title: __("Someone else changed this project"),
+		indicator: "red",
+		message: `<p>${__("While you were editing, another update changed the fields below. "
+			+ "Your other changes are safe — only these differ:")}</p>`
+			+ `<table class="table table-bordered" style="margin-bottom:10px">`
+			+ `<thead><tr><th>${__("Field")}</th><th>${__("Current value")}</th><th>${__("Your value")}</th></tr></thead>`
+			+ `<tbody>${rows}</tbody></table>`
+			+ `<p>${__("Choose one:")}</p><ul>`
+			+ `<li>${__("<b>Reload</b> the page to take their values (you lose your edits to these fields only), or")}</li>`
+			+ `<li>${__("Adjust your values and save again.")}</li></ul>`
+	});
+}
+
