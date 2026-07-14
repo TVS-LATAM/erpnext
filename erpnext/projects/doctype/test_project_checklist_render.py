@@ -52,6 +52,17 @@ class TestProjectChecklistRender(unittest.TestCase):
 			with self.subTest(fieldtype=fieldtype):
 				self.assertIn(f'"{fieldtype}"', layout_types)
 
+	def test_vehicle_detail_fields_are_not_rendered_in_project_checklist_dialog(self):
+		# Vehicle details are visible on each checklist form, but they add
+		# noise to the Project quick-scan modal. The modal should focus on
+		# checklist answers and who_did_it only.
+		match = re.search(r"const CHECKLIST_HEADER_FIELDS = new Set\(\[(.*?)\]\);", self.source, re.S)
+		self.assertIsNotNone(match, "CHECKLIST_HEADER_FIELDS definition not found")
+		header_fields = match.group(1)
+		for fieldname in ("vehicle_model", "licence_plate", "mileage"):
+			with self.subTest(fieldname=fieldname):
+				self.assertIn(f'"{fieldname}"', header_fields)
+
 	def test_render_checklist_fields_walks_checklist_item_tables(self):
 		# PCD-1: a Table field whose child doctype is "Checklist Item" must
 		# have its rows walked into the section render; other Table fields
@@ -94,6 +105,16 @@ class TestProjectChecklistRender(unittest.TestCase):
 		self.assertIn("hydrateChecklistDocs(doctype, docs)", self.source)
 		self.assertNotIn("attachChecklistFiles", self.source)
 
+	def test_hydrate_checklist_docs_copies_checklist_item_child_tables(self):
+		# get_list(fields: ["*"]) returns scalar parent fields only; child
+		# table rows arrive only from frappe.db.get_doc(). If hydrate only
+		# copies photos/files, the modal's grid renderer receives empty
+		# arrival_items/job_items/etc. and shows "No checklist rows" even
+		# when the checklist form itself has selected values.
+		body = _extract_function(self.source, "hydrateChecklistDocs")
+		self.assertIn("checklistItemTableFieldnames(doctype)", body)
+		self.assertIn("doc[fieldname] = full[fieldname] || []", body)
+
 	def test_checklist_item_row_render_includes_who_did_it(self):
 		# Task 4.7: who_did_it must render beside each Checklist Item row's
 		# answer in the detail view. Scoped to the row-rendering function
@@ -103,3 +124,15 @@ class TestProjectChecklistRender(unittest.TestCase):
 		body = _extract_function(self.source, "renderChecklistItemRow")
 		self.assertIn("who_did_it", body)
 		self.assertIn("row.description", body)
+
+	def test_checklist_item_rows_render_as_a_quick_scan_grid(self):
+		# The Project "View Checklists" dialog must show converted
+		# Checklist Item child rows as a compact read-only grid, not as a
+		# stack of label/value pills. Mechanics need to scan Description,
+		# Yes/No/N/A, and Who Did It columns quickly without opening each
+		# checklist.
+		body = _extract_function(self.source, "renderChecklistItemGrid")
+		self.assertIn("ckl-item-grid", body)
+		for label in ("Description", "Yes", "No", "N/A", "Who Did It"):
+			with self.subTest(label=label):
+				self.assertIn(label, body)

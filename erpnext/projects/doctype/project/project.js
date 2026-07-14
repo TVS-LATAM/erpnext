@@ -1305,7 +1305,17 @@ const CHECKLIST_NON_ANSWER_FIELDS = new Set(["vehicle_model", "licence_plate", "
 
 // Header/attachment fields rendered separately from the field grid, plus
 // layout-only fieldtypes that hold no data.
-const CHECKLIST_HEADER_FIELDS = new Set(["project", "check_date", "checked_by", "notes", "photos", "attachments"]);
+const CHECKLIST_HEADER_FIELDS = new Set([
+	"project",
+	"check_date",
+	"checked_by",
+	"vehicle_model",
+	"licence_plate",
+	"mileage",
+	"notes",
+	"photos",
+	"attachments",
+]);
 // "Table" deliberately excluded (PCD-1): it used to sit in this set and
 // caused renderChecklistFields to silently skip every Table field,
 // including Checklist Item child tables -- the exact regression PCD-1
@@ -1475,13 +1485,20 @@ function insertViewChecklistsButton(frm) {
 // collided with the unrelated "Attach"/"Attach Image" fieldtype vocabulary
 // used elsewhere in this file (renderChecklistFieldRow, renderChecklistAttachmentTile).
 async function hydrateChecklistDocs(doctype, docs) {
+	const checklistTableFieldnames = checklistItemTableFieldnames(doctype);
 	await Promise.all(
 		docs.map(async (doc) => {
 			try {
 				const full = await frappe.db.get_doc(doctype, doc.name);
+				checklistTableFieldnames.forEach((fieldname) => {
+					doc[fieldname] = full[fieldname] || [];
+				});
 				doc.__photos = (full.photos || []).map((row) => row.image).filter(Boolean);
 				doc.__files = (full.attachments || []).map((row) => row.file).filter(Boolean);
 			} catch (error) {
+				checklistTableFieldnames.forEach((fieldname) => {
+					doc[fieldname] = [];
+				});
 				doc.__photos = [];
 				doc.__files = [];
 			}
@@ -1545,20 +1562,53 @@ function checklistItemAnswer(row) {
 // with its own extra who_did_it attribution.
 function renderChecklistItemRow(row) {
 	const value = checklistItemAnswer(row);
-	let valHtml;
-	if (value === "Yes") valHtml = `<span class="ckl-val ckl-pill ckl-pill-yes">${__("Yes")}</span>`;
-	else if (value === "No") valHtml = `<span class="ckl-val ckl-pill ckl-pill-no">${__("No")}</span>`;
-	else if (value === "N/A") valHtml = `<span class="ckl-val ckl-pill ckl-pill-na">N/A</span>`;
-	else valHtml = `<span class="ckl-val ckl-muted">—</span>`;
+	const checked = `<span class="ckl-item-check">✓</span>`;
+	const empty = `<span class="ckl-muted">—</span>`;
 
-	const whoHtml = row.who_did_it
-		? `<span class="ckl-val ckl-who">${cklEsc(row.who_did_it)}</span>`
-		: "";
+	return `
+		<div class="ckl-item-row">
+			<div class="ckl-item-desc">${cklEsc(row.description)}</div>
+			<div class="ckl-item-answer">${value === "Yes" ? checked : empty}</div>
+			<div class="ckl-item-answer">${value === "No" ? checked : empty}</div>
+			<div class="ckl-item-answer">${value === "N/A" ? checked : empty}</div>
+			<div class="ckl-item-who">${row.who_did_it ? cklEsc(row.who_did_it) : "—"}</div>
+		</div>`;
+}
 
-	// valHtml and whoHtml are wrapped in a shared group so ckl-field's
-	// space-between layout (label vs. value) still holds with two children
-	// instead of drifting apart across three.
-	return `<div class="ckl-field"><span class="ckl-field-label">${cklEsc(row.description)}</span><span class="ckl-field-value-group">${valHtml}${whoHtml}</span></div>`;
+function renderChecklistItemGrid(rows) {
+	if (!rows.length) return `<div class="ckl-empty">— ${__("No checklist rows")}</div>`;
+	return `
+		<div class="ckl-item-grid">
+			<div class="ckl-item-head">${__("Description")}</div>
+			<div class="ckl-item-head ckl-item-answer">${__("Yes")}</div>
+			<div class="ckl-item-head ckl-item-answer">${__("No")}</div>
+			<div class="ckl-item-head ckl-item-answer">N/A</div>
+			<div class="ckl-item-head">${__("Who Did It")}</div>
+			${rows.map(renderChecklistItemRow).join("")}
+		</div>`;
+}
+
+function renderChecklistSectionRows(rows) {
+	const parts = [];
+	let fieldRows = [];
+	const flushFieldRows = () => {
+		if (!fieldRows.length) return;
+		parts.push(
+			`<div class="ckl-fields">${fieldRows.map((r) => renderChecklistFieldRow(r.field, r.value)).join("")}</div>`
+		);
+		fieldRows = [];
+	};
+
+	rows.forEach((row) => {
+		if (row.kind === "checklistItemTable") {
+			flushFieldRows();
+			parts.push(renderChecklistItemGrid(row.rows));
+		} else {
+			fieldRows.push(row);
+		}
+	});
+	flushFieldRows();
+	return parts.join("");
 }
 
 // Walks the doctype meta to render every data field grouped under its section,
@@ -1590,9 +1640,7 @@ function renderChecklistFields(doctype, doc) {
 			// and must be skipped here, not fall through to the generic
 			// field-row branch below (which expects a scalar value).
 			if (field.options === "Checklist Item") {
-				(doc[field.fieldname] || []).forEach((row) => {
-					current.rows.push({ kind: "checklistItem", row });
-				});
+				current.rows.push({ kind: "checklistItemTable", rows: doc[field.fieldname] || [] });
 			}
 			continue;
 		}
@@ -1607,10 +1655,7 @@ function renderChecklistFields(doctype, doc) {
 			const title = section.title
 				? `<div class="ckl-subsection">${cklEsc(section.title)}</div>`
 				: "";
-			const rows = section.rows
-				.map((r) => (r.kind === "checklistItem" ? renderChecklistItemRow(r.row) : renderChecklistFieldRow(r.field, r.value)))
-				.join("");
-			return `${title}<div class="ckl-fields">${rows}</div>`;
+			return `${title}${renderChecklistSectionRows(section.rows)}`;
 		})
 		.join("");
 }
@@ -1705,6 +1750,15 @@ function showChecklistsDialog(frm, groups) {
 			.ckl-field-value-group { display: flex; align-items: center; gap: 8px; }
 			.ckl-who { font-weight: 500; color: #6b7280; font-style: italic; }
 			.ckl-muted { color: #cbd5e1; }
+			.ckl-item-grid { display: grid; grid-template-columns: minmax(260px, 1fr) 64px 64px 64px minmax(120px, .35fr); border: 1px solid #eef0f2; border-radius: 8px; overflow: hidden; background: #fff; }
+			.ckl-item-head { background: #f9fafb; color: #6b7280; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 8px 10px; border-bottom: 1px solid #eef0f2; }
+			.ckl-item-row { display: contents; }
+			.ckl-item-row > div { padding: 8px 10px; border-bottom: 1px solid #f1f3f5; color: #4b5563; font-size: 12px; min-height: 34px; }
+			.ckl-item-row:last-child > div { border-bottom: 0; }
+			.ckl-item-desc { color: #374151; }
+			.ckl-item-answer { text-align: center; }
+			.ckl-item-check { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 999px; background: #dcfce7; color: #166534; font-weight: 700; }
+			.ckl-item-who { color: #6b7280; font-style: italic; }
 			.ckl-pill { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 			.ckl-pill-yes { background: #dcfce7; color: #166534; }
 			.ckl-pill-no { background: #fee2e2; color: #991b1b; }
@@ -1849,4 +1903,3 @@ async function deactivateChatbot(phone_number) {
 		await frappe.db.set_value('Conversation', conversation.name, { 'is_auto_reply': 0, 'seen': 0 })
 	}
 }
-
