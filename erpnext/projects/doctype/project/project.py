@@ -140,17 +140,27 @@ class Project(Document):
 	done_status = ['Completed', 'No response from customer', 'Cancelled']
 
 	def before_save(self):
-		if not self.is_new():
-			old_doc=frappe.get_doc(self.doctype, self.name)
-			if self.status != old_doc.status:
-				self.status_modified = get_datetime()
+		try:
+			if not self.is_new():
+				old_doc = frappe.get_doc(self.doctype, self.name)
+				if self.status != old_doc.status:
+					self.status_modified = get_datetime()
 
-			# Track when diagnose_result was last updated
-			if self.diagnose_result != old_doc.diagnose_result:
-				self.diagnose_modified = get_datetime()
+				# Track when diagnose_result was last updated
+				if self.diagnose_result != old_doc.diagnose_result:
+					self.diagnose_modified = get_datetime()
 
-			if self.status in self.done_status:
-				self.queue_position = 0
+				if self.status in self.done_status:
+					self.queue_position = 0
+		except Exception:
+			frappe.log_error(
+				title=f"Project before_save failed: {self.name}",
+				message=frappe.get_traceback(),
+				reference_doctype=self.doctype,
+				reference_name=self.name,
+				defer_insert=True,
+			)
+			raise
 
 
 	def onload(self):
