@@ -33,6 +33,15 @@ class TestArrivalChecklistMetadata(unittest.TestCase):
 		self.assertEqual(len(table_fields), 1)
 		self.assertEqual(table_fields[0]["fieldname"], "arrival_items")
 
+	def test_mileage_is_fetched_from_job_card(self):
+		metadata = self._load_metadata()
+		mileage_field = next(
+			field for field in metadata["fields"] if field["fieldname"] == "mileage"
+		)
+		self.assertEqual(mileage_field["fieldtype"], "Data")
+		self.assertEqual(mileage_field["fetch_from"], "project.client_mileage_state")
+		self.assertEqual(mileage_field["read_only"], 1)
+
 	def _load_metadata(self):
 		self.assertTrue(DOCTYPE_JSON.exists(), f"Missing checklist metadata: {DOCTYPE_JSON}")
 		return json.loads(DOCTYPE_JSON.read_text())

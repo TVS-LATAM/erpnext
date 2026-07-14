@@ -22,7 +22,7 @@ class ArrivalChecklist(Document):
 		attachments: DF.Table[ChecklistAttachment]
 		check_date: DF.Date | None
 		checked_by: DF.Link | None
-		mileage: DF.Int
+		mileage: DF.Data | None
 		notes: DF.Text | None
 		photos: DF.Table[ChecklistPhoto]
 		project: DF.Link | None

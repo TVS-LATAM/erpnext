@@ -49,9 +49,11 @@
    "label": "Vehicle Details"
   },
   {
+   "fetch_from": "project.client_mileage_state",
    "fieldname": "mileage",
-   "fieldtype": "Int",
-   "label": "Mileage"
+   "fieldtype": "Data",
+   "label": "Mileage",
+   "read_only": 1
   },
   {
    "fieldname": "checklist_section",
