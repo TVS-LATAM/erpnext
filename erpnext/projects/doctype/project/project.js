@@ -1306,7 +1306,33 @@ const CHECKLIST_NON_ANSWER_FIELDS = new Set(["vehicle_model", "licence_plate", "
 // Header/attachment fields rendered separately from the field grid, plus
 // layout-only fieldtypes that hold no data.
 const CHECKLIST_HEADER_FIELDS = new Set(["project", "check_date", "checked_by", "notes", "photos", "attachments"]);
-const CHECKLIST_LAYOUT_FIELDTYPES = new Set(["Section Break", "Column Break", "Tab Break", "HTML", "Button", "Table"]);
+// "Table" deliberately excluded (PCD-1): it used to sit in this set and
+// caused renderChecklistFields to silently skip every Table field,
+// including Checklist Item child tables -- the exact regression PCD-1
+// exists to prevent. Table fields are now handled by their own branch in
+// renderChecklistFields, gated on options === "Checklist Item" so unrelated
+// Table fields (photos, attachments) are still skipped, just not via this set.
+const CHECKLIST_LAYOUT_FIELDTYPES = new Set(["Section Break", "Column Break", "Tab Break", "HTML", "Button"]);
+
+// Union of the two exclusion sets above (design [FIX-6]). The sets stay
+// separate because they serve different purposes -- CHECKLIST_HEADER_FIELDS
+// also drives renderChecklistFields' header skip, which is unrelated to
+// counting -- but the counter must exclude both. This must be the UNION,
+// never a swap: the sets are disjoint, and swapping would silently regress
+// the vehicle_model/licence_plate/mileage guard.
+const CHECKLIST_COUNT_EXCLUDED = new Set([...CHECKLIST_NON_ANSWER_FIELDS, ...CHECKLIST_HEADER_FIELDS]);
+
+// Fieldnames of every Table field on `doctype` whose child doctype is
+// Checklist Item. Reads the raw doctype meta (not a form instance -- unlike
+// checklist_grid.js's checklistItemTables(frm), this dialog renders
+// arbitrary checklist docs with no frm). Self-populates once slices 5/6
+// convert a doctype's JSON: Table fields with options "Checklist Item"
+// simply start appearing in meta.fields, no code change needed here.
+function checklistItemTableFieldnames(doctype) {
+	const meta = frappe.get_meta(doctype);
+	const fields = (meta && meta.fields) || [];
+	return fields.filter((f) => f.fieldtype === "Table" && f.options === "Checklist Item").map((f) => f.fieldname);
+}
 
 // Escapes a value for safe insertion into HTML. Returns an em dash for empties.
 function cklEsc(value) {
@@ -1422,7 +1448,7 @@ function insertViewChecklistsButton(frm) {
 							order_by: "modified desc",
 							limit: 0,
 						});
-						if (docs.length) await attachChecklistFiles(doctype, docs);
+						if (docs.length) await hydrateChecklistDocs(doctype, docs);
 						return { doctype, docs };
 					})
 				);
@@ -1445,7 +1471,10 @@ function insertViewChecklistsButton(frm) {
 // the parent. Querying the child DocTypes directly is blocked because they are
 // `istable`, so fetch each checklist's full document (child rows come embedded)
 // and stash the urls on each doc as __photos / __files for the card renderer.
-async function attachChecklistFiles(doctype, docs) {
+// Named "hydrate" rather than "attach" (task 4.6): the earlier name
+// collided with the unrelated "Attach"/"Attach Image" fieldtype vocabulary
+// used elsewhere in this file (renderChecklistFieldRow, renderChecklistAttachmentTile).
+async function hydrateChecklistDocs(doctype, docs) {
 	await Promise.all(
 		docs.map(async (doc) => {
 			try {
@@ -1460,21 +1489,17 @@ async function attachChecklistFiles(doctype, docs) {
 	);
 }
 
-// Counts Yes / No / N/A answers across a checklist document. The select fields
-// hold exactly these three values, so we can summarize without hardcoding every
-// fieldname per doctype.
-function summarizeChecklistAnswers(doc) {
-	let yes = 0;
-	let no = 0;
-	let na = 0;
-	for (const key in doc) {
-		if (CHECKLIST_NON_ANSWER_FIELDS.has(key)) continue;
-		const value = doc[key];
-		if (value === "Yes") yes++;
-		else if (value === "No") no++;
-		else if (value === "N/A") na++;
-	}
-	return { yes, no, na };
+// Counts Yes / No / N/A answers across a checklist document. Delegates the
+// actual summing to the node-tested erpnext.checklist_pure.countChecklistAnswers
+// (PCD-1, task 4.5) instead of an ad hoc per-key loop, so both the flat
+// Select shape (unconverted doctypes) and the Checklist Item child-table
+// shape (converted doctypes) are covered by the same, node-verified logic.
+// checklist_pure.js is guaranteed loaded before this call runs: it is only
+// ever invoked from within a click handler (insertViewChecklistsButton),
+// long after the full doctype_js bundle -- which includes
+// public/js/checklist_pure.js on "Project" -- has finished evaluating.
+function summarizeChecklistAnswers(doctype, doc) {
+	return erpnext.checklist_pure.countChecklistAnswers(doc, checklistItemTableFieldnames(doctype), CHECKLIST_COUNT_EXCLUDED);
 }
 
 // Renders a single field as a label/value row, color-coding Yes/No/N/A answers
@@ -1499,8 +1524,53 @@ function renderChecklistFieldRow(field, value) {
 	return `<div class="ckl-field"><span class="ckl-field-label">${cklEsc(field.label || field.fieldname)}</span>${valHtml}</div>`;
 }
 
+// Maps a Checklist Item row's mutually-exclusive yes/no/na Check flags
+// (CIG-2) to the same "Yes"/"No"/"N/A" vocabulary the flat Select fields
+// use, or null when the row is unanswered (all three flags 0 -- a valid
+// terminal state, not an intermediate one, per the settled answers-optional
+// decision).
+function checklistItemAnswer(row) {
+	if (row.yes) return "Yes";
+	if (row.no) return "No";
+	if (row.na) return "N/A";
+	return null;
+}
+
+// Renders a single Checklist Item child-table row: its description as the
+// label, its answer as a colored pill (same styling renderChecklistFieldRow
+// uses for flat Select answers), and who_did_it displayed beside the answer
+// (PCD-1 task 4.7). A dedicated renderer rather than reusing
+// renderChecklistFieldRow directly: that function's `field`/`value`
+// parameters model a doctype fieldmeta + a scalar, not a child-table row
+// with its own extra who_did_it attribution.
+function renderChecklistItemRow(row) {
+	const value = checklistItemAnswer(row);
+	let valHtml;
+	if (value === "Yes") valHtml = `<span class="ckl-val ckl-pill ckl-pill-yes">${__("Yes")}</span>`;
+	else if (value === "No") valHtml = `<span class="ckl-val ckl-pill ckl-pill-no">${__("No")}</span>`;
+	else if (value === "N/A") valHtml = `<span class="ckl-val ckl-pill ckl-pill-na">N/A</span>`;
+	else valHtml = `<span class="ckl-val ckl-muted">—</span>`;
+
+	const whoHtml = row.who_did_it
+		? `<span class="ckl-val ckl-who">${cklEsc(row.who_did_it)}</span>`
+		: "";
+
+	// valHtml and whoHtml are wrapped in a shared group so ckl-field's
+	// space-between layout (label vs. value) still holds with two children
+	// instead of drifting apart across three.
+	return `<div class="ckl-field"><span class="ckl-field-label">${cklEsc(row.description)}</span><span class="ckl-field-value-group">${valHtml}${whoHtml}</span></div>`;
+}
+
 // Walks the doctype meta to render every data field grouped under its section,
 // so new fields appear automatically without code changes here.
+//
+// Dual-shape by design (design Decision 5, PCD-1): a doctype may still be
+// entirely flat Select fields (unconverted, slice 4 does not convert any
+// JSON), entirely Table(Checklist Item) fields (converted in a later
+// slice), or briefly mixed mid-migration. Both the flat-field branch and the
+// Table(Checklist Item) branch below always run unconditionally -- no
+// version flag -- so this function renders either shape, or both, without
+// change once slices 5/6 land.
 function renderChecklistFields(doctype, doc) {
 	const meta = frappe.get_meta(doctype);
 	const fields = (meta && meta.fields) || [];
@@ -1513,9 +1583,22 @@ function renderChecklistFields(doctype, doc) {
 			current = { title: field.label || null, rows: [] };
 			continue;
 		}
+		if (field.fieldtype === "Table") {
+			// Checklist Item tables (post-conversion doctypes) render their
+			// rows into the current section. Other Table fields (photos,
+			// attachments) are rendered separately by renderChecklistCard
+			// and must be skipped here, not fall through to the generic
+			// field-row branch below (which expects a scalar value).
+			if (field.options === "Checklist Item") {
+				(doc[field.fieldname] || []).forEach((row) => {
+					current.rows.push({ kind: "checklistItem", row });
+				});
+			}
+			continue;
+		}
 		if (CHECKLIST_LAYOUT_FIELDTYPES.has(field.fieldtype)) continue;
 		if (CHECKLIST_HEADER_FIELDS.has(field.fieldname)) continue;
-		current.rows.push({ field, value: doc[field.fieldname] });
+		current.rows.push({ kind: "field", field, value: doc[field.fieldname] });
 	}
 	if (current.rows.length) sections.push(current);
 
@@ -1524,14 +1607,16 @@ function renderChecklistFields(doctype, doc) {
 			const title = section.title
 				? `<div class="ckl-subsection">${cklEsc(section.title)}</div>`
 				: "";
-			const rows = section.rows.map((r) => renderChecklistFieldRow(r.field, r.value)).join("");
+			const rows = section.rows
+				.map((r) => (r.kind === "checklistItem" ? renderChecklistItemRow(r.row) : renderChecklistFieldRow(r.field, r.value)))
+				.join("");
 			return `${title}<div class="ckl-fields">${rows}</div>`;
 		})
 		.join("");
 }
 
 function renderChecklistCard(doctype, doc) {
-	const { yes, no, na } = summarizeChecklistAnswers(doc);
+	const { yes, no, na } = summarizeChecklistAnswers(doctype, doc);
 	const route = `/app/${frappe.router.slug(doctype)}/${encodeURIComponent(doc.name)}`;
 	const date = doc.check_date ? frappe.datetime.str_to_user(doc.check_date) : "—";
 	const checkedBy = doc.checked_by || "—";
@@ -1617,6 +1702,8 @@ function showChecklistsDialog(frm, groups) {
 			.ckl-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f3f5; min-height: 34px; }
 			.ckl-field-label { color: #4b5563; font-size: 12px; }
 			.ckl-val { font-weight: 600; font-size: 12px; text-align: right; white-space: nowrap; }
+			.ckl-field-value-group { display: flex; align-items: center; gap: 8px; }
+			.ckl-who { font-weight: 500; color: #6b7280; font-style: italic; }
 			.ckl-muted { color: #cbd5e1; }
 			.ckl-pill { padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; }
 			.ckl-pill-yes { background: #dcfce7; color: #166534; }

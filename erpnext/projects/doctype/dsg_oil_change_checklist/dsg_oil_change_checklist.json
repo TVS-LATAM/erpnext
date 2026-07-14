@@ -14,29 +14,13 @@
         "checked_by",
         "mileage",
         "before_dsg_oil_change_section",
-        "appointment_scheduled_in_erp",
-        "oil_change_quote_submitted",
-        "vehicle_modification_confirmed",
-        "tvs_software_offered",
-        "existing_complaints_confirmed",
-        "pre_check_test_drive_completed",
-        "vehicle_shifts_correctly",
+        "before_dsg_items",
         "during_dsg_oil_change_section",
-        "dsg_oil_change_completed",
-        "used_dsg_oil_sample_collected",
-        "dsg_oil_filter_replaced",
-        "fill_drain_plug_seal_replaced",
+        "during_dsg_items",
         "after_dsg_oil_change_section",
-        "post_service_test_drive_completed",
-        "dashboard_clock_set",
-        "windows_initialized",
-        "vehicle_fault_codes_cleared",
+        "after_dsg_items",
         "final_check_section",
-        "interior_exterior_cleanliness_checked",
-        "service_record_completed",
-        "invoice_submitted_in_erp",
-        "invoice_paid_in_erp",
-        "vehicle_ready_for_delivery",
+        "final_check_items",
         "notes_section",
         "notes",
         "attachments_section",
@@ -102,46 +86,10 @@
             "label": "Before DSG Oil Change"
         },
         {
-            "fieldname": "appointment_scheduled_in_erp",
-            "fieldtype": "Select",
-            "label": "Appointment Scheduled in ERP",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "oil_change_quote_submitted",
-            "fieldtype": "Select",
-            "label": "Oil Change Quote Prepared and Submitted",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_modification_confirmed",
-            "fieldtype": "Select",
-            "label": "Customer Asked Whether Vehicle Is Modified / Tuned",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "tvs_software_offered",
-            "fieldtype": "Select",
-            "label": "TVS Software Offered to Customer",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "existing_complaints_confirmed",
-            "fieldtype": "Select",
-            "label": "Customer Asked About Existing Complaints / Defects",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "pre_check_test_drive_completed",
-            "fieldtype": "Select",
-            "label": "Pre-check / Test Drive Completed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_shifts_correctly",
-            "fieldtype": "Select",
-            "label": "Vehicle Shifts Correctly and Oil Change Can Be Performed",
-            "options": "\nYes\nNo\nN/A"
+            "fieldname": "before_dsg_items",
+            "fieldtype": "Table",
+            "label": "Before DSG Oil Change",
+            "options": "Checklist Item"
         },
         {
             "fieldname": "during_dsg_oil_change_section",
@@ -149,28 +97,10 @@
             "label": "During DSG Oil Change"
         },
         {
-            "fieldname": "dsg_oil_change_completed",
-            "fieldtype": "Select",
-            "label": "DSG Oil Change Completed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "used_dsg_oil_sample_collected",
-            "fieldtype": "Select",
-            "label": "Used DSG Oil Sample Collected with Brake Cleaner Container",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "dsg_oil_filter_replaced",
-            "fieldtype": "Select",
-            "label": "DSG Oil Filter Replaced",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "fill_drain_plug_seal_replaced",
-            "fieldtype": "Select",
-            "label": "Fill / Drain Plug Seal Replaced",
-            "options": "\nYes\nNo\nN/A"
+            "fieldname": "during_dsg_items",
+            "fieldtype": "Table",
+            "label": "During DSG Oil Change",
+            "options": "Checklist Item"
         },
         {
             "fieldname": "after_dsg_oil_change_section",
@@ -178,28 +108,10 @@
             "label": "After DSG Oil Change"
         },
         {
-            "fieldname": "post_service_test_drive_completed",
-            "fieldtype": "Select",
-            "label": "DSG Post-service Test Drive Completed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "dashboard_clock_set",
-            "fieldtype": "Select",
-            "label": "Dashboard Clock Set",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "windows_initialized",
-            "fieldtype": "Select",
-            "label": "Door Windows Initialized",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_fault_codes_cleared",
-            "fieldtype": "Select",
-            "label": "Fault Codes Cleared for Entire Vehicle",
-            "options": "\nYes\nNo\nN/A"
+            "fieldname": "after_dsg_items",
+            "fieldtype": "Table",
+            "label": "After DSG Oil Change",
+            "options": "Checklist Item"
         },
         {
             "fieldname": "final_check_section",
@@ -207,34 +119,10 @@
             "label": "Final Check"
         },
         {
-            "fieldname": "interior_exterior_cleanliness_checked",
-            "fieldtype": "Select",
-            "label": "Steering Wheel, Gear Lever, Hood and Screens Checked for Dirty Marks",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "service_record_completed",
-            "fieldtype": "Select",
-            "label": "Maintenance Booklet / Digital Service Plan Completed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "invoice_submitted_in_erp",
-            "fieldtype": "Select",
-            "label": "Invoice Submitted in ERP",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "invoice_paid_in_erp",
-            "fieldtype": "Select",
-            "label": "Invoice Paid in ERP",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_ready_for_delivery",
-            "fieldtype": "Select",
-            "label": "All Steps Completed and Vehicle Ready for Delivery",
-            "options": "\nYes\nNo\nN/A"
+            "fieldname": "final_check_items",
+            "fieldtype": "Table",
+            "label": "Final Check",
+            "options": "Checklist Item"
         },
         {
             "fieldname": "notes_section",
@@ -266,7 +154,7 @@
         }
     ],
     "links": [],
-    "modified": "2026-06-22 00:00:00.000000",
+    "modified": "2026-07-14 21:30:00.000000",
     "modified_by": "Administrator",
     "module": "Projects",
     "name": "DSG Oil Change Checklist",

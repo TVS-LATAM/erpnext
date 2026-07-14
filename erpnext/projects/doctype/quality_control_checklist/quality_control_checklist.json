@@ -13,38 +13,11 @@
         "check_date",
         "checked_by",
         "before_quality_control_section",
-        "customer_complaints_resolved",
-        "vehicle_drives_well",
-        "engine_runs_well",
-        "tuning_difference_noticeable",
-        "faults_or_defects_noticed",
-        "adaptation_values_saved",
-        "delivery_system_scan_completed",
-        "vehicle_fault_codes_cleared_before_qc",
-        "vehicle_aligned",
-        "steering_wheel_straight",
+        "before_qc_items",
         "during_quality_control_section",
-        "lift_leak_inspection_completed",
-        "undertray_installed",
-        "wheels_torqued",
-        "engine_bay_covers_cleaned",
-        "coolant_and_engine_oil_checked",
-        "vehicle_fault_codes_cleared_after_qc",
-        "trip_meter_reset",
-        "dashboard_clock_set",
-        "windows_initialized",
-        "maintenance_notification_present",
-        "defective_lamp_notification_present",
-        "washer_fluid_notification_present",
-        "vehicle_vacuumed",
-        "vehicle_washed",
+        "during_qc_items",
         "invoice_section",
-        "transport_costs_on_quote",
-        "pickup_delivery_costs_on_quote",
-        "loan_car_costs_on_quote",
-        "fuel_costs_on_quote",
-        "extra_work_on_quote",
-        "invoice_paid",
+        "invoice_items",
         "notes_section",
         "notes",
         "attachments_section",
@@ -103,64 +76,10 @@
             "label": "Before Quality Control"
         },
         {
-            "fieldname": "customer_complaints_resolved",
-            "fieldtype": "Select",
-            "label": "Customer Complaints Resolved",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_drives_well",
-            "fieldtype": "Select",
-            "label": "Vehicle Drives Well",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "engine_runs_well",
-            "fieldtype": "Select",
-            "label": "Engine Runs Well",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "tuning_difference_noticeable",
-            "fieldtype": "Select",
-            "label": "Tuning / Software Difference Noticeable",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "faults_or_defects_noticed",
-            "fieldtype": "Select",
-            "label": "Faults or Defects Noticed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "adaptation_values_saved",
-            "fieldtype": "Select",
-            "label": "Adaptation Values Saved",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "delivery_system_scan_completed",
-            "fieldtype": "Select",
-            "label": "Delivery System Scan Completed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_fault_codes_cleared_before_qc",
-            "fieldtype": "Select",
-            "label": "Vehicle Fault Codes Cleared Before Quality Control",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_aligned",
-            "fieldtype": "Select",
-            "label": "Vehicle Aligned",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "steering_wheel_straight",
-            "fieldtype": "Select",
-            "label": "Steering Wheel Straight",
-            "options": "\nYes\nNo\nN/A"
+            "fieldname": "before_qc_items",
+            "fieldtype": "Table",
+            "label": "Before Quality Control",
+            "options": "Checklist Item"
         },
         {
             "fieldname": "during_quality_control_section",
@@ -168,88 +87,10 @@
             "label": "During Quality Control"
         },
         {
-            "fieldname": "lift_leak_inspection_completed",
-            "fieldtype": "Select",
-            "label": "Vehicle Checked on Lift for Faults and Leaks",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "undertray_installed",
-            "fieldtype": "Select",
-            "label": "Undertray Installed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "wheels_torqued",
-            "fieldtype": "Select",
-            "label": "Wheels Tightened with Torque Wrench",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "engine_bay_covers_cleaned",
-            "fieldtype": "Select",
-            "label": "Covers Under Hood Cleaned",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "coolant_and_engine_oil_checked",
-            "fieldtype": "Select",
-            "label": "Coolant and Engine Oil Level Checked",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_fault_codes_cleared_after_qc",
-            "fieldtype": "Select",
-            "label": "Vehicle Fault Codes Cleared After Quality Control",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "trip_meter_reset",
-            "fieldtype": "Select",
-            "label": "Trip Meter Reset",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "dashboard_clock_set",
-            "fieldtype": "Select",
-            "label": "Dashboard Clock Set",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "windows_initialized",
-            "fieldtype": "Select",
-            "label": "Windows Initialized",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "maintenance_notification_present",
-            "fieldtype": "Select",
-            "label": "Maintenance Service Notification Present",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "defective_lamp_notification_present",
-            "fieldtype": "Select",
-            "label": "Defective Lamp Notification Present",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "washer_fluid_notification_present",
-            "fieldtype": "Select",
-            "label": "Windshield Washer Fluid Notification Present",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_vacuumed",
-            "fieldtype": "Select",
-            "label": "Vehicle Vacuumed",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "vehicle_washed",
-            "fieldtype": "Select",
-            "label": "Vehicle Washed",
-            "options": "\nYes\nNo\nN/A"
+            "fieldname": "during_qc_items",
+            "fieldtype": "Table",
+            "label": "During Quality Control",
+            "options": "Checklist Item"
         },
         {
             "fieldname": "invoice_section",
@@ -257,40 +98,10 @@
             "label": "Invoice and Delivery"
         },
         {
-            "fieldname": "transport_costs_on_quote",
-            "fieldtype": "Select",
-            "label": "Transport Costs Included on Quote",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "pickup_delivery_costs_on_quote",
-            "fieldtype": "Select",
-            "label": "Pickup / Delivery Service Costs Included on Quote",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "loan_car_costs_on_quote",
-            "fieldtype": "Select",
-            "label": "Loan Car Costs Included on Quote",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "fuel_costs_on_quote",
-            "fieldtype": "Select",
-            "label": "Fuel Costs Included on Quote",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "extra_work_on_quote",
-            "fieldtype": "Select",
-            "label": "All Extra Work Included on Quote",
-            "options": "\nYes\nNo\nN/A"
-        },
-        {
-            "fieldname": "invoice_paid",
-            "fieldtype": "Select",
-            "label": "Invoice Paid",
-            "options": "\nYes\nNo\nN/A"
+            "fieldname": "invoice_items",
+            "fieldtype": "Table",
+            "label": "Invoice and Delivery",
+            "options": "Checklist Item"
         },
         {
             "fieldname": "notes_section",
@@ -322,7 +133,7 @@
         }
     ],
     "links": [],
-    "modified": "2026-06-22 00:00:00.000000",
+    "modified": "2026-07-14 21:30:00.000000",
     "modified_by": "Administrator",
     "module": "Projects",
     "name": "Quality Control Checklist",

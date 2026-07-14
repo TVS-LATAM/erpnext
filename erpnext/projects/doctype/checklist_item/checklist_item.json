@@ -1,0 +1,63 @@
+{
+ "actions": [],
+ "creation": "2026-07-14 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "description",
+  "yes",
+  "no",
+  "na",
+  "who_did_it"
+ ],
+ "fields": [
+  {
+   "columns": 4,
+   "fieldname": "description",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Description",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "yes",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Yes"
+  },
+  {
+   "columns": 1,
+   "fieldname": "no",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "No"
+  },
+  {
+   "columns": 1,
+   "fieldname": "na",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "N/A"
+  },
+  {
+   "columns": 3,
+   "fieldname": "who_did_it",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Who Did It"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-14 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Projects",
+ "name": "Checklist Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

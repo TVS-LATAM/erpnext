@@ -11,6 +11,26 @@ CHECKLISTS = {
 	"DSG Oil Change Checklist": "dsg_oil_change_checklist",
 }
 ANSWER_OPTIONS = "\nYes\nNo\nN/A"
+# All 4 checklists are converted from flat Select answer fields to
+# `Checklist Item` child tables as of slice 6 (task 6.13 rewrite -- this
+# module previously bridged slice 5's partial conversion via
+# CONVERTED_TO_CHECKLIST_ITEM_TABLE; that bridge is gone, every doctype is
+# converted now). Row-count/seeding coverage lives in each doctype's own
+# dedicated grid test module (test_arrival_checklist_grid.py,
+# test_job_checklist_grid.py, test_quality_control_checklist_grid.py,
+# test_dsg_oil_change_checklist_grid.py), not here -- this module asserts
+# only the shared cross-doctype metadata contract.
+CHECKLIST_ITEM_TABLES = {
+	"Arrival Checklist": {"arrival_items"},
+	"Job Checklist": {"job_items"},
+	"Quality Control Checklist": {"before_qc_items", "during_qc_items", "invoice_items"},
+	"DSG Oil Change Checklist": {
+		"before_dsg_items",
+		"during_dsg_items",
+		"after_dsg_items",
+		"final_check_items",
+	},
+}
 
 
 class TestTVSJobCardChecklists(unittest.TestCase):
@@ -31,14 +51,25 @@ class TestTVSJobCardChecklists(unittest.TestCase):
 				# Desk UI cannot silently reintroduce it.
 				self.assertEqual(fields["project"].get("reqd", 0), 0)
 
+				# CAM-1/CIG-1 (slice 5+6): every flat Select answer field has been
+				# replaced by one or more `Checklist Item` child tables -- no
+				# doctype should carry ANY flat Select answer field anymore.
 				answer_fields = [
 					field
 					for field in metadata["fields"]
 					if field["fieldtype"] == "Select" and field.get("options") == ANSWER_OPTIONS
 				]
-				self.assertTrue(answer_fields)
-				# Answers are optional too, by the same decision.
-				self.assertTrue(all(field.get("reqd", 0) == 0 for field in answer_fields))
+				self.assertEqual(answer_fields, [])
+
+				# CIG-1: exactly the expected set of Checklist Item table
+				# fieldnames per doctype -- this is the count/shape assertion
+				# that replaces the old exact-flat-Select-fieldname checks.
+				table_fields = {
+					field["fieldname"]
+					for field in metadata["fields"]
+					if field["fieldtype"] == "Table" and field.get("options") == "Checklist Item"
+				}
+				self.assertEqual(table_fields, CHECKLIST_ITEM_TABLES[doctype_name])
 
 				self.assertEqual(fields["notes"]["fieldtype"], "Text")
 				self.assertEqual(fields["photos"]["fieldtype"], "Table")
@@ -61,45 +92,21 @@ class TestTVSJobCardChecklists(unittest.TestCase):
 		self.assertTrue(attachment.get("istable"))
 		self.assertEqual(attachment_fields["file"]["fieldtype"], "Attach")
 
-	def test_quality_control_matches_source_form(self):
-		required_fields = {
-			"customer_complaints_resolved", "vehicle_drives_well", "engine_runs_well",
-			"tuning_difference_noticeable", "faults_or_defects_noticed", "adaptation_values_saved",
-			"delivery_system_scan_completed", "vehicle_fault_codes_cleared_before_qc",
-			"vehicle_aligned", "steering_wheel_straight", "lift_leak_inspection_completed",
-			"undertray_installed", "wheels_torqued", "engine_bay_covers_cleaned",
-			"coolant_and_engine_oil_checked", "vehicle_fault_codes_cleared_after_qc",
-			"trip_meter_reset", "dashboard_clock_set", "windows_initialized",
-			"maintenance_notification_present", "defective_lamp_notification_present",
-			"washer_fluid_notification_present", "vehicle_vacuumed", "vehicle_washed",
-			"transport_costs_on_quote", "pickup_delivery_costs_on_quote",
-			"loan_car_costs_on_quote", "fuel_costs_on_quote", "extra_work_on_quote",
-			"invoice_paid",
-		}
-		self._assert_exact_answer_fields("quality_control_checklist", required_fields)
-
-	def test_dsg_oil_change_matches_source_form(self):
-		required_fields = {
-			"appointment_scheduled_in_erp", "oil_change_quote_submitted",
-			"vehicle_modification_confirmed", "tvs_software_offered",
-			"existing_complaints_confirmed", "pre_check_test_drive_completed",
-			"vehicle_shifts_correctly", "dsg_oil_change_completed",
-			"used_dsg_oil_sample_collected", "dsg_oil_filter_replaced",
-			"fill_drain_plug_seal_replaced", "post_service_test_drive_completed",
-			"dashboard_clock_set", "windows_initialized", "vehicle_fault_codes_cleared",
-			"interior_exterior_cleanliness_checked", "service_record_completed",
-			"invoice_submitted_in_erp", "invoice_paid_in_erp", "vehicle_ready_for_delivery",
-		}
-		self._assert_exact_answer_fields("dsg_oil_change_checklist", required_fields)
-
-	def _assert_exact_answer_fields(self, directory_name, expected):
-		metadata = self._load_metadata(directory_name)
-		answer_fields = {
-			field["fieldname"]
-			for field in metadata["fields"]
-			if field.get("options") == ANSWER_OPTIONS
-		}
-		self.assertEqual(answer_fields, expected)
+	def test_checklist_item_child_table_contract(self):
+		"""CIG-1/CIG-4: the shared `Checklist Item` child table -- read-only
+		description, exclusive yes/no/na Check flags, free-text who_did_it --
+		is the single row shape every checklist doctype seeds via
+		`seed_rows` (checklist_templates.py)."""
+		metadata = self._load_metadata("checklist_item")
+		fields = {f["fieldname"]: f for f in metadata["fields"]}
+		self.assertEqual(metadata["name"], "Checklist Item")
+		self.assertTrue(metadata.get("istable"))
+		self.assertEqual(fields["description"]["fieldtype"], "Data")
+		self.assertTrue(fields["description"].get("read_only"))
+		self.assertEqual(fields["yes"]["fieldtype"], "Check")
+		self.assertEqual(fields["no"]["fieldtype"], "Check")
+		self.assertEqual(fields["na"]["fieldtype"], "Check")
+		self.assertEqual(fields["who_did_it"]["fieldtype"], "Data")
 
 	def test_checklist_attachments_ui_is_wired(self):
 		app_root = DOCTYPE_ROOT.parents[1]

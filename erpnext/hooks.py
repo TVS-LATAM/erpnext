@@ -34,11 +34,31 @@ doctype_js = {
 	"Event": "public/js/event.js",
 	"Newsletter": "public/js/newsletter.js",
 	"Contact": "public/js/contact.js",
-	"Project": "public/js/projects/payment_validation.js",
-	"Arrival Checklist": "public/js/checklist_attachments.js",
-	"Job Checklist": "public/js/checklist_attachments.js",
-	"Quality Control Checklist": "public/js/checklist_attachments.js",
-	"DSG Oil Change Checklist": "public/js/checklist_attachments.js",
+	# checklist_pure.js is loaded here too so the "View Checklists" dialog
+	# (project.js) can call erpnext.checklist_pure.countChecklistAnswers.
+	"Project": ["public/js/projects/payment_validation.js", "public/js/checklist_pure.js"],
+	# checklist_pure.js MUST load before checklist_grid.js: the adapter calls
+	# erpnext.checklist_pure.* at handler-registration time.
+	"Arrival Checklist": [
+		"public/js/checklist_attachments.js",
+		"public/js/checklist_pure.js",
+		"public/js/checklist_grid.js",
+	],
+	"Job Checklist": [
+		"public/js/checklist_attachments.js",
+		"public/js/checklist_pure.js",
+		"public/js/checklist_grid.js",
+	],
+	"Quality Control Checklist": [
+		"public/js/checklist_attachments.js",
+		"public/js/checklist_pure.js",
+		"public/js/checklist_grid.js",
+	],
+	"DSG Oil Change Checklist": [
+		"public/js/checklist_attachments.js",
+		"public/js/checklist_pure.js",
+		"public/js/checklist_grid.js",
+	],
 }
 doctype_list_js = {
 	"Code List": [
