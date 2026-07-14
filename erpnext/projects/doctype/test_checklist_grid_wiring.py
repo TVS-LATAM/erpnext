@@ -44,6 +44,17 @@ class TestChecklistGridWiring(unittest.TestCase):
 		self.assertIn('"cannot_add_rows"', self.grid_script)
 		self.assertIn('"cannot_delete_rows"', self.grid_script)
 
+	def test_internal_grid_row_selection_checkboxes_are_hidden_only_for_checklist_tables(self):
+		# Frappe renders a leftmost `.grid-row-check` selector column for
+		# every child table. The checklist grid has fixed rows and its own
+		# Yes/No/N/A answer checkboxes, so that selector column is visual
+		# noise here -- but hiding it globally would break unrelated grids.
+		self.assertIn("hideRowSelectionCheckboxes", self.grid_script)
+		self.assertIn("tvs-checklist-grid-hide-row-selection", self.grid_script)
+		self.assertIn(".row-check", self.grid_script)
+		self.assertIn(".grid-row-check", self.grid_script)
+		self.assertIn("grid.wrapper", self.grid_script)
+
 	def test_new_form_seeding_has_a_catch_that_alerts_the_user(self):
 		# get_template() failing silently would leave a mechanic looking at
 		# an empty grid with add-row already hidden and no explanation.

@@ -73,6 +73,25 @@ erpnext.checklist_grid.checklistItemTables = function (frm) {
 	return (frm.meta.fields || []).filter((df) => df.fieldtype === "Table" && df.options === "Checklist Item");
 };
 
+erpnext.checklist_grid.hideRowSelectionCheckboxes = function (frm, df) {
+	const grid = frm.fields_dict[df.fieldname] && frm.fields_dict[df.fieldname].grid;
+	if (!grid || !grid.wrapper) return;
+
+	if (!erpnext.checklist_grid._rowSelectionStyleInjected && typeof document !== "undefined") {
+		erpnext.checklist_grid._rowSelectionStyleInjected = true;
+		const style = document.createElement("style");
+		style.textContent = `
+			.tvs-checklist-grid-hide-row-selection .row-check,
+			.tvs-checklist-grid-hide-row-selection .grid-row-check {
+				display: none !important;
+			}
+		`;
+		document.head.appendChild(style);
+	}
+
+	grid.wrapper.addClass("tvs-checklist-grid-hide-row-selection");
+};
+
 // cannot_add_rows/cannot_delete_rows are runtime-only grid properties, not
 // JSON docfield keys (absent from docfield.json; grid.js reads them off
 // grid.df at render time) -- they can only be set from client JS.
@@ -85,6 +104,7 @@ erpnext.checklist_grid.lockFixedRows = function (frm) {
 	erpnext.checklist_grid.checklistItemTables(frm).forEach((df) => {
 		frm.set_df_property(df.fieldname, "cannot_add_rows", true);
 		frm.set_df_property(df.fieldname, "cannot_delete_rows", true);
+		erpnext.checklist_grid.hideRowSelectionCheckboxes(frm, df);
 	});
 };
 
