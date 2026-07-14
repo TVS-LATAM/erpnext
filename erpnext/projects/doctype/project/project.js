@@ -836,7 +836,7 @@ async function fetchAndPopulateVinData(frm, vin) {
 
 	await frm.set_value({
 		vin: data.vehicle_identification_no,
-		model: data.model,
+		model: data.model_description,
 		model_year: data.year,
 		brand: data.make,
 		engine_liters: data.engine_liters,
