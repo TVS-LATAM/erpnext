@@ -166,7 +166,7 @@ frappe.ui.form.on("Project", {
 		["Arrival Checklist", "Job Checklist", "Quality Control Checklist", "DSG Oil Change Checklist"].forEach((doctype) => {
 			frm.add_custom_button(
 				__(doctype),
-				() => frappe.new_doc(doctype, { project: frm.doc.name }),
+				() => openOrCreateChecklist(doctype, frm),
 				__("Checklists")
 			);
 		});
@@ -1372,6 +1372,31 @@ function openChecklistAttachmentPreview(url, title) {
 	preview.show();
 	preview.get_field("body").$wrapper.html(inner);
 	preview.$wrapper.find(".modal-dialog").css({ "max-width": "90vw", width: "90vw" });
+}
+
+// Opens the most recently modified existing checklist of this doctype for the
+// current project instead of creating a duplicate. Creates a new one only if
+// none exist yet. This is a UI-only guard — no server-side validate() or
+// unique constraint is added, since production may already contain duplicates
+// and a hard rule would break saves on those existing rows.
+async function openOrCreateChecklist(doctype, frm) {
+	try {
+		const existing = await frappe.db.get_list(doctype, {
+			filters: { project: frm.doc.name },
+			fields: ["name"],
+			order_by: "modified desc",
+			limit: 1,
+		});
+		if (existing.length) {
+			frappe.set_route("Form", doctype, existing[0].name);
+			return;
+		}
+	} catch (error) {
+		// Lookup failed — don't leave the button dead, fall back to creating a
+		// new doc, but surface the failure instead of swallowing it.
+		console.error(`Error checking for existing ${doctype}`, error);
+	}
+	frappe.new_doc(doctype, { project: frm.doc.name });
 }
 
 // Adds a "View Checklists" button that opens a read-only detail view of every

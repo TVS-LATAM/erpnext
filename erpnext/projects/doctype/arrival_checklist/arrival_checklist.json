@@ -1,202 +1,191 @@
 {
- "actions": [],
- "autoname": "format:ARR-CHK-{#####}",
- "creation": "2026-06-22 00:00:00.000000",
- "doctype": "DocType",
- "engine": "InnoDB",
- "field_order": [
-  "project",
-  "check_date",
-  "checked_by",
-  "vehicle_details_section",
-  "mileage",
-  "checklist_section",
-  "appointment_confirmed",
-  "vehicle_identity_verified",
-  "customer_concerns_recorded",
-  "visible_damage_recorded",
-  "warning_lights_checked",
-  "personal_items_noted",
-  "pre_work_test_drive_completed",
-  "vehicle_safe_to_work_on",
-  "notes_section",
-  "notes",
-  "attachments_section",
-  "photos",
-  "attachments"
- ],
- "fields": [
-  {
-   "fieldname": "project",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Job Card",
-   "options": "Project",
-   "reqd": 1
-  },
-  {
-   "default": "Today",
-   "fieldname": "check_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Check Date",
-   "reqd": 1
-  },
-  {
-   "default": "__user",
-   "fieldname": "checked_by",
-   "fieldtype": "Link",
-   "label": "Checked By",
-   "options": "User",
-   "reqd": 1
-  },
-  {
-   "fieldname": "vehicle_details_section",
-   "fieldtype": "Section Break",
-   "label": "Vehicle Details"
-  },
-  {
-   "fieldname": "mileage",
-   "fieldtype": "Int",
-   "label": "Mileage"
-  },
-  {
-   "fieldname": "checklist_section",
-   "fieldtype": "Section Break",
-   "label": "Arrival Checks"
-  },
-  {
-   "fieldname": "appointment_confirmed",
-   "fieldtype": "Select",
-   "label": "Appointment Confirmed",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "vehicle_identity_verified",
-   "fieldtype": "Select",
-   "label": "Vehicle Identity Verified",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "customer_concerns_recorded",
-   "fieldtype": "Select",
-   "label": "Customer Concerns Recorded",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "visible_damage_recorded",
-   "fieldtype": "Select",
-   "label": "Visible Damage Recorded",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "warning_lights_checked",
-   "fieldtype": "Select",
-   "label": "Warning Lights Checked",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "personal_items_noted",
-   "fieldtype": "Select",
-   "label": "Personal Items Noted",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "pre_work_test_drive_completed",
-   "fieldtype": "Select",
-   "label": "Pre-work Test Drive Completed",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "vehicle_safe_to_work_on",
-   "fieldtype": "Select",
-   "label": "Vehicle Safe to Work On",
-   "options": "\nYes\nNo\nN/A",
-   "reqd": 1
-  },
-  {
-   "fieldname": "notes_section",
-   "fieldtype": "Section Break",
-   "label": "Notes"
-  },
-  {
-   "fieldname": "notes",
-   "fieldtype": "Text",
-   "label": "Notes"
-  },
-  {
-   "fieldname": "attachments_section",
-   "fieldtype": "Section Break",
-   "label": "Attachments"
-  },
-  {
-   "fieldname": "photos",
-   "fieldtype": "Table",
-   "label": "Photos",
-   "options": "Checklist Photo"
-  },
-  {
-   "fieldname": "attachments",
-   "fieldtype": "Table",
-   "label": "File Attachments",
-   "options": "Checklist Attachment"
-  }
- ],
- "links": [],
- "modified": "2026-06-22 00:00:00.000000",
- "modified_by": "Administrator",
- "module": "Projects",
- "name": "Arrival Checklist",
- "owner": "Administrator",
- "permissions": [
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Manufacturing User",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "Manufacturing Manager",
-   "share": 1,
-   "write": 1
-  },
-  {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "export": 1,
-   "print": 1,
-   "read": 1,
-   "report": 1,
-   "role": "System Manager",
-   "share": 1,
-   "write": 1
-  }
- ],
- "sort_field": "modified",
- "sort_order": "DESC",
- "states": [],
- "title_field": "project",
- "track_changes": 1
+    "actions": [],
+    "autoname": "format:ARR-CHK-{#####}",
+    "creation": "2026-06-22 00:00:00.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "project",
+        "check_date",
+        "checked_by",
+        "vehicle_details_section",
+        "mileage",
+        "checklist_section",
+        "appointment_confirmed",
+        "vehicle_identity_verified",
+        "customer_concerns_recorded",
+        "visible_damage_recorded",
+        "warning_lights_checked",
+        "personal_items_noted",
+        "pre_work_test_drive_completed",
+        "vehicle_safe_to_work_on",
+        "notes_section",
+        "notes",
+        "attachments_section",
+        "photos",
+        "attachments"
+    ],
+    "fields": [
+        {
+            "fieldname": "project",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Job Card",
+            "options": "Project"
+        },
+        {
+            "default": "Today",
+            "fieldname": "check_date",
+            "fieldtype": "Date",
+            "in_list_view": 1,
+            "label": "Check Date"
+        },
+        {
+            "default": "__user",
+            "fieldname": "checked_by",
+            "fieldtype": "Link",
+            "label": "Checked By",
+            "options": "User"
+        },
+        {
+            "fieldname": "vehicle_details_section",
+            "fieldtype": "Section Break",
+            "label": "Vehicle Details"
+        },
+        {
+            "fieldname": "mileage",
+            "fieldtype": "Int",
+            "label": "Mileage"
+        },
+        {
+            "fieldname": "checklist_section",
+            "fieldtype": "Section Break",
+            "label": "Arrival Checks"
+        },
+        {
+            "fieldname": "appointment_confirmed",
+            "fieldtype": "Select",
+            "label": "Appointment Confirmed",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "vehicle_identity_verified",
+            "fieldtype": "Select",
+            "label": "Vehicle Identity Verified",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "customer_concerns_recorded",
+            "fieldtype": "Select",
+            "label": "Customer Concerns Recorded",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "visible_damage_recorded",
+            "fieldtype": "Select",
+            "label": "Visible Damage Recorded",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "warning_lights_checked",
+            "fieldtype": "Select",
+            "label": "Warning Lights Checked",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "personal_items_noted",
+            "fieldtype": "Select",
+            "label": "Personal Items Noted",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "pre_work_test_drive_completed",
+            "fieldtype": "Select",
+            "label": "Pre-work Test Drive Completed",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "vehicle_safe_to_work_on",
+            "fieldtype": "Select",
+            "label": "Vehicle Safe to Work On",
+            "options": "\nYes\nNo\nN/A"
+        },
+        {
+            "fieldname": "notes_section",
+            "fieldtype": "Section Break",
+            "label": "Notes"
+        },
+        {
+            "fieldname": "notes",
+            "fieldtype": "Text",
+            "label": "Notes"
+        },
+        {
+            "fieldname": "attachments_section",
+            "fieldtype": "Section Break",
+            "label": "Attachments"
+        },
+        {
+            "fieldname": "photos",
+            "fieldtype": "Table",
+            "label": "Photos",
+            "options": "Checklist Photo"
+        },
+        {
+            "fieldname": "attachments",
+            "fieldtype": "Table",
+            "label": "File Attachments",
+            "options": "Checklist Attachment"
+        }
+    ],
+    "links": [],
+    "modified": "2026-06-22 00:00:00.000000",
+    "modified_by": "Administrator",
+    "module": "Projects",
+    "name": "Arrival Checklist",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Manufacturing User",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "Manufacturing Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "title_field": "project",
+    "track_changes": 1
 }

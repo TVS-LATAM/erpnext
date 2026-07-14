@@ -17,3 +17,5 @@ __pycache__
 .vscode/
 node_modules/
 .backportrc.json
+# SDD/Agent registry cache (local only)
+.atl/
