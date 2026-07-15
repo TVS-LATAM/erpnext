@@ -1366,7 +1366,14 @@ async function insertUpdateQueuePositionButton(frm) {
 
 	getSelect(doc.name).then((data) => {
 		frm.set_df_property('queue_position', 'options', data.options)
-		frm.set_value('queue_position', data.current)
+		// Only write when the position actually changed. Compared as strings because
+		// the queue service returns `current` as a number while the stored Select
+		// value is a string, so a strict set_value would mark the form dirty on every
+		// load and persist queue_position on unrelated saves — which made the queue
+		// backend fire "position updated" even when only e.g. internal notes changed.
+		if (cstr(frm.doc.queue_position) !== cstr(data.current)) {
+			frm.set_value('queue_position', data.current)
+		}
 	})
 }
 
