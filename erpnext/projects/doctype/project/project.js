@@ -402,17 +402,24 @@ const CONFLICT_SKIP_FIELDTYPES = new Set([
 // wrapping frm.save is useless. We patch the lower-level frappe.ui.form.save,
 // where the server response `r` (with r.exc on a timestamp conflict) is available.
 let __project_conflict_patch_installed = false;
+let __project_orig_form_save = null;
 
 function installProjectConflictRecovery(frm) {
 	if (__project_conflict_patch_installed) return;
 	__project_conflict_patch_installed = true;
 
-	const _orig_form_save = frappe.ui.form.save;
+	__project_orig_form_save = frappe.ui.form.save;
 
 	frappe.ui.form.save = function (frm, action, callback, btn) {
 		// Only guard real updates to existing Project docs; everything else is untouched.
 		if (frm.doctype !== "Project" || action === "cancel" || frm.is_new() || !frm.doc.name) {
-			return _orig_form_save(frm, action, callback, btn);
+			return __project_orig_form_save(frm, action, callback, btn);
+		}
+
+		// Our own recovery auto-save re-enters here — let it pass straight through
+		// so it can't recurse into another recovery.
+		if (frm.__conflict_autosaving) {
+			return __project_orig_form_save(frm, action, callback, btn);
 		}
 
 		// Capture this user's edits BEFORE the save is attempted.
@@ -423,8 +430,8 @@ function installProjectConflictRecovery(frm) {
 		// the scary dialog and lets the reload wipe this user's work.
 		const wrapped_cb = async function (r) {
 			if (r && r.exc) {
-				const db_modified = await getProjectDbModified(frm);
-				if (db_modified && db_modified !== frm.doc.modified) {
+				const info = await getProjectDbInfo(frm);
+				if (info && info.modified && info.modified !== frm.doc.modified) {
 					await recoverProjectConflict(frm, my_changes);
 					return; // handled — data preserved, skip default error handling
 				}
@@ -434,24 +441,24 @@ function installProjectConflictRecovery(frm) {
 
 		// Preflight: has another user saved since we loaded? If so, merge their
 		// change in first so THIS save never triggers the conflict dialog at all.
-		getProjectDbModified(frm)
-			.then((db_modified) => {
-				if (db_modified && db_modified !== frm.doc.modified) {
+		getProjectDbInfo(frm)
+			.then((info) => {
+				if (info && info.modified && info.modified !== frm.doc.modified) {
 					$(btn).prop("disabled", false);
 					return recoverProjectConflict(frm, my_changes);
 				}
-				return _orig_form_save(frm, action, wrapped_cb, btn);
+				return __project_orig_form_save(frm, action, wrapped_cb, btn);
 			})
 			.catch(() => {
 				// Preflight failed (e.g. offline) — attempt the save with the fallback guard.
-				_orig_form_save(frm, action, wrapped_cb, btn);
+				__project_orig_form_save(frm, action, wrapped_cb, btn);
 			});
 	};
 }
 
-async function getProjectDbModified(frm) {
-	const latest = await frappe.db.get_value(frm.doctype, frm.doc.name, "modified");
-	return latest && latest.message && latest.message.modified;
+async function getProjectDbInfo(frm) {
+	const r = await frappe.db.get_value(frm.doctype, frm.doc.name, ["modified", "modified_by"]);
+	return r && r.message ? r.message : null;
 }
 
 function getProjectLocalChanges(frm) {
@@ -467,32 +474,109 @@ function getProjectLocalChanges(frm) {
 	return changes;
 }
 
+// Reloads the other user's version, re-applies THIS user's edits on top, then
+// auto-saves and shows a modal naming who changed it — no manual "Save again".
 async function recoverProjectConflict(frm, my_changes) {
+	// Pull the other user's version (their edits + who saved + fresh timestamp).
 	frm.doc.__unsaved = 0; // avoid the "unsaved changes" navigation guard
-	await frm.reload_doc(); // pull the other user's changes + fresh timestamp
-	frm.__server_doc = $.extend(true, {}, frm.doc); // new baseline from the reload
+	await frm.reload_doc();
+	frm.__server_doc = $.extend(true, {}, frm.doc);
+	let other_user = frm.doc.modified_by;
 
 	const fields = Object.keys(my_changes);
-	fields.forEach((f) => frm.set_value(f, my_changes[f]));
+	const reapply = () => {
+		fields.forEach((f) => frm.set_value(f, my_changes[f]));
+		if (fields.length) frm.dirty();
+	};
+	reapply();
 
-	if (fields.length) {
-		frm.dirty();
-		const labels = fields
-			.map((f) => __(frappe.meta.get_label(frm.doctype, f)))
-			.join(", ");
-		frappe.show_alert({
-			message: __(
-				"Another user just saved this Project. Your changes to <b>{0}</b> were kept — please review and Save again.",
-				[labels]
-			),
-			indicator: "orange",
-		}, 12);
-	} else {
-		frappe.show_alert({
-			message: __("Reloaded with the latest changes from another user."),
-			indicator: "blue",
-		}, 6);
+	if (!fields.length) {
+		// Nothing of ours to save (our edits matched theirs) — just inform.
+		return showConflictResolvedModal(frm, other_user, fields, true);
 	}
+
+	// Auto-save the merged document. A short retry loop covers the rare case of
+	// yet another save landing while we merge. __conflict_autosaving keeps this
+	// save from re-entering recovery; frm.save() still runs validate/before_save.
+	frm.__conflict_autosaving = true;
+	try {
+		for (let attempt = 0; attempt < 3; attempt++) {
+			// Make sure we're on top of the very latest before writing.
+			const info = await getProjectDbInfo(frm);
+			if (info && info.modified && info.modified !== frm.doc.modified) {
+				other_user = info.modified_by;
+				frm.doc.__unsaved = 0;
+				await frm.reload_doc();
+				frm.__server_doc = $.extend(true, {}, frm.doc);
+				reapply();
+			}
+
+			await frm.save();
+
+			if (!frm.is_dirty()) {
+				frm.__server_doc = $.extend(true, {}, frm.doc);
+				return showConflictResolvedModal(frm, other_user, fields, true);
+			}
+		}
+		// Couldn't auto-save after retries — data is on screen, ask the user.
+		showConflictResolvedModal(frm, other_user, fields, false);
+	} catch (e) {
+		// e.g. validation failed on the merged doc — keep the user's data on screen.
+		console.error("Project conflict auto-save failed", e);
+		showConflictResolvedModal(frm, other_user, fields, false);
+	} finally {
+		frm.__conflict_autosaving = false;
+	}
+}
+
+async function resolveUserName(user_id) {
+	if (!user_id) return __("another user");
+	try {
+		const r = await frappe.db.get_value("User", user_id, "full_name");
+		return (r && r.message && r.message.full_name) || user_id;
+	} catch (e) {
+		return user_id;
+	}
+}
+
+async function showConflictResolvedModal(frm, other_user_id, fields, saved) {
+	const who = await resolveUserName(other_user_id);
+	const esc = (v) => frappe.utils.escape_html(String(v));
+
+	const labels = fields.map((f) => __(frappe.meta.get_label(frm.doctype, f)));
+	const list_html = labels.length
+		? `<ul style="margin:6px 0 0 18px;padding:0;">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
+		: `<p style="margin:6px 0 0;color:#6b7280;">${__("No field of yours needed re-applying.")}</p>`;
+
+	const status_html = saved
+		? `<p style="margin:14px 0 0;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;">
+			✔ <b>${__("Your changes were merged and saved.")}</b>
+		   </p>`
+		: `<p style="margin:14px 0 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;color:#92400e;">
+			${__("We couldn't auto-save. Your changes are still on screen — please press Save.")}
+		   </p>`;
+
+	const d = new frappe.ui.Dialog({
+		title: __("This Project was updated by another user"),
+		fields: [{ fieldtype: "HTML", fieldname: "body" }],
+		primary_action_label: __("OK"),
+		primary_action: () => d.hide(),
+	});
+
+	d.fields_dict.body.$wrapper.html(`
+		<div style="font-size:13px;line-height:1.55;">
+			<p style="margin:0;">
+				<b>${esc(who)}</b> ${__("saved changes to this Project while you were editing it.")}
+			</p>
+			<p style="margin:12px 0 0;">
+				${labels.length ? __("Your edits were kept and merged into the latest version:") : __("Your view has been updated to the latest version.")}
+			</p>
+			${labels.length ? list_html : ""}
+			${status_html}
+		</div>
+	`);
+
+	d.show();
 }
 // ---------------------------------------------------------------------------
 
