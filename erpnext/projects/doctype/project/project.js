@@ -397,6 +397,29 @@ const CONFLICT_SKIP_FIELDTYPES = new Set([
 	"Heading", "Table", "Table MultiSelect", "Image",
 ]);
 
+// Fieldtypes whose stored value is rich HTML (e.g. Text Editor). In the conflict
+// picker we must NOT render that HTML — no client-side sanitizer ships with this
+// Frappe, so rendering raw stored markup would be an XSS vector. We show a readable
+// plain-text preview instead; the value actually saved is still the full field value.
+const CONFLICT_HTML_FIELDTYPES = new Set([
+	"Text Editor", "HTML Editor", "Markdown Editor", "Code",
+]);
+
+// Converts rich-text HTML to readable plain text with line breaks preserved.
+// DOMParser("text/html") builds an inert document — scripts don't run and no
+// resources are fetched — and we only ever read textContent, so this is safe.
+function conflictHtmlToText(html) {
+	const withBreaks = cstr(html)
+		.replace(/<\/(p|div|li|h[1-6]|tr|blockquote)>/gi, "\n")
+		.replace(/<br\s*\/?>/gi, "\n");
+	try {
+		const doc = new DOMParser().parseFromString(withBreaks, "text/html");
+		return (doc.body.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+	} catch (e) {
+		return cstr(html);
+	}
+}
+
 // Patched once per session. frm.save() RESOLVES (not rejects) on a conflict when
 // no on_error is passed — which is exactly what the Save button / Ctrl+S do — so
 // wrapping frm.save is useless. We patch the lower-level frappe.ui.form.save,
@@ -507,7 +530,8 @@ async function recoverProjectConflict(frm, my_changes) {
 		} else if (cstrEq(mine, theirs)) {
 			// we independently ended up with the same value — nothing to do
 		} else {
-			conflicts.push({ field: f, mine, theirs });
+			const df = frappe.meta.get_docfield(frm.doctype, f);
+			conflicts.push({ field: f, mine, theirs, fieldtype: df ? df.fieldtype : "Data" });
 		}
 	});
 
@@ -581,8 +605,11 @@ async function recoverProjectConflict(frm, my_changes) {
 async function showConflictResolutionDialog(frm, other_user_id, conflicts) {
 	const who = await resolveUserName(other_user_id);
 	const esc = (v) => frappe.utils.escape_html(cstr(v));
-	const valBox = (v) => {
-		const s = esc(v);
+	// Render a readable, ESCAPED preview. Rich-text (Text Editor) values are first
+	// flattened to plain text so we never inject stored HTML into the DOM.
+	const valBox = (v, fieldtype) => {
+		const readable = CONFLICT_HTML_FIELDTYPES.has(fieldtype) ? conflictHtmlToText(v) : cstr(v);
+		const s = frappe.utils.escape_html(readable);
 		return s
 			? `<div style="white-space:pre-wrap;word-break:break-word;margin-top:4px;max-height:160px;overflow:auto;">${s}</div>`
 			: `<div style="margin-top:4px;color:#9ca3af;font-style:italic;">${__("(empty)")}</div>`;
@@ -597,11 +624,11 @@ async function showConflictResolutionDialog(frm, other_user_id, conflicts) {
 				<div style="font-weight:600;margin-bottom:8px;">${label}</div>
 				<label class="pcr-opt" style="display:block;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
 					<span><input type="radio" name="pcr_${i}" value="mine" checked style="margin-right:8px;"><b>${__("Your version")}</b></span>
-					${valBox(c.mine)}
+					${valBox(c.mine, c.fieldtype)}
 				</label>
 				<label class="pcr-opt" style="display:block;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;cursor:pointer;">
 					<span><input type="radio" name="pcr_${i}" value="theirs" style="margin-right:8px;"><b>${esc(who)} — ${__("their version")}</b></span>
-					${valBox(c.theirs)}
+					${valBox(c.theirs, c.fieldtype)}
 				</label>
 			</div>`;
 			})
