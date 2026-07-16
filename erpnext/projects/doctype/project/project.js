@@ -474,25 +474,69 @@ function getProjectLocalChanges(frm) {
 	return changes;
 }
 
-// Reloads the other user's version, re-applies THIS user's edits on top, then
-// auto-saves and shows a modal naming who changed it — no manual "Save again".
+const cstrEq = (a, b) => cstr(a) === cstr(b);
+
+// Three-way merge against the other user's saved version:
+//   ancestor = frm.__server_doc (the values THIS client loaded — common ancestor)
+//   theirs   = the reloaded server values (the user who saved first)
+//   mine     = my_changes[field]
+// Fields only I changed auto-merge. Fields we BOTH changed to different values are
+// true conflicts: the user picks which version to keep per field, then it saves.
 async function recoverProjectConflict(frm, my_changes) {
+	// Capture the common ancestor for my changed fields BEFORE reload overwrites it.
+	const ancestor = frm.__server_doc || {};
+	const ancestorVals = {};
+	Object.keys(my_changes).forEach((f) => {
+		ancestorVals[f] = ancestor[f];
+	});
+
 	// Pull the other user's version (their edits + who saved + fresh timestamp).
 	frm.doc.__unsaved = 0; // avoid the "unsaved changes" navigation guard
 	await frm.reload_doc();
 	frm.__server_doc = $.extend(true, {}, frm.doc);
 	let other_user = frm.doc.modified_by;
 
-	const fields = Object.keys(my_changes);
-	const reapply = () => {
-		fields.forEach((f) => frm.set_value(f, my_changes[f]));
-		if (fields.length) frm.dirty();
-	};
-	reapply();
+	// Classify each of my edited fields.
+	const autoFields = []; // only I changed → safe to keep mine
+	const conflicts = []; // we both changed to different values → ask the user
+	Object.keys(my_changes).forEach((f) => {
+		const mine = my_changes[f];
+		const theirs = frm.doc[f];
+		if (cstrEq(theirs, ancestorVals[f])) {
+			autoFields.push(f); // they didn't touch this field
+		} else if (cstrEq(mine, theirs)) {
+			// we independently ended up with the same value — nothing to do
+		} else {
+			conflicts.push({ field: f, mine, theirs });
+		}
+	});
 
-	if (!fields.length) {
-		// Nothing of ours to save (our edits matched theirs) — just inform.
-		return showConflictResolvedModal(frm, other_user, fields, true);
+	// Build the final value map to apply on top of their version.
+	const resolved = {};
+	autoFields.forEach((f) => {
+		resolved[f] = my_changes[f];
+	});
+
+	if (conflicts.length) {
+		const choices = await showConflictResolutionDialog(frm, other_user, conflicts);
+		if (choices) {
+			conflicts.forEach((c) => {
+				resolved[c.field] = choices[c.field] === "theirs" ? c.theirs : c.mine;
+			});
+		}
+		// choices === null → user chose to discard their own conflicting edits;
+		// keep theirs (already loaded), apply only the non-conflicting autoFields.
+	}
+
+	const applyResolved = () => {
+		Object.keys(resolved).forEach((f) => frm.set_value(f, resolved[f]));
+	};
+	applyResolved();
+
+	const touched = Object.keys(resolved);
+	if (!frm.is_dirty()) {
+		// Everything resolved to their version — nothing of ours left to save.
+		return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
 	}
 
 	// Auto-save the merged document. A short retry loop covers the rare case of
@@ -508,25 +552,105 @@ async function recoverProjectConflict(frm, my_changes) {
 				frm.doc.__unsaved = 0;
 				await frm.reload_doc();
 				frm.__server_doc = $.extend(true, {}, frm.doc);
-				reapply();
+				applyResolved();
+				if (!frm.is_dirty()) {
+					return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
+				}
 			}
 
 			await frm.save();
 
 			if (!frm.is_dirty()) {
 				frm.__server_doc = $.extend(true, {}, frm.doc);
-				return showConflictResolvedModal(frm, other_user, fields, true);
+				return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
 			}
 		}
 		// Couldn't auto-save after retries — data is on screen, ask the user.
-		showConflictResolvedModal(frm, other_user, fields, false);
+		showConflictResolvedModal(frm, other_user, touched, false, conflicts.length > 0);
 	} catch (e) {
 		// e.g. validation failed on the merged doc — keep the user's data on screen.
 		console.error("Project conflict auto-save failed", e);
-		showConflictResolvedModal(frm, other_user, fields, false);
+		showConflictResolvedModal(frm, other_user, touched, false, conflicts.length > 0);
 	} finally {
 		frm.__conflict_autosaving = false;
 	}
+}
+
+// Per-field conflict picker. Resolves to { field: "mine" | "theirs" }, or null if
+// the user chooses to discard their own conflicting edits and keep the other user's.
+async function showConflictResolutionDialog(frm, other_user_id, conflicts) {
+	const who = await resolveUserName(other_user_id);
+	const esc = (v) => frappe.utils.escape_html(cstr(v));
+	const valBox = (v) => {
+		const s = esc(v);
+		return s
+			? `<div style="white-space:pre-wrap;word-break:break-word;margin-top:4px;max-height:160px;overflow:auto;">${s}</div>`
+			: `<div style="margin-top:4px;color:#9ca3af;font-style:italic;">${__("(empty)")}</div>`;
+	};
+
+	return new Promise((resolve) => {
+		const rows = conflicts
+			.map((c, i) => {
+				const label = esc(__(frappe.meta.get_label(frm.doctype, c.field)));
+				return `
+			<div style="margin-bottom:18px;">
+				<div style="font-weight:600;margin-bottom:8px;">${label}</div>
+				<label class="pcr-opt" style="display:block;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+					<span><input type="radio" name="pcr_${i}" value="mine" checked style="margin-right:8px;"><b>${__("Your version")}</b></span>
+					${valBox(c.mine)}
+				</label>
+				<label class="pcr-opt" style="display:block;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;cursor:pointer;">
+					<span><input type="radio" name="pcr_${i}" value="theirs" style="margin-right:8px;"><b>${esc(who)} — ${__("their version")}</b></span>
+					${valBox(c.theirs)}
+				</label>
+			</div>`;
+			})
+			.join("");
+
+		const d = new frappe.ui.Dialog({
+			title: __("Resolve editing conflict"),
+			size: "large",
+			fields: [{ fieldtype: "HTML", fieldname: "body" }],
+			primary_action_label: __("Keep selected & Save"),
+			primary_action: () => {
+				const choices = {};
+				conflicts.forEach((c, i) => {
+					const sel = d.$wrapper.find(`input[name="pcr_${i}"]:checked`).val() || "mine";
+					choices[c.field] = sel;
+				});
+				d.hide();
+				resolve(choices);
+			},
+			secondary_action_label: __("Discard my changes"),
+			secondary_action: () => {
+				d.hide();
+				resolve(null);
+			},
+		});
+
+		d.fields_dict.body.$wrapper.html(`
+			<div style="font-size:13px;line-height:1.5;">
+				<p style="margin:0 0 14px;"><b>${esc(who)}</b> ${__(
+					"edited the same field(s) and saved first. Choose which version to keep for each:"
+				)}</p>
+				${rows}
+			</div>
+		`);
+
+		// Highlight the selected option for clarity.
+		const paint = () => {
+			d.$wrapper.find(".pcr-opt").each(function () {
+				const checked = $(this).find("input[type=radio]").prop("checked");
+				$(this).css({
+					"border-color": checked ? "#2563eb" : "#e5e7eb",
+					background: checked ? "#eff6ff" : "#fff",
+				});
+			});
+		};
+		d.$wrapper.on("change", "input[type=radio]", paint);
+		d.show();
+		paint();
+	});
 }
 
 async function resolveUserName(user_id) {
@@ -539,7 +663,7 @@ async function resolveUserName(user_id) {
 	}
 }
 
-async function showConflictResolvedModal(frm, other_user_id, fields, saved) {
+async function showConflictResolvedModal(frm, other_user_id, fields, saved, hadConflicts) {
 	const who = await resolveUserName(other_user_id);
 	const esc = (v) => frappe.utils.escape_html(String(v));
 
@@ -548,13 +672,23 @@ async function showConflictResolvedModal(frm, other_user_id, fields, saved) {
 		? `<ul style="margin:6px 0 0 18px;padding:0;">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
 		: `<p style="margin:6px 0 0;color:#6b7280;">${__("No field of yours needed re-applying.")}</p>`;
 
+	const saved_msg = hadConflicts
+		? __("Your selected versions were saved.")
+		: __("Your changes were merged and saved.");
+
 	const status_html = saved
 		? `<p style="margin:14px 0 0;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;">
-			✔ <b>${__("Your changes were merged and saved.")}</b>
+			✔ <b>${saved_msg}</b>
 		   </p>`
 		: `<p style="margin:14px 0 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;color:#92400e;">
 			${__("We couldn't auto-save. Your changes are still on screen — please press Save.")}
 		   </p>`;
+
+	const intro = hadConflicts
+		? __("Your edits were merged with the latest version. These fields were saved:")
+		: labels.length
+			? __("Your edits were kept and merged into the latest version:")
+			: __("Your view has been updated to the latest version.");
 
 	const d = new frappe.ui.Dialog({
 		title: __("This Project was updated by another user"),
@@ -568,9 +702,7 @@ async function showConflictResolvedModal(frm, other_user_id, fields, saved) {
 			<p style="margin:0;">
 				<b>${esc(who)}</b> ${__("saved changes to this Project while you were editing it.")}
 			</p>
-			<p style="margin:12px 0 0;">
-				${labels.length ? __("Your edits were kept and merged into the latest version:") : __("Your view has been updated to the latest version.")}
-			</p>
+			<p style="margin:12px 0 0;">${intro}</p>
 			${labels.length ? list_html : ""}
 			${status_html}
 		</div>
