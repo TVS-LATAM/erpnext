@@ -24,6 +24,13 @@ frappe.ui.form.on("Project", {
 		};
 	},
 	onload: function (frm) {
+		// Concurrent-edit safety net: keep a snapshot of the values as loaded from
+		// the server and wrap frm.save so a timestamp conflict (another user saved
+		// the same Project first) reloads their changes and re-applies THIS user's
+		// edits instead of losing them on refresh. See installProjectConflictRecovery.
+		frm.__server_doc = $.extend(true, {}, frm.doc);
+		installProjectConflictRecovery(frm);
+
 		const so = frm.get_docfield("sales_order");
 		so.get_route_options_for_new_doc = () => {
 			if (frm.is_new()) return {};
@@ -160,6 +167,11 @@ frappe.ui.form.on("Project", {
 		}
 
 		hideProjectToolbarButtons(frm);
+	},
+
+	after_save: function (frm) {
+		// New baseline after a clean save so the next conflict diff is correct.
+		frm.__server_doc = $.extend(true, {}, frm.doc);
 	},
 
 	setup_checklist_buttons: function (frm) {
@@ -369,6 +381,363 @@ frappe.ui.form.on("Project", {
 		}
 	}
 });
+
+// --- Concurrent-edit conflict recovery -------------------------------------
+// When two users edit the same Project, the second save is rejected by Frappe's
+// timestamp check ("Document has been modified after you have opened it") and a
+// naive reload throws away the second user's edits. This wraps frm.save: on that
+// specific conflict it pulls the other user's changes, re-applies THIS user's
+// edited fields on top, and asks them to Save again — nobody loses work. Other
+// (non-conflict) errors keep Frappe's default behaviour.
+
+// Fieldtypes that hold no scalar value we can diff/re-apply. Child tables are
+// intentionally excluded — auto-merging grid rows is unsafe.
+const CONFLICT_SKIP_FIELDTYPES = new Set([
+	"Section Break", "Column Break", "Tab Break", "HTML", "Button", "Fold",
+	"Heading", "Table", "Table MultiSelect", "Image",
+]);
+
+// Fieldtypes whose stored value is rich HTML (e.g. Text Editor). In the conflict
+// picker we must NOT render that HTML — no client-side sanitizer ships with this
+// Frappe, so rendering raw stored markup would be an XSS vector. We show a readable
+// plain-text preview instead; the value actually saved is still the full field value.
+const CONFLICT_HTML_FIELDTYPES = new Set([
+	"Text Editor", "HTML Editor", "Markdown Editor", "Code",
+]);
+
+// Converts rich-text HTML to readable plain text with line breaks preserved.
+// DOMParser("text/html") builds an inert document — scripts don't run and no
+// resources are fetched — and we only ever read textContent, so this is safe.
+function conflictHtmlToText(html) {
+	const withBreaks = cstr(html)
+		.replace(/<\/(p|div|li|h[1-6]|tr|blockquote)>/gi, "\n")
+		.replace(/<br\s*\/?>/gi, "\n");
+	try {
+		const doc = new DOMParser().parseFromString(withBreaks, "text/html");
+		return (doc.body.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
+	} catch (e) {
+		return cstr(html);
+	}
+}
+
+// Patched once per session. frm.save() RESOLVES (not rejects) on a conflict when
+// no on_error is passed — which is exactly what the Save button / Ctrl+S do — so
+// wrapping frm.save is useless. We patch the lower-level frappe.ui.form.save,
+// where the server response `r` (with r.exc on a timestamp conflict) is available.
+let __project_conflict_patch_installed = false;
+let __project_orig_form_save = null;
+
+function installProjectConflictRecovery(frm) {
+	if (__project_conflict_patch_installed) return;
+	__project_conflict_patch_installed = true;
+
+	__project_orig_form_save = frappe.ui.form.save;
+
+	frappe.ui.form.save = function (frm, action, callback, btn) {
+		// Only guard real updates to existing Project docs; everything else is untouched.
+		if (frm.doctype !== "Project" || action === "cancel" || frm.is_new() || !frm.doc.name) {
+			return __project_orig_form_save(frm, action, callback, btn);
+		}
+
+		// Our own recovery auto-save re-enters here — let it pass straight through
+		// so it can't recurse into another recovery.
+		if (frm.__conflict_autosaving) {
+			return __project_orig_form_save(frm, action, callback, btn);
+		}
+
+		// Capture this user's edits BEFORE the save is attempted.
+		const my_changes = getProjectLocalChanges(frm);
+
+		// Fallback: if a conflict still slips through (two people save at the very
+		// same moment), recover instead of running the default handling that shows
+		// the scary dialog and lets the reload wipe this user's work.
+		const wrapped_cb = async function (r) {
+			if (r && r.exc) {
+				const info = await getProjectDbInfo(frm);
+				if (info && info.modified && info.modified !== frm.doc.modified) {
+					await recoverProjectConflict(frm, my_changes);
+					return; // handled — data preserved, skip default error handling
+				}
+			}
+			return callback(r);
+		};
+
+		// Preflight: has another user saved since we loaded? If so, merge their
+		// change in first so THIS save never triggers the conflict dialog at all.
+		getProjectDbInfo(frm)
+			.then((info) => {
+				if (info && info.modified && info.modified !== frm.doc.modified) {
+					$(btn).prop("disabled", false);
+					return recoverProjectConflict(frm, my_changes);
+				}
+				return __project_orig_form_save(frm, action, wrapped_cb, btn);
+			})
+			.catch(() => {
+				// Preflight failed (e.g. offline) — attempt the save with the fallback guard.
+				__project_orig_form_save(frm, action, wrapped_cb, btn);
+			});
+	};
+}
+
+async function getProjectDbInfo(frm) {
+	const r = await frappe.db.get_value(frm.doctype, frm.doc.name, ["modified", "modified_by"]);
+	return r && r.message ? r.message : null;
+}
+
+function getProjectLocalChanges(frm) {
+	const changes = {};
+	const base = frm.__server_doc || {};
+	(frm.meta.fields || []).forEach((df) => {
+		if (CONFLICT_SKIP_FIELDTYPES.has(df.fieldtype)) return;
+		const f = df.fieldname;
+		if (frm.doc[f] !== base[f]) {
+			changes[f] = frm.doc[f];
+		}
+	});
+	return changes;
+}
+
+const cstrEq = (a, b) => cstr(a) === cstr(b);
+
+// Three-way merge against the other user's saved version:
+//   ancestor = frm.__server_doc (the values THIS client loaded — common ancestor)
+//   theirs   = the reloaded server values (the user who saved first)
+//   mine     = my_changes[field]
+// Fields only I changed auto-merge. Fields we BOTH changed to different values are
+// true conflicts: the user picks which version to keep per field, then it saves.
+async function recoverProjectConflict(frm, my_changes) {
+	// Capture the common ancestor for my changed fields BEFORE reload overwrites it.
+	const ancestor = frm.__server_doc || {};
+	const ancestorVals = {};
+	Object.keys(my_changes).forEach((f) => {
+		ancestorVals[f] = ancestor[f];
+	});
+
+	// Pull the other user's version (their edits + who saved + fresh timestamp).
+	frm.doc.__unsaved = 0; // avoid the "unsaved changes" navigation guard
+	await frm.reload_doc();
+	frm.__server_doc = $.extend(true, {}, frm.doc);
+	let other_user = frm.doc.modified_by;
+
+	// Classify each of my edited fields.
+	const autoFields = []; // only I changed → safe to keep mine
+	const conflicts = []; // we both changed to different values → ask the user
+	Object.keys(my_changes).forEach((f) => {
+		const mine = my_changes[f];
+		const theirs = frm.doc[f];
+		if (cstrEq(theirs, ancestorVals[f])) {
+			autoFields.push(f); // they didn't touch this field
+		} else if (cstrEq(mine, theirs)) {
+			// we independently ended up with the same value — nothing to do
+		} else {
+			const df = frappe.meta.get_docfield(frm.doctype, f);
+			conflicts.push({ field: f, mine, theirs, fieldtype: df ? df.fieldtype : "Data" });
+		}
+	});
+
+	// Build the final value map to apply on top of their version.
+	const resolved = {};
+	autoFields.forEach((f) => {
+		resolved[f] = my_changes[f];
+	});
+
+	if (conflicts.length) {
+		const choices = await showConflictResolutionDialog(frm, other_user, conflicts);
+		if (choices) {
+			conflicts.forEach((c) => {
+				resolved[c.field] = choices[c.field] === "theirs" ? c.theirs : c.mine;
+			});
+		}
+		// choices === null → user chose to discard their own conflicting edits;
+		// keep theirs (already loaded), apply only the non-conflicting autoFields.
+	}
+
+	const applyResolved = () => {
+		Object.keys(resolved).forEach((f) => frm.set_value(f, resolved[f]));
+	};
+	applyResolved();
+
+	const touched = Object.keys(resolved);
+	if (!frm.is_dirty()) {
+		// Everything resolved to their version — nothing of ours left to save.
+		return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
+	}
+
+	// Auto-save the merged document. A short retry loop covers the rare case of
+	// yet another save landing while we merge. __conflict_autosaving keeps this
+	// save from re-entering recovery; frm.save() still runs validate/before_save.
+	frm.__conflict_autosaving = true;
+	try {
+		for (let attempt = 0; attempt < 3; attempt++) {
+			// Make sure we're on top of the very latest before writing.
+			const info = await getProjectDbInfo(frm);
+			if (info && info.modified && info.modified !== frm.doc.modified) {
+				other_user = info.modified_by;
+				frm.doc.__unsaved = 0;
+				await frm.reload_doc();
+				frm.__server_doc = $.extend(true, {}, frm.doc);
+				applyResolved();
+				if (!frm.is_dirty()) {
+					return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
+				}
+			}
+
+			await frm.save();
+
+			if (!frm.is_dirty()) {
+				frm.__server_doc = $.extend(true, {}, frm.doc);
+				return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
+			}
+		}
+		// Couldn't auto-save after retries — data is on screen, ask the user.
+		showConflictResolvedModal(frm, other_user, touched, false, conflicts.length > 0);
+	} catch (e) {
+		// e.g. validation failed on the merged doc — keep the user's data on screen.
+		console.error("Project conflict auto-save failed", e);
+		showConflictResolvedModal(frm, other_user, touched, false, conflicts.length > 0);
+	} finally {
+		frm.__conflict_autosaving = false;
+	}
+}
+
+// Per-field conflict picker. Resolves to { field: "mine" | "theirs" }, or null if
+// the user chooses to discard their own conflicting edits and keep the other user's.
+async function showConflictResolutionDialog(frm, other_user_id, conflicts) {
+	const who = await resolveUserName(other_user_id);
+	const esc = (v) => frappe.utils.escape_html(cstr(v));
+	// Render a readable, ESCAPED preview. Rich-text (Text Editor) values are first
+	// flattened to plain text so we never inject stored HTML into the DOM.
+	const valBox = (v, fieldtype) => {
+		const readable = CONFLICT_HTML_FIELDTYPES.has(fieldtype) ? conflictHtmlToText(v) : cstr(v);
+		const s = frappe.utils.escape_html(readable);
+		return s
+			? `<div style="white-space:pre-wrap;word-break:break-word;margin-top:4px;max-height:160px;overflow:auto;">${s}</div>`
+			: `<div style="margin-top:4px;color:#9ca3af;font-style:italic;">${__("(empty)")}</div>`;
+	};
+
+	return new Promise((resolve) => {
+		const rows = conflicts
+			.map((c, i) => {
+				const label = esc(__(frappe.meta.get_label(frm.doctype, c.field)));
+				return `
+			<div style="margin-bottom:18px;">
+				<div style="font-weight:600;margin-bottom:8px;">${label}</div>
+				<label class="pcr-opt" style="display:block;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer;">
+					<span><input type="radio" name="pcr_${i}" value="mine" checked style="margin-right:8px;"><b>${__("Your version")}</b></span>
+					${valBox(c.mine, c.fieldtype)}
+				</label>
+				<label class="pcr-opt" style="display:block;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;cursor:pointer;">
+					<span><input type="radio" name="pcr_${i}" value="theirs" style="margin-right:8px;"><b>${esc(who)} — ${__("their version")}</b></span>
+					${valBox(c.theirs, c.fieldtype)}
+				</label>
+			</div>`;
+			})
+			.join("");
+
+		const d = new frappe.ui.Dialog({
+			title: __("Resolve editing conflict"),
+			size: "large",
+			fields: [{ fieldtype: "HTML", fieldname: "body" }],
+			primary_action_label: __("Keep selected & Save"),
+			primary_action: () => {
+				const choices = {};
+				conflicts.forEach((c, i) => {
+					const sel = d.$wrapper.find(`input[name="pcr_${i}"]:checked`).val() || "mine";
+					choices[c.field] = sel;
+				});
+				d.hide();
+				resolve(choices);
+			},
+			secondary_action_label: __("Discard my changes"),
+			secondary_action: () => {
+				d.hide();
+				resolve(null);
+			},
+		});
+
+		d.fields_dict.body.$wrapper.html(`
+			<div style="font-size:13px;line-height:1.5;">
+				<p style="margin:0 0 14px;"><b>${esc(who)}</b> ${__(
+					"edited the same field(s) and saved first. Choose which version to keep for each:"
+				)}</p>
+				${rows}
+			</div>
+		`);
+
+		// Highlight the selected option for clarity.
+		const paint = () => {
+			d.$wrapper.find(".pcr-opt").each(function () {
+				const checked = $(this).find("input[type=radio]").prop("checked");
+				$(this).css({
+					"border-color": checked ? "#2563eb" : "#e5e7eb",
+					background: checked ? "#eff6ff" : "#fff",
+				});
+			});
+		};
+		d.$wrapper.on("change", "input[type=radio]", paint);
+		d.show();
+		paint();
+	});
+}
+
+async function resolveUserName(user_id) {
+	if (!user_id) return __("another user");
+	try {
+		const r = await frappe.db.get_value("User", user_id, "full_name");
+		return (r && r.message && r.message.full_name) || user_id;
+	} catch (e) {
+		return user_id;
+	}
+}
+
+async function showConflictResolvedModal(frm, other_user_id, fields, saved, hadConflicts) {
+	const who = await resolveUserName(other_user_id);
+	const esc = (v) => frappe.utils.escape_html(String(v));
+
+	const labels = fields.map((f) => __(frappe.meta.get_label(frm.doctype, f)));
+	const list_html = labels.length
+		? `<ul style="margin:6px 0 0 18px;padding:0;">${labels.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>`
+		: `<p style="margin:6px 0 0;color:#6b7280;">${__("No field of yours needed re-applying.")}</p>`;
+
+	const saved_msg = hadConflicts
+		? __("Your selected versions were saved.")
+		: __("Your changes were merged and saved.");
+
+	const status_html = saved
+		? `<p style="margin:14px 0 0;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;color:#166534;">
+			✔ <b>${saved_msg}</b>
+		   </p>`
+		: `<p style="margin:14px 0 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;color:#92400e;">
+			${__("We couldn't auto-save. Your changes are still on screen — please press Save.")}
+		   </p>`;
+
+	const intro = hadConflicts
+		? __("Your edits were merged with the latest version. These fields were saved:")
+		: labels.length
+			? __("Your edits were kept and merged into the latest version:")
+			: __("Your view has been updated to the latest version.");
+
+	const d = new frappe.ui.Dialog({
+		title: __("This Project was updated by another user"),
+		fields: [{ fieldtype: "HTML", fieldname: "body" }],
+		primary_action_label: __("OK"),
+		primary_action: () => d.hide(),
+	});
+
+	d.fields_dict.body.$wrapper.html(`
+		<div style="font-size:13px;line-height:1.55;">
+			<p style="margin:0;">
+				<b>${esc(who)}</b> ${__("saved changes to this Project while you were editing it.")}
+			</p>
+			<p style="margin:12px 0 0;">${intro}</p>
+			${labels.length ? list_html : ""}
+			${status_html}
+		</div>
+	`);
+
+	d.show();
+}
+// ---------------------------------------------------------------------------
 
 function showConfirmationDialog(frm, quotations, incomplete_requirements) {
 	const dialog = new frappe.ui.Dialog({
@@ -1156,7 +1525,14 @@ async function insertUpdateQueuePositionButton(frm) {
 
 	getSelect(doc.name).then((data) => {
 		frm.set_df_property('queue_position', 'options', data.options)
-		frm.set_value('queue_position', data.current)
+		// Only write when the position actually changed. Compared as strings because
+		// the queue service returns `current` as a number while the stored Select
+		// value is a string, so a strict set_value would mark the form dirty on every
+		// load and persist queue_position on unrelated saves — which made the queue
+		// backend fire "position updated" even when only e.g. internal notes changed.
+		if (cstr(frm.doc.queue_position) !== cstr(data.current)) {
+			frm.set_value('queue_position', data.current)
+		}
 	})
 }
 
