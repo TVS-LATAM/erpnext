@@ -73,7 +73,7 @@ class Quotation(SellingController):
 		lost_reasons: DF.TableMultiSelect[QuotationLostReasonDetail]
 		mileage: DF.Data | None
 		named_place: DF.Data | None
-		naming_series: DF.Literal["SAL-QTN-.YYYY.-"]
+		naming_series: DF.Literal["Q"]
 		net_total: DF.Currency
 		notes: DF.TextEditor | None
 		opportunity: DF.Link | None
@@ -101,7 +101,7 @@ class Quotation(SellingController):
 		shipping_address_name: DF.Link | None
 		shipping_rule: DF.Link | None
 		source: DF.Link | None
-		status: DF.Literal["Draft", "Open", "Approved", "Declined", "Replied", "Partially Ordered", "Ordered", "Paid", "Lost", "Cancelled", "Expired"]
+		status: DF.Literal["Draft", "Open", "Approved", "Declined", "Replied", "Partially Ordered", "Ordered", "Partially Paid", "Paid", "Lost", "Cancelled", "Expired"]
 		supplier_quotation: DF.Link | None
 		tax_category: DF.Link | None
 		taxes: DF.Table[SalesTaxesandCharges]

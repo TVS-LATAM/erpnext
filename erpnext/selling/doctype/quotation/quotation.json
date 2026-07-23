@@ -160,13 +160,14 @@
    "print_hide": 1
   },
   {
+   "default": "Q",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "label": "Series",
    "no_copy": 1,
    "oldfieldname": "naming_series",
    "oldfieldtype": "Select",
-   "options": "SAL-QTN-.YYYY.-",
+   "options": "Q",
    "print_hide": 1,
    "reqd": 1,
    "set_only_once": 1
@@ -1176,7 +1177,7 @@
  "idx": 82,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-06-09 17:26:55.426359",
+ "modified": "2026-07-21 21:40:36.369410",
  "modified_by": "Administrator",
  "module": "Selling",
  "name": "Quotation",
@@ -1278,27 +1279,27 @@
    "write": 1
   },
   {
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "Junior Mechanic",
-    "share": 1,
-    "submit": 1,
-    "write": 1
-   },
-   {
-    "email": 1,
-    "export": 1,
-    "print": 1,
-    "read": 1,
-    "report": 1,
-    "role": "Senior Mechanic",
-    "share": 1,
-    "submit": 1,
-    "write": 1
-   }
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Junior Mechanic",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Senior Mechanic",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
  ],
  "row_format": "Dynamic",
  "search_fields": "status,transaction_date,party_name,order_type",
