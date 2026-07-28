@@ -9,7 +9,14 @@ DOCTYPE_DIR = Path(__file__).parent
 # field is a test failure instead of a shorter loop that still passes.
 EXPECTED_SECTION_NOTES = {
 	"arrival_checklist": {"arrival_items": "arrival_notes"},
-	"job_checklist": {"job_items": "job_notes"},
+	"job_checklist": {
+		"pre_test_drive_items": "pre_test_drive_notes",
+		"test_drive_items": "test_drive_notes",
+		"fault_code_items": "fault_code_notes",
+		"tuning_items": "tuning_notes",
+		"status_items": "status_notes",
+		"final_check_items": "final_check_notes",
+	},
 	"quality_control_checklist": {
 		"before_qc_items": "before_qc_notes",
 		"during_qc_items": "during_qc_notes",
@@ -30,7 +37,11 @@ EXPECTED_SECTION_NOTES = {
 GENERAL_NOTES_LABEL = "General Notes"
 EXPECTED_NOTE_LABELS = {
 	"arrival_notes": "Arrival Checks Notes",
-	"job_notes": "Work Execution Checks Notes",
+	"pre_test_drive_notes": "Before Test Drive Notes",
+	"test_drive_notes": "During Test Drive Notes",
+	"fault_code_notes": "Fault Codes (DTC) Notes",
+	"tuning_notes": "Tuning Checks Notes",
+	"status_notes": "Vehicle Status Notes",
 	"before_qc_notes": "Before Quality Control Notes",
 	"during_qc_notes": "During Quality Control Notes",
 	"invoice_notes": "Invoice and Delivery Notes",

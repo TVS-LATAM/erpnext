@@ -177,7 +177,7 @@ class TestProjectChecklistRender(unittest.TestCase):
 		# get_list(fields: ["*"]) returns scalar parent fields only; child
 		# table rows arrive only from frappe.db.get_doc(). If hydrate only
 		# copies photos/files, the modal's grid renderer receives empty
-		# arrival_items/job_items/etc. and shows "No checklist rows" even
+		# arrival_items/test_drive_items/etc. and shows "No checklist rows" even
 		# when the checklist form itself has selected values.
 		body = _extract_function(self.source, "hydrateChecklistDocs")
 		self.assertIn("checklistItemTableFieldnames(doctype)", body)

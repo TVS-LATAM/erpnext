@@ -29,18 +29,63 @@ CHECKLIST_TEMPLATES = {
 			("vehicle_safe_to_work_on", "Vehicle Safe to Work On"),
 		],
 	},
+	# Carries the workshop's "TVS Proefrit CHECKLIST" sheet: 32 rows over the
+	# sheet's own 6 sections, in sheet order. This REPLACED an earlier
+	# 10-row generic "work execution" list that was not derived from any
+	# customer sheet -- the workshop confirmed those rows can be discarded,
+	# so their legacy fieldnames (work_instructions_reviewed, ...) are gone
+	# from this table and the answer migration patch no longer carries them.
+	# That is the one sanctioned exception to the "never edit an existing
+	# entry's legacy fieldname" rule in this module's header.
+	#
+	# The legacy fieldnames below never existed as flat Select columns (this
+	# doctype was already on child tables when the sheet landed), so the
+	# patch's `existing_columns` gate skips every one of them. They are kept
+	# only to hold the template's (legacy_fieldname, description) shape.
 	"Job Checklist": {
-		"job_items": [
-			("work_instructions_reviewed", "Work Instructions Reviewed"),
-			("parts_and_fluids_verified", "Parts and Fluids Verified"),
-			("vehicle_protected", "Vehicle Protected Before Work"),
-			("work_performed_to_specification", "Work Performed to Specification"),
-			("fasteners_torqued", "Fasteners Torqued to Specification"),
-			("fluid_levels_checked", "Fluid Levels Checked"),
-			("leaks_checked", "Leaks Checked"),
-			("faults_or_deviations_recorded", "Faults or Deviations Recorded"),
-			("work_area_cleaned", "Work Area Cleaned"),
-			("post_work_test_completed", "Post-work Test Completed"),
+		"pre_test_drive_items": [
+			("basic_adjustment_completed", "Basic Adjustment Completed"),
+			("test_drive_reason_known", "Reason for Test Drive Known"),
+		],
+		"test_drive_items": [
+			("clutch_adapted_while_driving", "Clutch Adapted While Driving"),
+			("clutch_adaptation_within_tolerance", "Clutch Adaptation Within Tolerance"),
+			("clutch_full_throttle_within_tolerance", "Clutch Full Throttle Within Tolerance"),
+			("clutch_free_of_vibration", "Clutch Free of Vibration While Driving"),
+			("pulling_away_forwards_smooth", "Pulling Away Forwards Is Smooth"),
+			("pulling_away_reverse_smooth", "Pulling Away in Reverse Is Smooth"),
+			("gearbox_play_noticeable", "Gearbox Play Noticeable"),
+			("gearbox_noises_audible", "Gearbox Noises Audible"),
+			("shift_flares_observed", "Shift Flares Observed"),
+			("oil_smell_detected", "Oil Smell Detected"),
+			("oil_leakage_on_driveway", "Oil Leakage Observed on the Driveway"),
+		],
+		"fault_code_items": [
+			("vehicle_free_of_faults", "Vehicle Free of Faults"),
+			("engine_free_of_faults", "Engine Free of Faults"),
+			("dsg_free_of_faults", "DSG Free of Faults"),
+		],
+		"tuning_items": [
+			("flywheel_holds_torque", "Flywheel Holds the Torque"),
+			("clutch_holds_torque", "Clutch Holds the Torque"),
+			("lambda_correction_within_tolerance", "Lambda Correction Within Tolerance (+/- 10%)"),
+			("boost_pressure_follows_spec", "Boost Pressure Follows Specified Value (+/- 0.1 bar)"),
+			("knocking_within_tolerance", "Knocking Within Tolerance (4.5 max)"),
+		],
+		"status_items": [
+			("vehicle_drives_well", "Vehicle Drives Well"),
+			("engine_runs_well", "Engine Runs Well"),
+			("tuning_clearly_noticeable", "Tuning Clearly Noticeable"),
+			("no_remarks", "No Remarks"),
+		],
+		"final_check_items": [
+			("full_vehicle_fault_scan_saved", "Full Vehicle Fault Code Scan Saved"),
+			("adaptation_values_saved", "Adaptation Values Saved"),
+			("vehicle_reassembled", "Vehicle Reassembled"),
+			("steering_wheel_straight", "Steering Wheel Straight"),
+			("interior_clean", "Interior Clean"),
+			("exterior_clean", "Exterior Clean"),
+			("ready_for_delivery", "Ready for Delivery"),
 		],
 	},
 	"Quality Control Checklist": {

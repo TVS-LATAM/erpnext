@@ -406,3 +406,4 @@ erpnext.automotive.patches.backfill_vehicles
 erpnext.automotive.patches.backfill_vehicle_model_typical_codes
 erpnext.patches.v14_0.migrate_checklist_attachments_to_child_tables
 erpnext.patches.v14_0.migrate_checklist_answers_to_child_tables
+erpnext.patches.v14_0.seed_proefrit_rows_on_existing_job_checklists

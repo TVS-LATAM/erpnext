@@ -22,7 +22,14 @@ ANSWER_OPTIONS = "\nYes\nNo\nN/A"
 # only the shared cross-doctype metadata contract.
 CHECKLIST_ITEM_TABLES = {
 	"Arrival Checklist": {"arrival_items"},
-	"Job Checklist": {"job_items"},
+	"Job Checklist": {
+		"pre_test_drive_items",
+		"test_drive_items",
+		"fault_code_items",
+		"tuning_items",
+		"status_items",
+		"final_check_items",
+	},
 	"Quality Control Checklist": {"before_qc_items", "during_qc_items", "invoice_items"},
 	"DSG Oil Change Checklist": {
 		"before_dsg_items",

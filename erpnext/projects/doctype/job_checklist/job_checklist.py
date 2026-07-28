@@ -21,10 +21,17 @@ class JobChecklist(Document):
 		attachments: DF.Table[ChecklistAttachment]
 		check_date: DF.Date | None
 		checked_by: DF.Link | None
-		job_items: DF.Table[ChecklistItem]
+		fault_code_items: DF.Table[ChecklistItem]
+		final_check_items: DF.Table[ChecklistItem]
+		licence_plate: DF.Data | None
 		notes: DF.Text | None
 		photos: DF.Table[ChecklistPhoto]
+		pre_test_drive_items: DF.Table[ChecklistItem]
 		project: DF.Link | None
+		status_items: DF.Table[ChecklistItem]
+		test_drive_items: DF.Table[ChecklistItem]
+		tuning_items: DF.Table[ChecklistItem]
+		vehicle_model: DF.Data | None
 	# end: auto-generated types
 	def before_insert(self):
 		# Server-side backstop (design Decision 2): the client `onload` seed

@@ -17,7 +17,17 @@ ANSWER_OPTIONS = "\nYes\nNo\nN/A"
 # (design Rev 2 "Verified counts" table) -- QC is 10/14/6, never 11/13/6.
 EXPECTED_SECTION_COUNTS = {
 	"Arrival Checklist": {"arrival_items": 8},
-	"Job Checklist": {"job_items": 10},
+	# Job Checklist mirrors the "TVS Proefrit CHECKLIST" sheet: 32 rows over
+	# the sheet's own 6 sections (PRE / TIJDENS TESTRIT / DTC / GETUNED?! /
+	# STATUS / NACONTROLE), in that order.
+	"Job Checklist": {
+		"pre_test_drive_items": 2,
+		"test_drive_items": 11,
+		"fault_code_items": 3,
+		"tuning_items": 5,
+		"status_items": 4,
+		"final_check_items": 7,
+	},
 	"Quality Control Checklist": {
 		"before_qc_items": 10,
 		"during_qc_items": 14,
@@ -135,6 +145,8 @@ class TestChecklistTemplates(unittest.TestCase):
 
 	def test_get_template_returns_description_only_rows_per_table(self):
 		template = get_template("Job Checklist")
-		self.assertEqual(set(template.keys()), {"job_items"})
-		self.assertEqual(len(template["job_items"]), 10)
-		self.assertEqual(template["job_items"][0], {"description": "Work Instructions Reviewed"})
+		self.assertEqual(set(template.keys()), set(EXPECTED_SECTION_COUNTS["Job Checklist"]))
+		self.assertEqual(len(template["test_drive_items"]), 11)
+		self.assertEqual(
+			template["pre_test_drive_items"][0], {"description": "Basic Adjustment Completed"}
+		)
