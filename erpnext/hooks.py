@@ -34,28 +34,53 @@ doctype_js = {
 	"Event": "public/js/event.js",
 	"Newsletter": "public/js/newsletter.js",
 	"Contact": "public/js/contact.js",
-	# checklist_pure.js is loaded here too so the "View Checklists" dialog
-	# (project.js) can call erpnext.checklist_pure.countChecklistAnswers.
-	"Project": ["public/js/projects/payment_validation.js", "public/js/checklist_pure.js"],
-	# checklist_pure.js MUST load before checklist_grid.js: the adapter calls
-	# erpnext.checklist_pure.* at handler-registration time.
+	# checklist_pure.js and checklist_zones.js are loaded here too so the
+	# "View Checklists" dialog (project.js) can call
+	# erpnext.checklist_pure.countChecklistAnswers and label each photo with
+	# the part of the car it documents. Project deliberately does NOT load
+	# checklist_vehicle_diagram.js -- it has no diagram and no uploader on it,
+	# and needing only the vocabulary is why that vocabulary is its own file.
+	"Project": [
+		"public/js/projects/payment_validation.js",
+		"public/js/checklist_pure.js",
+		"public/js/checklist_zones.js",
+	],
+	# Load order is handler-run order, and three dependencies ride on it:
+	# checklist_pure.js MUST load before checklist_grid.js (the adapter calls
+	# erpnext.checklist_pure.* at handler-registration time),
+	# checklist_attachments.js MUST load before checklist_vehicle_diagram.js
+	# (the diagram registers into erpnext.checklists.afterRender and paints
+	# into the uploader container that file builds), and checklist_zones.js
+	# MUST load before both of them (they resolve zone labels through it).
 	"Arrival Checklist": [
+		"public/js/checklist_worksheet.js",
+		"public/js/checklist_zones.js",
 		"public/js/checklist_attachments.js",
+		"public/js/checklist_vehicle_diagram.js",
 		"public/js/checklist_pure.js",
 		"public/js/checklist_grid.js",
 	],
 	"Job Checklist": [
+		"public/js/checklist_worksheet.js",
+		"public/js/checklist_zones.js",
 		"public/js/checklist_attachments.js",
+		"public/js/checklist_vehicle_diagram.js",
 		"public/js/checklist_pure.js",
 		"public/js/checklist_grid.js",
 	],
 	"Quality Control Checklist": [
+		"public/js/checklist_worksheet.js",
+		"public/js/checklist_zones.js",
 		"public/js/checklist_attachments.js",
+		"public/js/checklist_vehicle_diagram.js",
 		"public/js/checklist_pure.js",
 		"public/js/checklist_grid.js",
 	],
 	"DSG Oil Change Checklist": [
+		"public/js/checklist_worksheet.js",
+		"public/js/checklist_zones.js",
 		"public/js/checklist_attachments.js",
+		"public/js/checklist_vehicle_diagram.js",
 		"public/js/checklist_pure.js",
 		"public/js/checklist_grid.js",
 	],

@@ -10,6 +10,7 @@
   "checked_by",
   "checklist_section",
   "job_items",
+  "job_notes",
   "notes_section",
   "notes",
   "attachments_section",
@@ -53,14 +54,22 @@
    "options": "Checklist Item"
   },
   {
+   "fieldname": "job_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Work Execution Checks Notes"
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "notes",
    "fieldname": "notes_section",
    "fieldtype": "Section Break",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "fieldname": "notes",
    "fieldtype": "Text",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "fieldname": "attachments_section",

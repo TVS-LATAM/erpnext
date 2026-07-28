@@ -1344,6 +1344,35 @@ function checklistItemTableFieldnames(doctype) {
 	return fields.filter((f) => f.fieldtype === "Table" && f.options === "Checklist Item").map((f) => f.fieldname);
 }
 
+// Per-section note fields (checklist_grid.js's collapsible note strip) follow
+// the `<table>_items` -> `<table>_notes` convention, so they are recognised by
+// name rather than listed here -- adding a section to a checklist JSON must not
+// require a matching edit in this file.
+const CHECKLIST_NOTE_SUFFIX = "_notes";
+
+function isChecklistNoteField(fieldname) {
+	return typeof fieldname === "string" && fieldname.endsWith(CHECKLIST_NOTE_SUFFIX);
+}
+
+// Fieldnames of every per-section note field on `doctype`. Derived from meta
+// for the same reason checklistItemTableFieldnames is: a new section
+// self-populates, and a checklist that never gains one contributes nothing.
+function checklistNoteFieldnames(doctype) {
+	const meta = frappe.get_meta(doctype);
+	const fields = (meta && meta.fields) || [];
+	return fields.filter((f) => isChecklistNoteField(f.fieldname)).map((f) => f.fieldname);
+}
+
+// A field's own label off the doctype meta. The modal summarises the checklist
+// form, so any heading it writes as a literal is a second source of truth that
+// contradicts the form the day the JSON is relabelled -- which is exactly how
+// this card kept printing "Notes" over a field the JSON calls "General Notes".
+function checklistFieldLabel(doctype, fieldname, fallback) {
+	const meta = frappe.get_meta(doctype);
+	const matches = ((meta && meta.fields) || []).filter((f) => f.fieldname === fieldname);
+	return matches.length && matches[0].label ? __(matches[0].label) : fallback;
+}
+
 // Escapes a value for safe insertion into HTML. Returns an em dash for empties.
 function cklEsc(value) {
 	if (value === null || value === undefined) return "—";
@@ -1480,7 +1509,13 @@ function insertViewChecklistsButton(frm) {
 // Child-table file fields (photos, attachments) are not returned by get_list on
 // the parent. Querying the child DocTypes directly is blocked because they are
 // `istable`, so fetch each checklist's full document (child rows come embedded)
-// and stash the urls on each doc as __photos / __files for the card renderer.
+// and stash the files on each doc as __photos / __files for the card renderer.
+//
+// Photos are kept as {url, zone} objects rather than a bare url list: a photo
+// is filed against a part of the car (Checklist Photo.zone, set by the vehicle
+// diagram on the checklist form), and flattening that away here would destroy
+// the attribution before the renderer ever sees it -- no later stage could
+// recover it. Attachments have no zone, so they stay a plain url list.
 // Named "hydrate" rather than "attach" (task 4.6): the earlier name
 // collided with the unrelated "Attach"/"Attach Image" fieldtype vocabulary
 // used elsewhere in this file (renderChecklistFieldRow, renderChecklistAttachmentTile).
@@ -1493,9 +1528,19 @@ async function hydrateChecklistDocs(doctype, docs) {
 				checklistTableFieldnames.forEach((fieldname) => {
 					doc[fieldname] = full[fieldname] || [];
 				});
-				doc.__photos = (full.photos || []).map((row) => row.image).filter(Boolean);
+				doc.__photos = (full.photos || [])
+					.filter((row) => row.image)
+					.map((row) => ({ url: row.image, zone: row.zone }));
 				doc.__files = (full.attachments || []).map((row) => row.file).filter(Boolean);
 			} catch (error) {
+				// Resetting every table to [] makes the card render "No
+				// checklist rows" -- byte for byte what a genuinely blank
+				// checklist looks like. A service advisor reading that has no
+				// way to tell the fetch failed and the answers do exist, so
+				// the card is told to say so instead of quietly showing less
+				// data than there is.
+				console.error(`Could not load checklist ${doctype} ${doc.name}`, error);
+				doc.__loadFailed = true;
 				checklistTableFieldnames.forEach((fieldname) => {
 					doc[fieldname] = [];
 				});
@@ -1516,7 +1561,15 @@ async function hydrateChecklistDocs(doctype, docs) {
 // long after the full doctype_js bundle -- which includes
 // public/js/checklist_pure.js on "Project" -- has finished evaluating.
 function summarizeChecklistAnswers(doctype, doc) {
-	return erpnext.checklist_pure.countChecklistAnswers(doc, checklistItemTableFieldnames(doctype), CHECKLIST_COUNT_EXCLUDED);
+	// The per-section notes join the excluded set for exactly the reason the
+	// document-level `notes` field already sits in CHECKLIST_HEADER_FIELDS:
+	// countChecklistAnswers walks every top-level key and treats a value of
+	// exactly "No" as an answer, so a mechanic whose whole note reads "No"
+	// would inflate that checklist's ✗ chip. Unioned per call rather than
+	// baked into the module-level CHECKLIST_COUNT_EXCLUDED because the note
+	// fieldnames are per-doctype and read from meta.
+	const excluded = new Set([...CHECKLIST_COUNT_EXCLUDED, ...checklistNoteFieldnames(doctype)]);
+	return erpnext.checklist_pure.countChecklistAnswers(doc, checklistItemTableFieldnames(doctype), excluded);
 }
 
 // Renders a single field as a label/value row, color-coding Yes/No/N/A answers
@@ -1588,6 +1641,17 @@ function renderChecklistItemGrid(rows) {
 		</div>`;
 }
 
+// A section note is free text a mechanic typed, often several lines. Routed
+// through renderChecklistFieldRow it lands in `.ckl-val`, which the dialog
+// stylesheet gives `white-space: nowrap; text-align: right` -- correct for a
+// Yes/No pill or a date, and wrong here: the note renders as one unwrapped
+// line that runs off the card, so the modal shows the note without showing
+// all of it. Notes get the same pre-wrap block the document-level note uses.
+function renderChecklistNoteRow(field, value) {
+	const label = __(field.label || field.fieldname);
+	return `<div class="ckl-subsection">${cklEsc(label)}</div><div class="ckl-notes">${cklEsc(value)}</div>`;
+}
+
 function renderChecklistSectionRows(rows) {
 	const parts = [];
 	let fieldRows = [];
@@ -1603,6 +1667,11 @@ function renderChecklistSectionRows(rows) {
 		if (row.kind === "checklistItemTable") {
 			flushFieldRows();
 			parts.push(renderChecklistItemGrid(row.rows));
+		} else if (row.kind === "note") {
+			// Flushed first so the note lands under its section's answer grid
+			// rather than inside the two-column .ckl-fields layout.
+			flushFieldRows();
+			parts.push(renderChecklistNoteRow(row.field, row.value));
 		} else {
 			fieldRows.push(row);
 		}
@@ -1646,6 +1715,16 @@ function renderChecklistFields(doctype, doc) {
 		}
 		if (CHECKLIST_LAYOUT_FIELDTYPES.has(field.fieldtype)) continue;
 		if (CHECKLIST_HEADER_FIELDS.has(field.fieldname)) continue;
+		if (isChecklistNoteField(field.fieldname)) {
+			// A section note is worth rendering only when it says something.
+			// Printed unconditionally it adds "Notes —" under every section,
+			// which on the DSG checklist is 4 empty rows of noise in a modal
+			// whose entire job is a quick scan.
+			if (doc[field.fieldname]) {
+				current.rows.push({ kind: "note", field, value: doc[field.fieldname] });
+			}
+			continue;
+		}
 		current.rows.push({ kind: "field", field, value: doc[field.fieldname] });
 	}
 	if (current.rows.length) sections.push(current);
@@ -1667,8 +1746,22 @@ function renderChecklistCard(doctype, doc) {
 	const checkedBy = doc.checked_by || "—";
 
 	const tiles = [];
-	(doc.__photos || []).forEach((url, i) =>
-		tiles.push(renderChecklistAttachmentTile(url, doc.__photos.length > 1 ? __("Photo {0}", [i + 1]) : __("Photo")))
+	// Photos are labelled with the part of the car they document and ordered
+	// by where that part sits on the vehicle diagram, so shots of the same
+	// panel land next to each other however they were uploaded. "Photo 1 /
+	// Photo 2 / Photo 3" -- what this used to print -- tells a service
+	// advisor scanning the modal nothing at all.
+	//
+	// The label comes from erpnext.checklist_zones (wired to Project via
+	// doctype_js) rather than a local map: the dialog and the checklist form
+	// must never disagree about what a zone is called. Sorted on a copy --
+	// __photos belongs to the doc, and sorting in place would reorder it for
+	// every later render.
+	const photos = (doc.__photos || [])
+		.slice()
+		.sort((a, b) => erpnext.checklist_zones.rank(a.zone) - erpnext.checklist_zones.rank(b.zone));
+	photos.forEach((photo) =>
+		tiles.push(renderChecklistAttachmentTile(photo.url, erpnext.checklist_zones.label(photo.zone)))
 	);
 	(doc.__files || []).forEach((url, i) =>
 		tiles.push(renderChecklistAttachmentTile(url, doc.__files.length > 1 ? __("File {0}", [i + 1]) : __("File")))
@@ -1677,8 +1770,19 @@ function renderChecklistCard(doctype, doc) {
 		? `<div class="ckl-subsection">${__("Attachments")}</div><div class="ckl-attachments">${tiles.join("")}</div>`
 		: "";
 
+	// Heading read off the docfield, not written here: the card now shows a
+	// note per section too, so "Notes" over the document-level one no longer
+	// says which note it is -- and only the JSON knows what it is called.
 	const notesLine = doc.notes
-		? `<div class="ckl-subsection">${__("Notes")}</div><div class="ckl-notes">${cklEsc(doc.notes)}</div>`
+		? `<div class="ckl-subsection">${cklEsc(
+				checklistFieldLabel(doctype, "notes", __("General Notes"))
+			)}</div><div class="ckl-notes">${cklEsc(doc.notes)}</div>`
+		: "";
+
+	// A failed hydrate zeroes the answer chips and every grid. Saying so beats
+	// rendering a complete-looking but empty checklist.
+	const loadWarning = doc.__loadFailed
+		? `<div class="ckl-warning">${__("Could not load this checklist's answers — open it to see them.")}</div>`
 		: "";
 
 	return `
@@ -1698,6 +1802,7 @@ function renderChecklistCard(doctype, doc) {
 				</div>
 			</div>
 			<div class="ckl-card-body">
+				${loadWarning}
 				${renderChecklistFields(doctype, doc)}
 				${notesLine}
 				${attachBlock}
@@ -1735,7 +1840,8 @@ function showChecklistsDialog(frm, groups) {
 			.ckl-name { font-weight: 600; font-size: 14px; color: #111827; }
 			.ckl-meta { color: #6b7280; font-size: 12px; }
 			.ckl-card-body { padding: 6px 18px 18px; }
-			.ckl-notes { font-size: 12px; color: #4b5563; margin-top: 4px; white-space: pre-wrap; background: #f9fafb; border: 1px solid #eef0f2; border-radius: 8px; padding: 10px 12px; }
+			.ckl-notes { font-size: 12px; color: #4b5563; margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; background: #f9fafb; border: 1px solid #eef0f2; border-radius: 8px; padding: 10px 12px; }
+			.ckl-warning { font-size: 12px; font-weight: 600; color: #92400e; background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-top: 10px; }
 			.ckl-chips { display: flex; gap: 6px; }
 			.ckl-chip { font-size: 11px; padding: 3px 10px; border-radius: 999px; font-weight: 600; }
 			.ckl-yes { background: #dcfce7; color: #166534; }

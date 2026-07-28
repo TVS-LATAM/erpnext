@@ -55,11 +55,180 @@ class TestChecklistGridWiring(unittest.TestCase):
 		self.assertIn(".grid-row-check", self.grid_script)
 		self.assertIn("grid.wrapper", self.grid_script)
 
+	def test_answers_take_one_click_instead_of_activating_the_row_first(self):
+		# The reason the stock grid was replaced at all: grid_row.js:1029-1031
+		# calls toggle_editable_row() on the FIRST click of any cell, and only
+		# that call swaps the painted static_area for the real control -- so
+		# the checkbox does not exist yet when the first click lands, and
+		# answering costs two clicks per row, 8-14 times per checklist.
+		# The sheet binds one delegated handler that answers on click 1.
+		self.assertIn('$table.on("click", ".tvs-ckl-ans"', self.grid_script)
+		self.assertIn("event.preventDefault()", self.grid_script)
+
+	def test_tick_flips_the_field_before_delegating_to_the_pure_cascade(self):
+		# computeTickResult reads row[field] AFTER the flip
+		# (checklist_pure.js:16-18) -- it only decides the OTHER two answers.
+		# The stock grid got that flip from Frappe's change trigger; the sheet
+		# binds no control to the field, so it must flip first or every tick
+		# would be read as an untick and clear the row.
+		self.assertIn("row[field] = row[field] ? 0 : 1;", self.grid_script)
+		self.assertIn('erpnext.checklist_grid.onTick(frm, "Checklist Item", cdn, field)', self.grid_script)
+
+	def test_tick_dirties_the_form_independently_of_the_cascade(self):
+		# onTick only calls frm.dirty() when the cascade itself changed
+		# something. Re-ticking an already-answered row is a cascade no-op,
+		# but the flip above it is still a real edit -- without an unguarded
+		# frm.dirty() that answer would be lost on navigate-away.
+		click_handler = self.grid_script.split('$table.on("click", ".tvs-ckl-ans"')[1]
+		self.assertIn("frm.dirty();", click_handler.split("erpnext.checklist_grid.onTick")[0])
+
+	def test_sheet_container_survives_wrapper_being_the_grid_field_itself(self):
+		# REGRESSION. grid.js:119 is `this.wrapper = $(template).appendTo(...)`
+		# and that template's ROOT node is <div class="grid-field">, so
+		# grid.wrapper IS .grid-field. jQuery find() searches descendants only,
+		# so `grid.wrapper.find(".grid-field")` matches nothing and returns an
+		# empty set -- the first cut of the sheet hit its own guard clause and
+		# never rendered once, silently degrading to the stock grid.
+		# hasClass first, find() only as the fallback for a future Frappe that
+		# does nest it -- and renderSheet must go through that helper rather
+		# than resolving the container itself.
+		self.assertIn(
+			'return grid.wrapper.hasClass("grid-field") ? grid.wrapper : grid.wrapper.find(".grid-field");',
+			self.grid_script,
+		)
+		render_sheet = self.grid_script.split("erpnext.checklist_grid.renderSheet = function")[1]
+		self.assertIn("erpnext.checklist_grid.gridFieldOf(grid)", render_sheet)
+		self.assertNotIn('.find(".grid-field")', render_sheet)
+
+	def test_wrapper_scoped_css_does_not_expect_a_nested_grid_field(self):
+		# Same root cause on the CSS side: the class is applied to
+		# grid.wrapper, which IS .grid-field, so any selector of the form
+		# `.tvs-ckl-sheet-active .grid-field ...` needs a nested .grid-field
+		# that does not exist.
+		self.assertIn(".tvs-ckl-sheet-active > .control-label", self.grid_script)
+		self.assertNotIn(".tvs-ckl-sheet-active .grid-field", self.grid_script)
+
+	def test_native_grid_is_hidden_only_after_the_sheet_is_in_the_dom(self):
+		# Degraded path: if building the sheet throws, the stock grid must
+		# still be usable rather than leaving a section with no way to answer.
+		# So the hiding class is added after the append, never before.
+		body = self.grid_script.split("erpnext.checklist_grid.renderSheet = function")[1]
+		append_at = body.index("$gridField.append($wrap)")
+		activate_at = body.index('grid.wrapper.addClass("tvs-ckl-sheet-active")')
+		self.assertLess(append_at, activate_at)
+
+	def test_sheet_rebuilds_on_refresh_because_saving_replaces_child_docnames(self):
+		# Rows are addressed by data-ckl-cdn. Saving replaces every child doc
+		# and its docname, so handles cached in the DOM would point at docs
+		# that no longer exist in locals.
+		self.assertIn("refresh: erpnext.checklist_grid.renderSheets", self.grid_script)
+		self.assertIn('$gridField.find(".tvs-ckl-sheet-wrap").remove()', self.grid_script)
+
+	def test_row_data_is_never_interpolated_into_markup_or_selectors(self):
+		# description and who_did_it are rendered with .text()/.val(), and
+		# rows are located by filtering on the attribute rather than building
+		# a selector string, so neither can inject markup or break the query.
+		self.assertIn('$(\'<td class="tvs-ckl-desc"></td>\').text(description)', self.grid_script)
+		self.assertIn(".val(row.who_did_it", self.grid_script)
+		self.assertIn('return this.getAttribute("data-ckl-cdn") === cdn;', self.grid_script)
+
+	def test_category_band_reads_the_docfield_label_instead_of_a_hardcoded_map(self):
+		# The Excel sheets print the category vertically down the left edge
+		# (`PRE`, `TIJDENS TESTRIT`, ...). That text already exists as data --
+		# it is each Table docfield's own label -- so a hardcoded
+		# doctype -> band map would be a second source of truth that silently
+		# drifts the moment a section is renamed in the JSON.
+		self.assertIn("df.label", self.grid_script)
+		self.assertNotIn('"Before Quality Control"', self.grid_script)
+		self.assertNotIn('"During DSG Oil Change"', self.grid_script)
+
+	def test_hidden_table_label_stays_reachable_for_screen_readers(self):
+		# The band cell replaces the visible .control-label, but a <td> is not
+		# a heading and carries no accessible name for the region, so the real
+		# label must be clipped rather than display:none'd.
+		self.assertIn("clip: rect(0, 0, 0, 0)", self.grid_script)
+		self.assertNotIn(".grid-field > .control-label {\n\t\t\tdisplay: none", self.grid_script)
+
+	def test_only_one_style_element_is_injected_for_all_presentational_rules(self):
+		# The presentational helpers run once per Checklist Item table (up to
+		# 4 tables on the DSG checklist) on every form load; without a shared
+		# guard each pass would append another <style> to document.head.
+		self.assertIn("erpnext.checklist_grid._stylesInjected", self.grid_script)
+		self.assertEqual(self.grid_script.count("document.head.appendChild"), 1)
+
 	def test_new_form_seeding_has_a_catch_that_alerts_the_user(self):
 		# get_template() failing silently would leave a mechanic looking at
 		# an empty grid with add-row already hidden and no explanation.
 		self.assertIn(".catch(", self.grid_script)
 		self.assertIn("frappe.show_alert", self.grid_script)
+
+	def test_section_note_field_is_derived_by_convention_not_a_hardcoded_map(self):
+		# Same reasoning as the category band reading df.label: a
+		# doctype -> note-fieldname map here would be a second source of truth
+		# that drifts the moment a section is added or renamed in the JSON.
+		# The table fieldname already encodes it (`before_dsg_items` ->
+		# `before_dsg_notes`), and the derived name is validated against the
+		# doctype's own meta so a table without a sibling note simply renders
+		# no strip instead of binding to a field that does not exist.
+		self.assertIn("erpnext.checklist_grid.noteFieldFor", self.grid_script)
+		self.assertIn('"_items"', self.grid_script)
+		self.assertIn('"_notes"', self.grid_script)
+		self.assertNotIn('"before_dsg_notes"', self.grid_script)
+		self.assertNotIn('"arrival_notes"', self.grid_script)
+
+	def test_note_strip_lives_inside_the_wrap_that_rebuild_removes(self):
+		# renderSheet rebuilds by removing .tvs-ckl-sheet-wrap and building a
+		# fresh one. A note strip appended to $gridField instead would survive
+		# that removal, so every refresh (each save fires one) would stack
+		# another textarea under the sheet, all bound to the same field.
+		body = self.grid_script.split("erpnext.checklist_grid.renderSheet = function")[1]
+		append_note_at = body.index("erpnext.checklist_grid.renderNote(")
+		append_wrap_at = body.index("$gridField.append($wrap)")
+		self.assertLess(append_note_at, append_wrap_at)
+		self.assertIn("$wrap", body[append_note_at : append_note_at + 200])
+
+	def test_note_starts_collapsed_but_opens_when_it_already_has_content(self):
+		# The whole point of the collapse is that an empty note costs one row
+		# of height. But a note saved earlier must not be hidden behind a
+		# closed toggle -- that is data the mechanic wrote, invisible until
+		# someone happens to click. So: collapsed when empty, open when filled.
+		note = self.grid_script.split("erpnext.checklist_grid.renderNote = function")[1]
+		self.assertIn("Boolean(value)", note.split("expanded")[1][:200])
+		self.assertIn("aria-expanded", note)
+
+	def test_note_toggle_is_an_explicit_button_type(self):
+		# A <button> with no type defaults to type="submit". These sheets are
+		# rendered inside Frappe's form markup, so opening a note must not be
+		# able to submit anything.
+		self.assertIn('<button type="button"', self.grid_script)
+
+	def test_note_writes_straight_to_the_parent_doc_and_dirties_the_form(self):
+		# The note is a parent-doc field with no Control bound to it (the
+		# docfield is hidden precisely so the sheet owns it), so nothing else
+		# marks the form dirty -- without this the note is lost on
+		# navigate-away exactly like an unguarded answer tick would be.
+		#
+		# "input" and not just "change": change fires on blur, so typing a note
+		# and hitting Ctrl+S without leaving the textarea would save the
+		# document without it.
+		note = self.grid_script.split("erpnext.checklist_grid.renderNote = function")[1]
+		change_handler = note.split('.on("input change"')[1]
+		self.assertIn("frm.doc[noteField.fieldname] = ", change_handler)
+		self.assertIn("frm.dirty();", change_handler)
+
+	def test_note_is_read_only_when_the_grid_is(self):
+		# Submitted/cancelled checklists and users without write permission get
+		# a disabled textarea, the same way the answer checkboxes and the
+		# who_did_it inputs already do.
+		note = self.grid_script.split("erpnext.checklist_grid.renderNote = function")[1]
+		self.assertIn('.prop("disabled", !editable)', note)
+
+	def test_note_value_is_never_interpolated_into_markup(self):
+		# Stored note text is arbitrary free text typed by a mechanic. It goes
+		# in through .val()/.text(), never through an HTML string.
+		note = self.grid_script.split("erpnext.checklist_grid.renderNote = function")[1]
+		self.assertIn(".val(value)", note)
+		self.assertNotIn("+ value +", note)
 
 	def test_hooks_wire_pure_module_before_adapter_for_each_checklist(self):
 		for doctype_name in CHECKLISTS:

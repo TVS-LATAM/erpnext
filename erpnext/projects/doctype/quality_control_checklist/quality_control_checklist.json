@@ -14,10 +14,13 @@
   "checked_by",
   "before_quality_control_section",
   "before_qc_items",
+  "before_qc_notes",
   "during_quality_control_section",
   "during_qc_items",
+  "during_qc_notes",
   "invoice_section",
   "invoice_items",
+  "invoice_notes",
   "notes_section",
   "notes",
   "attachments_section",
@@ -84,6 +87,12 @@
    "options": "Checklist Item"
   },
   {
+   "fieldname": "before_qc_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Before Quality Control Notes"
+  },
+  {
    "fieldname": "during_quality_control_section",
    "fieldtype": "Section Break",
    "label": "During Quality Control"
@@ -93,6 +102,12 @@
    "fieldtype": "Table",
    "label": "During Quality Control",
    "options": "Checklist Item"
+  },
+  {
+   "fieldname": "during_qc_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "During Quality Control Notes"
   },
   {
    "fieldname": "invoice_section",
@@ -106,15 +121,23 @@
    "options": "Checklist Item"
   },
   {
+   "fieldname": "invoice_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Invoice and Delivery Notes"
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "notes",
    "fieldname": "notes_section",
    "fieldtype": "Section Break",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "description": "Explain every No answer.",
    "fieldname": "notes",
    "fieldtype": "Text",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "fieldname": "attachments_section",

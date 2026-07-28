@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "image",
+  "zone",
   "caption"
  ],
  "fields": [
@@ -15,6 +16,14 @@
    "in_list_view": 1,
    "label": "Image",
    "reqd": 1
+  },
+  {
+   "description": "Vehicle zone this photo documents. Assigned by clicking a region of the vehicle diagram; empty for general shots.",
+   "fieldname": "zone",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Vehicle Zone",
+   "read_only": 1
   },
   {
    "fieldname": "caption",

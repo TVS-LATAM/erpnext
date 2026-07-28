@@ -15,12 +15,16 @@
   "mileage",
   "before_dsg_oil_change_section",
   "before_dsg_items",
+  "before_dsg_notes",
   "during_dsg_oil_change_section",
   "during_dsg_items",
+  "during_dsg_notes",
   "after_dsg_oil_change_section",
   "after_dsg_items",
+  "after_dsg_notes",
   "final_check_section",
   "final_check_items",
+  "final_check_notes",
   "notes_section",
   "notes",
   "attachments_section",
@@ -94,6 +98,12 @@
    "options": "Checklist Item"
   },
   {
+   "fieldname": "before_dsg_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Before DSG Oil Change Notes"
+  },
+  {
    "fieldname": "during_dsg_oil_change_section",
    "fieldtype": "Section Break",
    "label": "During DSG Oil Change"
@@ -103,6 +113,12 @@
    "fieldtype": "Table",
    "label": "During DSG Oil Change",
    "options": "Checklist Item"
+  },
+  {
+   "fieldname": "during_dsg_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "During DSG Oil Change Notes"
   },
   {
    "fieldname": "after_dsg_oil_change_section",
@@ -116,6 +132,12 @@
    "options": "Checklist Item"
   },
   {
+   "fieldname": "after_dsg_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "After DSG Oil Change Notes"
+  },
+  {
    "fieldname": "final_check_section",
    "fieldtype": "Section Break",
    "label": "Final Check"
@@ -127,15 +149,23 @@
    "options": "Checklist Item"
   },
   {
+   "fieldname": "final_check_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Final Check Notes"
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "notes",
    "fieldname": "notes_section",
    "fieldtype": "Section Break",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "description": "Explain every No answer.",
    "fieldname": "notes",
    "fieldtype": "Text",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "fieldname": "attachments_section",

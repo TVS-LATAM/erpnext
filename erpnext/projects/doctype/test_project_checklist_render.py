@@ -97,6 +97,74 @@ class TestProjectChecklistRender(unittest.TestCase):
 			self.source,
 		)
 
+	def test_section_note_fields_are_excluded_from_the_answer_count(self):
+		# Same class of bug as the notes:"No" one PCD-1 already fixed, now with
+		# 9 more free-text fields on the parent doc: countChecklistAnswers
+		# walks every top-level key and counts a value of exactly "No" as an
+		# answer, so a mechanic writing just "No" in a section note would
+		# inflate that checklist's ✗ chip. The per-section note fieldnames are
+		# derived from meta rather than listed, so a new section is covered
+		# without touching this file.
+		body = _extract_function(self.source, "summarizeChecklistAnswers")
+		self.assertIn("checklistNoteFieldnames(doctype)", body)
+		# ...and that the union is a union, not a swap: dropping
+		# CHECKLIST_COUNT_EXCLUDED here would silently regress the
+		# vehicle_model/licence_plate/mileage guard [FIX-6].
+		self.assertIn("...CHECKLIST_COUNT_EXCLUDED", body)
+		derive = _extract_function(self.source, "checklistNoteFieldnames")
+		self.assertIn("isChecklistNoteField(f.fieldname)", derive)
+		self.assertIn('const CHECKLIST_NOTE_SUFFIX = "_notes";', self.source)
+		self.assertNotIn('"before_dsg_notes"', self.source)
+
+	def test_empty_section_notes_are_not_rendered_in_the_dialog(self):
+		# renderChecklistFields renders every non-header scalar field as a
+		# label/value row, printing "—" when empty. With a note field per
+		# section that is up to 4 empty rows of pure noise per checklist in a
+		# modal whose whole job is a quick scan.
+		body = _extract_function(self.source, "renderChecklistFields")
+		self.assertIn("isChecklistNoteField(field.fieldname)", body)
+
+	def test_free_text_notes_do_not_render_as_a_single_nowrap_value(self):
+		# renderChecklistFieldRow paints every scalar as `.ckl-val`, which the
+		# dialog stylesheet gives `white-space: nowrap; text-align: right`.
+		# That is right for a Yes/No pill or a date and WRONG for a note: a
+		# two-line note written by a mechanic renders as one unwrapped line
+		# that runs off the card, so the modal shows the data but not all of
+		# it. Notes get the same pre-wrap block the document-level note has.
+		self.assertIn("function renderChecklistNoteRow(", self.source)
+		body = _extract_function(self.source, "renderChecklistNoteRow")
+		self.assertIn("ckl-notes", body)
+		rows = _extract_function(self.source, "renderChecklistSectionRows")
+		self.assertIn("renderChecklistNoteRow", rows)
+
+	def test_note_block_style_actually_wraps(self):
+		# The pre-wrap rule is the point of routing notes to their own block,
+		# so pin it rather than trusting the class name.
+		match = re.search(r"\.ckl-notes\s*\{([^}]*)\}", self.source)
+		self.assertIsNotNone(match, ".ckl-notes rule not found")
+		self.assertIn("pre-wrap", match.group(1))
+
+	def test_document_level_note_label_comes_from_meta_not_a_literal(self):
+		# The card printed a hardcoded __("Notes") heading over doc.notes. With
+		# a note per section now also in the card, a heading that cannot
+		# follow the JSON's relabel is exactly how the modal ends up
+		# contradicting the form it summarises.
+		body = _extract_function(self.source, "renderChecklistCard")
+		self.assertNotIn('__("Notes")', body)
+		self.assertIn("checklistFieldLabel(doctype, \"notes\"", body)
+
+	def test_failed_hydration_is_not_silently_shown_as_an_empty_checklist(self):
+		# The catch resets every child table to [] and the card then renders
+		# "No checklist rows" -- indistinguishable from a genuinely empty
+		# checklist. A service advisor reading that modal has no way to know
+		# the fetch failed and the answers do exist.
+		body = _extract_function(self.source, "hydrateChecklistDocs")
+		catch_block = body.split("catch (error)")[1]
+		self.assertIn("console.error", catch_block)
+		self.assertIn("doc.__loadFailed = true", catch_block)
+		card = _extract_function(self.source, "renderChecklistCard")
+		self.assertIn("__loadFailed", card)
+
 	def test_hydrate_checklist_docs_rename(self):
 		# Task 4.6: attachChecklistFiles -> hydrateChecklistDocs, renamed
 		# EVERYWHERE (definition and call site) -- not just added alongside
@@ -136,3 +204,28 @@ class TestProjectChecklistRender(unittest.TestCase):
 		for label in ("Description", "Yes", "No", "N/A", "Who Did It"):
 			with self.subTest(label=label):
 				self.assertIn(label, body)
+
+	def test_hydrate_keeps_the_vehicle_zone_next_to_each_photo_url(self):
+		# Checklist photos are filed against a part of the car
+		# (Checklist Photo.zone, set by the vehicle diagram). Flattening the
+		# rows to a bare url list -- which is what hydrate used to do --
+		# throws that attribution away before the dialog can render it, and
+		# no later stage can recover it.
+		body = _extract_function(self.source, "hydrateChecklistDocs")
+		self.assertIn("zone: row.zone", body)
+		self.assertIn("url: row.image", body)
+
+	def test_photo_tiles_are_labelled_with_their_vehicle_zone(self):
+		# "Photo 1 / Photo 2 / Photo 3" tells a service advisor nothing.
+		# The label must be the part of the car, resolved through the shared
+		# vocabulary so the dialog and the checklist form never disagree.
+		body = _extract_function(self.source, "renderChecklistCard")
+		self.assertIn("erpnext.checklist_zones.label", body)
+
+	def test_photos_are_ordered_by_where_they_sit_on_the_car(self):
+		# Photos arrive in upload order, so same-zone shots end up scattered
+		# across the tile strip. Ordering by the vocabulary's own order (the
+		# order the parts are drawn) groups them without a heading, and is
+		# stable across UI languages -- an alphabetical sort is not.
+		body = _extract_function(self.source, "renderChecklistCard")
+		self.assertIn("erpnext.checklist_zones.rank", body)

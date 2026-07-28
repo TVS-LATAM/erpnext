@@ -12,6 +12,7 @@
   "mileage",
   "checklist_section",
   "arrival_items",
+  "arrival_notes",
   "notes_section",
   "notes",
   "attachments_section",
@@ -67,14 +68,22 @@
    "options": "Checklist Item"
   },
   {
+   "fieldname": "arrival_notes",
+   "fieldtype": "Small Text",
+   "hidden": 1,
+   "label": "Arrival Checks Notes"
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "notes",
    "fieldname": "notes_section",
    "fieldtype": "Section Break",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "fieldname": "notes",
    "fieldtype": "Text",
-   "label": "Notes"
+   "label": "General Notes"
   },
   {
    "fieldname": "attachments_section",
