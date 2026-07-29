@@ -2023,9 +2023,16 @@ function renderChecklistItemGrid(rows) {
 // Yes/No pill or a date, and wrong here: the note renders as one unwrapped
 // line that runs off the card, so the modal shows the note without showing
 // all of it. Notes get the same pre-wrap block the document-level note uses.
+// The alert marker is not decoration. Everything else on this card is a tick
+// in a fixed grid; a section note is the one place a mechanic wrote something
+// nobody asked for, which makes it the most important thing on the card and
+// the easiest to skim past in a wall of ✓. It is red for the same reason the
+// answer sheet's strip is (checklist_grid.js's .tvs-ckl-note-alert) -- the two
+// views must not disagree about what "this section has a note" looks like.
 function renderChecklistNoteRow(field, value) {
 	const label = __(field.label || field.fieldname);
-	return `<div class="ckl-subsection">${cklEsc(label)}</div><div class="ckl-notes">${cklEsc(value)}</div>`;
+	const alert = `<span class="ckl-note-alert" role="img" aria-label="${cklEsc(__("Has a note"))}">!</span>`;
+	return `<div class="ckl-subsection ckl-subsection-note">${alert}${cklEsc(label)}</div><div class="ckl-notes ckl-notes-flagged">${cklEsc(value)}</div>`;
 }
 
 function renderChecklistSectionRows(rows) {
@@ -2225,6 +2232,12 @@ function showChecklistsDialog(frm, groups) {
 			.ckl-zero { background: #f3f4f6; color: #6b7280; }
 			.ckl-na { background: #f3f4f6; color: #6b7280; }
 			.ckl-subsection { font-weight: 600; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: #9ca3af; margin: 18px 0 6px; }
+			/* A section note gets the loudest treatment on the card: the grey
+			   subsection heading turns red and carries a filled badge. Ordered
+			   after .ckl-subsection/.ckl-notes so these win without !important. */
+			.ckl-subsection-note { display: flex; align-items: center; gap: 6px; color: #b91c1c; }
+			.ckl-note-alert { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 16px; height: 16px; border-radius: 50%; background: #dc2626; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: 0; text-transform: none; }
+			.ckl-notes-flagged { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
 			.ckl-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0 32px; }
 			.ckl-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid #f1f3f5; min-height: 34px; }
 			.ckl-field-label { color: #4b5563; font-size: 12px; }

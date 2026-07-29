@@ -274,16 +274,43 @@ erpnext.checklist_grid.injectStyles = function () {
 
 		/* A note written earlier is hidden behind a closed toggle, so the
 		   toggle has to say that there is something under it -- otherwise the
-		   collapse quietly buries data the mechanic typed. */
-		.tvs-ckl-note-dot {
-			width: 6px;
-			height: 6px;
+		   collapse quietly buries data the mechanic typed.
+
+		   This used to be a 6px grey dot, which lost that argument: at the end
+		   of a 32-row sheet it reads as punctuation, not as a warning. A note
+		   is always an exception to the Yes/No grid -- the one thing somebody
+		   chose to write down -- so it now announces itself in red, and the
+		   whole strip is tinted so it is findable while scrolling past
+		   collapsed sections. */
+		.tvs-ckl-note-alert {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			flex: 0 0 auto;
+			width: 15px;
+			height: 15px;
 			border-radius: 50%;
-			background: var(--text-light);
+			background: var(--red-500);
+			color: var(--text-on-red, #fff);
+			font-size: 10px;
+			font-weight: 700;
+			line-height: 1;
+			letter-spacing: 0;
 		}
 
-		.tvs-ckl-note:not(.tvs-ckl-note-filled) .tvs-ckl-note-dot {
-			visibility: hidden;
+		.tvs-ckl-note:not(.tvs-ckl-note-filled) .tvs-ckl-note-alert {
+			display: none;
+		}
+
+		/* Colour is not the only channel: the filled strip also gains a left
+		   edge, so the flag survives a red/green colour deficiency and a
+		   greyscale print of the sheet. */
+		.tvs-ckl-note-filled {
+			border-left: 3px solid var(--red-500);
+		}
+
+		.tvs-ckl-note-filled .tvs-ckl-note-toggle {
+			color: var(--red-600, #b91c1c);
 		}
 
 		.tvs-ckl-note-body {
@@ -594,7 +621,14 @@ erpnext.checklist_grid.renderNote = function (frm, df, $wrap, editable) {
 		.appendTo($note);
 	$('<span class="tvs-ckl-note-caret" aria-hidden="true"></span>').text("▶").appendTo($toggle);
 	$("<span></span>").text(label).appendTo($toggle);
-	$('<span class="tvs-ckl-note-dot" aria-hidden="true"></span>').appendTo($toggle);
+	// role="img" + aria-label rather than the caret's aria-hidden: the caret
+	// duplicates state the button already publishes via aria-expanded, but
+	// "there is a note in here" is information a screen reader gets from
+	// nowhere else while the strip is collapsed.
+	$('<span class="tvs-ckl-note-alert" role="img"></span>')
+		.attr("aria-label", __("This section has a note"))
+		.text("!")
+		.appendTo($toggle);
 
 	const $body = $('<div class="tvs-ckl-note-body"></div>').attr("id", bodyId).appendTo($note);
 	const $input = $('<textarea class="tvs-ckl-note-input"></textarea>')

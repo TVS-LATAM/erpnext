@@ -268,6 +268,38 @@ class TestChecklistGridWiring(unittest.TestCase):
 				grid_index = scripts.index("public/js/checklist_grid.js")
 				self.assertLess(pure_index, grid_index)
 
+	def test_a_written_section_note_is_flagged_in_red_on_the_collapsed_strip(self):
+		# The note strip collapses, so a note written on an earlier visit can
+		# sit behind a closed toggle with nothing on screen saying it is there.
+		# The old marker was a 6px grey dot -- at the bottom of a 32-row sheet
+		# that reads as punctuation. It is now a red badge.
+		self.assertIn("tvs-ckl-note-alert", self.grid_script)
+		self.assertNotIn("tvs-ckl-note-dot", self.grid_script)
+		self.assertIn("var(--red-500)", self.grid_script)
+
+	def test_the_note_flag_is_not_carried_by_colour_alone(self):
+		# Red on its own fails a red/green colour deficiency and a greyscale
+		# print of the sheet. The badge carries a glyph and the filled strip
+		# gains a left edge, so the flag survives both.
+		self.assertIn("border-left: 3px solid var(--red-500)", self.grid_script)
+		self.assertIn('.text("!")', self.grid_script)
+
+	def test_the_note_flag_is_announced_to_screen_readers(self):
+		# The caret is aria-hidden because aria-expanded already carries that
+		# state. "There is a note in here" is available from nowhere else
+		# while the strip is collapsed, so the badge must not be hidden too.
+		alert_markup = self.grid_script.split("tvs-ckl-note-alert")[-1]
+		self.assertIn('role="img"', self.grid_script)
+		self.assertIn("This section has a note", alert_markup)
+
+	def test_the_flag_only_appears_once_the_note_has_content(self):
+		# An empty note must stay silent -- a red badge on all 6 sections of an
+		# untouched checklist is noise that trains the mechanic to ignore it.
+		self.assertIn(".tvs-ckl-note:not(.tvs-ckl-note-filled) .tvs-ckl-note-alert", self.grid_script)
+		# and the class must be re-evaluated as the mechanic types, not only
+		# at render time.
+		self.assertIn('$note.toggleClass("tvs-ckl-note-filled", Boolean(next))', self.grid_script)
+
 	def test_hooks_wire_pure_module_on_project_for_the_dialog(self):
 		# project.js (slice 4) will call erpnext.checklist_pure.countChecklistAnswers.
 		project_section_start = self.hooks.index('"Project"')
