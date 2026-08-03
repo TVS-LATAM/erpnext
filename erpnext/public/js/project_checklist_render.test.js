@@ -41,7 +41,11 @@ function rendererSource() {
 	return source.slice(start, end);
 }
 
+// `meta` is a single doctype meta for the card renderers, or an array of them
+// for the dialog-level General Notes summary -- that one spans all four
+// checklists and reads a label off each doctype's own meta.
 function loadRenderers(meta) {
+	const metas = Array.isArray(meta) ? meta : [meta];
 	const sandbox = {
 		console,
 		// The renderers translate every label they print. Identity + the
@@ -51,7 +55,7 @@ function loadRenderers(meta) {
 		__: (text, args) =>
 			args ? String(text).replace(/\{(\d+)\}/g, (_m, i) => args[Number(i)]) : text,
 		frappe: {
-			get_meta: (doctype) => (doctype === meta.name ? meta : { fields: [] }),
+			get_meta: (doctype) => metas.filter((m) => m.name === doctype)[0] || { fields: [] },
 			utils: {
 				escape_html: (value) =>
 					String(value)
@@ -110,7 +114,7 @@ function tableFieldnames(meta) {
 
 function sectionLabels(meta) {
 	// Only the sections that actually carry a Checklist Item table: the
-	// Vehicle Details / General Notes / Attachments breaks hold nothing the
+	// Vehicle Details / Pending Task / Attachments breaks hold nothing the
 	// section walk renders, and renderChecklistFields drops empty sections.
 	const labels = [];
 	let current = null;
@@ -219,6 +223,76 @@ test("a section note is flagged with the red alert marker", () => {
 		makeAnsweredDoc(jobMeta, { notes: { status_notes: "pulls left under load" } })
 	);
 	assert.ok(html.includes("ckl-note-alert"), "section note is not flagged as an alert");
+});
+
+// The shape showChecklistsDialog builds and hands to the summary renderer: one
+// entry per checklist doctype, each with the documents found for the project.
+function generalNotesGroups(notesByDoctype = {}) {
+	return ALL_CHECKLISTS.map((meta) => {
+		const docs = notesByDoctype[meta.name];
+		if (docs === undefined) return { doctype: meta.name, docs: [] };
+		return { doctype: meta.name, docs: Array.isArray(docs) ? docs : [docs] };
+	});
+}
+
+test("the summary lists every checklist, including the ones with nothing written", () => {
+	// A missing row and an empty row read the same to a service advisor
+	// scanning the top of the modal -- except one means "nobody wrote
+	// anything" and the other means "this checklist does not exist yet". Both
+	// have to be visible as an answered question, not as an absence.
+	const sandbox = loadRenderers(ALL_CHECKLISTS);
+	const html = sandbox.renderChecklistGeneralNotesSummary(
+		generalNotesGroups({ "Job Checklist": { name: "JOB-CHK-00001", notes: "clutch replaced" } })
+	);
+
+	for (const meta of ALL_CHECKLISTS) {
+		assert.ok(html.includes(meta.name), `summary dropped the ${meta.name} row`);
+	}
+	assert.ok(html.includes("clutch replaced"), "summary dropped the note it was given");
+});
+
+test("the summary heading comes from the docfield, not a literal", () => {
+	// Same reason renderChecklistCard reads it off the meta: only the JSON
+	// knows what the field is called, and a heading written here contradicts
+	// the form the day it is relabelled.
+	const sandbox = loadRenderers(ALL_CHECKLISTS);
+	const html = sandbox.renderChecklistGeneralNotesSummary(generalNotesGroups());
+	assert.ok(html.includes("Pending Task"), "summary heading missing");
+
+	const relabelled = ALL_CHECKLISTS.map((meta) => ({
+		...meta,
+		fields: meta.fields.map((f) => (f.fieldname === "notes" ? { ...f, label: "Opmerkingen" } : f)),
+	}));
+	const other = loadRenderers(relabelled).renderChecklistGeneralNotesSummary(generalNotesGroups());
+	assert.ok(other.includes("Opmerkingen"), "summary heading did not follow the relabelled docfield");
+});
+
+test("the summary names the document when a project carries two of the same checklist", () => {
+	// Two Job Checklists print two rows with the same doctype name, so which
+	// note belongs to which sheet is unanswerable without the docname.
+	const sandbox = loadRenderers(ALL_CHECKLISTS);
+	const html = sandbox.renderChecklistGeneralNotesSummary(
+		generalNotesGroups({
+			"Job Checklist": [
+				{ name: "JOB-CHK-00001", notes: "first pass" },
+				{ name: "JOB-CHK-00002", notes: "redone after test drive" },
+			],
+		})
+	);
+	assert.ok(html.includes("JOB-CHK-00001"), "summary did not name the first checklist");
+	assert.ok(html.includes("JOB-CHK-00002"), "summary did not name the second checklist");
+	assert.ok(html.includes("redone after test drive"), "summary dropped the second note");
+});
+
+test("the summary escapes note text instead of injecting it as markup", () => {
+	const sandbox = loadRenderers(ALL_CHECKLISTS);
+	const html = sandbox.renderChecklistGeneralNotesSummary(
+		generalNotesGroups({
+			"Arrival Checklist": { name: "ARR-CHK-00001", notes: "<img src=x onerror=alert(1)>" },
+		})
+	);
+	assert.ok(!html.includes("<img src=x"), "summary injected raw note markup");
+	assert.ok(html.includes("&lt;img src=x"), "summary dropped the escaped note");
 });
 
 test("renderers survive a checklist whose tables were never seeded", () => {

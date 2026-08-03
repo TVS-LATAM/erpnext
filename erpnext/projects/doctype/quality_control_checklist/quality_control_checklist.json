@@ -131,13 +131,13 @@
    "collapsible_depends_on": "notes",
    "fieldname": "notes_section",
    "fieldtype": "Section Break",
-   "label": "General Notes"
+   "label": "Pending Task"
   },
   {
    "description": "Explain every No answer.",
    "fieldname": "notes",
    "fieldtype": "Text",
-   "label": "General Notes"
+   "label": "Pending Task"
   },
   {
    "fieldname": "attachments_section",

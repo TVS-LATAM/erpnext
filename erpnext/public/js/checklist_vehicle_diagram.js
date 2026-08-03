@@ -1,6 +1,12 @@
-// Vehicle diagram for the project checklists: five schematic views of the car
-// whose panels are the upload targets. Clicking a panel opens the ordinary
-// file uploader and files every photo it produces under that panel's zone.
+// Schematic diagram for the project checklists: a set of blueprint views whose
+// parts are the upload targets. Clicking a part opens the ordinary file
+// uploader and files every photo it produces under that part's zone.
+//
+// Which set is drawn depends on the checklist. Three of the four document the
+// state of the bodywork, so they get five views of the car. The DSG Oil Change
+// Checklist documents a gearbox service, where a photo of a door panel means
+// nothing and there is nowhere to file a shot of the oil pan -- so it gets its
+// own engine + transmission blueprint instead (see SETS below).
 //
 // Why a diagram at all: the checklists already had a flat "Upload photos"
 // button, so a set of arrival photos arrived as an unordered pile with no
@@ -149,6 +155,122 @@ erpnext.checklist_diagram.VIEWS = [
 	},
 ];
 
+// Powertrain blueprint: two elevations, the engine and the DSG gearbox, drawn
+// in the same line-work language as the car so both diagrams read as one UI.
+//
+// The parts are the ones an oil change actually produces evidence of -- the
+// filler cap and filter before, the sump and the gearbox pan after -- rather
+// than a complete anatomy of the drivetrain. A target nobody ever photographs
+// is a panel that stays grey forever, which trains the mechanic to read grey
+// as "not applicable" instead of "missing".
+const ENGINE = {
+	// Block, sump and filter are the bodies; the valve cover and cylinder head
+	// above them are decor, because the cap that sits ON the valve cover is the
+	// target for that end of the engine and two overlapping hit areas is how a
+	// photo lands in the wrong one.
+	block: "M62 58 L218 58 L218 104 L62 104 Z",
+	sump: "M74 104 L206 104 L196 138 L84 138 Z",
+	filter: "M226 80 Q226 74 234 74 L254 74 Q262 74 262 80 L262 106 Q262 112 254 112 L234 112 Q226 112 226 106 Z",
+	// Sized and placed to sit fully INSIDE the valve cover (y 18-38): a cap
+	// straddling the cover's edge reads as a separate part hanging off the
+	// engine, and its counter badge (drawn above it) would overlap the shape
+	// it is counting.
+	cap: "M87 29 A9 9 0 1 0 105 29 A9 9 0 1 0 87 29 Z",
+};
+
+const GEARBOX = {
+	housing: "M62 42 L200 48 L208 76 L200 100 L62 108 Z",
+	pan: "M76 108 L186 104 L180 136 L86 136 Z",
+	filter: "M228 96 Q228 90 236 90 L258 90 Q266 90 266 96 L266 124 Q266 130 258 130 L236 130 Q228 130 228 124 Z",
+	mechatronic: "M100 14 L176 14 L176 42 L100 42 Z",
+};
+
+erpnext.checklist_diagram.POWERTRAIN_VIEWS = [
+	{
+		id: "engine",
+		title: "Engine",
+		viewBox: "0 0 300 150",
+		decor: `
+			<path class="tvs-vd-decor" d="M70 18 L210 18 L214 38 L66 38 Z"/>
+			<path class="tvs-vd-decor" d="M66 38 L214 38 L216 58 L64 58 Z"/>
+			<path class="tvs-vd-decor" d="M92 66 L92 96"/>
+			<path class="tvs-vd-decor" d="M116 66 L116 96"/>
+			<path class="tvs-vd-decor" d="M140 66 L140 96"/>
+			<path class="tvs-vd-decor" d="M164 66 L164 96"/>
+			<path class="tvs-vd-decor" d="M188 66 L188 96"/>
+			<circle class="tvs-vd-decor" cx="44" cy="92" r="16"/>
+			<circle class="tvs-vd-decor" cx="44" cy="92" r="6"/>
+			<path class="tvs-vd-decor" d="M60 92 L62 92"/>
+			<path class="tvs-vd-decor" d="M218 92 L226 92"/>
+			<path class="tvs-vd-decor" d="M0 144 L300 144"/>
+		`,
+		zones: [
+			{ key: "engine_oil_cap", d: ENGINE.cap, badge: [96, 9] },
+			{ key: "engine_block", d: ENGINE.block, badge: [140, 80] },
+			{ key: "engine_oil_filter", d: ENGINE.filter, badge: [244, 93] },
+			{ key: "engine_oil_sump", d: ENGINE.sump, badge: [140, 122] },
+		],
+	},
+	{
+		id: "transmission",
+		title: "DSG Transmission",
+		viewBox: "0 0 300 150",
+		decor: `
+			<path class="tvs-vd-decor" d="M18 30 Q6 75 18 120 L62 108 L62 42 Z"/>
+			<circle class="tvs-vd-decor" cx="26" cy="52" r="3"/>
+			<circle class="tvs-vd-decor" cx="26" cy="98" r="3"/>
+			<path class="tvs-vd-decor" d="M208 66 L242 70 L242 82 L208 86 Z"/>
+			<path class="tvs-vd-decor" d="M96 52 L96 96"/>
+			<path class="tvs-vd-decor" d="M132 50 L132 98"/>
+			<path class="tvs-vd-decor" d="M168 50 L168 98"/>
+			<path class="tvs-vd-decor" d="M138 42 L138 14"/>
+			<circle class="tvs-vd-decor" cx="133" cy="136" r="5"/>
+			<path class="tvs-vd-decor" d="M186 104 L228 104"/>
+			<path class="tvs-vd-decor" d="M0 75 L20 75"/>
+			<path class="tvs-vd-decor" d="M272 75 L300 75"/>
+			<path class="tvs-vd-decor" d="M0 144 L300 144"/>
+		`,
+		zones: [
+			{ key: "mechatronic_unit", d: GEARBOX.mechatronic, badge: [138, 28] },
+			{ key: "gearbox_housing", d: GEARBOX.housing, badge: [130, 76] },
+			{ key: "dsg_oil_filter", d: GEARBOX.filter, badge: [247, 110] },
+			{ key: "dsg_oil_pan", d: GEARBOX.pan, badge: [133, 118] },
+		],
+	},
+];
+
+// A set is the views plus the words that describe them. The copy travels WITH
+// the drawing because "Tap a part of the vehicle" over a gearbox blueprint is
+// worse than no hint at all -- it tells the mechanic they are on the wrong
+// form. Source strings only; __() runs at render time, for the reason the
+// VIEWS literals document.
+erpnext.checklist_diagram.SETS = {
+	vehicle: {
+		views: erpnext.checklist_diagram.VIEWS,
+		editableHint: "Tap a part of the vehicle to add photos of it.",
+		readOnlyHint: "Photos are filed by vehicle part.",
+		generalHint: "Whole vehicle / other",
+	},
+	powertrain: {
+		views: erpnext.checklist_diagram.POWERTRAIN_VIEWS,
+		editableHint: "Tap a part of the powertrain to add photos of it.",
+		readOnlyHint: "Photos are filed by powertrain part.",
+		generalHint: "Whole engine bay / other",
+	},
+};
+
+// Opt-in by doctype, defaulting to the car: a checklist added later gets the
+// body diagram without touching this file, and the three that have always had
+// it keep it. Only the DSG service documents the powertrain instead.
+erpnext.checklist_diagram.SET_BY_DOCTYPE = {
+	"DSG Oil Change Checklist": "powertrain",
+};
+
+erpnext.checklist_diagram.setFor = function (doctype) {
+	const name = erpnext.checklist_diagram.SET_BY_DOCTYPE[doctype];
+	return erpnext.checklist_diagram.SETS[name] || erpnext.checklist_diagram.SETS.vehicle;
+};
+
 erpnext.checklist_diagram.injectStyles = function () {
 	if (erpnext.checklist_diagram._injected || typeof document === "undefined") return;
 	erpnext.checklist_diagram._injected = true;
@@ -251,12 +373,11 @@ erpnext.checklist_diagram.render = function (frm) {
 
 	const editable = !(frm.doc.docstatus > 0 || frm.read_only);
 	const counts = erpnext.checklist_diagram.countByZone(frm);
+	const set = erpnext.checklist_diagram.setFor(frm.doc.doctype);
 
 	$host.find(".tvs-vd").remove();
 
-	const views = erpnext.checklist_diagram.VIEWS.map((view) =>
-		erpnext.checklist_diagram.renderView(view, counts)
-	).join("");
+	const views = set.views.map((view) => erpnext.checklist_diagram.renderView(view, counts)).join("");
 
 	// A shot of the whole car belongs to no panel, and Checklist Photo.zone
 	// is deliberately optional for exactly that case. Now that the photos
@@ -270,16 +391,14 @@ erpnext.checklist_diagram.render = function (frm) {
 				<div class="tvs-vd-view-title">${frappe.utils.escape_html(__("General"))}</div>
 				<div class="tvs-vd-general-body">
 					<div class="tvs-vd-general-plus">+</div>
-					<div>${frappe.utils.escape_html(__("Whole vehicle / other"))}</div>
+					<div>${frappe.utils.escape_html(__(set.generalHint))}</div>
 				</div>
 			</div>`
 		: "";
 
 	const $diagram = $(`<div class="tvs-vd">
 			<div class="tvs-vd-hint">${frappe.utils.escape_html(
-				editable
-					? __("Tap a part of the vehicle to add photos of it.")
-					: __("Photos are filed by vehicle part.")
+				editable ? __(set.editableHint) : __(set.readOnlyHint)
 			)}</div>
 			<div class="tvs-vd-views">${views}${general}</div>
 		</div>`).toggleClass("tvs-vd-editable", editable);

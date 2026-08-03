@@ -244,6 +244,49 @@ class TestChecklistVehicleDiagram(unittest.TestCase):
 		self.assertNotIn('find(\'[data-ckl-zone="\' +', self.script)
 		self.assertIn('getAttribute("data-ckl-zone")', self.script)
 
+	def test_the_drawn_set_is_chosen_by_doctype(self):
+		# The diagram file is loaded by all four checklists. Picking the set
+		# off anything other than the open document (a module-scope constant,
+		# the first form opened in the session) would paint whichever diagram
+		# happened to be resolved first onto every checklist after it.
+		body = self.script.split("erpnext.checklist_diagram.render = function")[1].split("\n};")[0]
+		self.assertIn("setFor(frm.doc.doctype)", body)
+		self.assertIn("set.views", body)
+
+	def test_the_dsg_checklist_draws_the_powertrain_not_the_car(self):
+		# A gearbox service produces photos of an oil pan and a filter. On the
+		# body diagram there is nowhere to file them, so they would all land
+		# under "General" -- the unsorted pile the diagram exists to replace.
+		mapping = self.script.split("erpnext.checklist_diagram.SET_BY_DOCTYPE = {")[1].split("};")[0]
+		self.assertIn('"DSG Oil Change Checklist": "powertrain"', mapping)
+		for doctype_name in CHECKLISTS:
+			if doctype_name != "DSG Oil Change Checklist":
+				with self.subTest(doctype=doctype_name):
+					self.assertNotIn(doctype_name, mapping)
+
+	def test_a_checklist_with_no_mapping_still_gets_the_car(self):
+		# Opt-in, not exhaustive: the three body checklists are absent from
+		# the map above, so the fallback is the only thing drawing them.
+		self.assertIn("SETS.vehicle", self.script)
+
+	def test_the_two_families_share_no_zone_key(self):
+		# The zone is stored on the row, and the galleries group every photo
+		# through one vocabulary. A key reused across families would merge a
+		# door photo and a gearbox photo into the same heading.
+		car = self.zone_keys_of("erpnext.checklist_diagram.VIEWS = [")
+		powertrain = self.zone_keys_of("erpnext.checklist_diagram.POWERTRAIN_VIEWS = [")
+		self.assertTrue(car and powertrain)
+		self.assertEqual(set(car) & set(powertrain), set())
+
+	def test_each_set_carries_its_own_copy(self):
+		# "Tap a part of the vehicle" printed over a gearbox blueprint tells
+		# the mechanic they are on the wrong form.
+		sets = self.script.split("erpnext.checklist_diagram.SETS = {")[1].split("\n};")[0]
+		for field in ("editableHint", "readOnlyHint", "generalHint"):
+			with self.subTest(field=field):
+				self.assertEqual(sets.count(f"{field}:"), 2)
+		self.assertNotIn("vehicle", sets.split("powertrain: {")[1])
+
 	def test_hooks_load_the_diagram_after_the_uploader_it_calls(self):
 		namespace = {}
 		exec(compile(self.hooks, "hooks.py", "exec"), namespace)
@@ -259,13 +302,23 @@ class TestChecklistVehicleDiagram(unittest.TestCase):
 				self.assertLess(attachments_index, diagram_index)
 
 	def iter_zone_keys(self):
-		"""Every `key:` declared inside the VIEWS zone definitions.
+		"""Every `key:` declared inside any view set's zone definitions.
+
+		Every `*VIEWS = [` literal is scanned, not just the car's: a second
+		diagram whose keys were not checked against the shared vocabulary is
+		exactly the drift the set-equality test exists to catch.
 
 		Views themselves are identified by `id:`, not `key:`, precisely so
 		this scan cannot mistake a view name for a zone name.
 		"""
-		views = self.script.split("erpnext.checklist_diagram.VIEWS = [")[1].split("\n];")[0]
-		return re.findall(r'key:\s*"([a-z0-9_]+)"', views)
+		sets = re.findall(r"erpnext\.checklist_diagram\.[A-Z_]*VIEWS = \[(.*?)\n\];", self.script, re.S)
+		self.assertTrue(sets, "no view sets declared")
+		return [key for body in sets for key in re.findall(r'key:\s*"([a-z0-9_]+)"', body)]
+
+	def zone_keys_of(self, declaration):
+		"""The zone keys of one named view set."""
+		body = self.script.split(declaration)[1].split("\n];")[0]
+		return re.findall(r'key:\s*"([a-z0-9_]+)"', body)
 
 	def iter_label_keys(self):
 		"""Every key of the shared LABELS object literal."""
