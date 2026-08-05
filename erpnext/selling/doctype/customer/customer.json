@@ -66,6 +66,7 @@
   "column_break_21",
   "tax_category",
   "tax_withholding_category",
+  "coc_number",
   "accounting_tab",
   "credit_limit_section",
   "payment_terms",
@@ -616,6 +617,11 @@
    "no_copy": 1,
    "options": "Prospect",
    "print_hide": 1
+  },
+  {
+   "fieldname": "coc_number",
+   "fieldtype": "Data",
+   "label": "CoC"
   }
  ],
  "icon": "fa fa-user",
@@ -629,8 +635,8 @@
    "link_fieldname": "party"
   }
  ],
- "modified": "2025-10-08 18:22:58.839325",
- "modified_by": "Administrator",
+ "modified": "2026-07-31 20:31:15.683759",
+ "modified_by": "julian@tvsgroup.nl",
  "module": "Selling",
  "name": "Customer",
  "naming_rule": "By \"Naming Series\" field",
