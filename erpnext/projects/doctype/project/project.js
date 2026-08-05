@@ -327,7 +327,7 @@ frappe.ui.form.on("Project", {
 		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
 
 		// Only block and notify when attempting to change the status field
-		if ((isMechanic || isJuniorMechanic) && currentStatus !== previousStatus) {
+		if ((isMechanic || isJuniorMechanic) && frm.doc.status !== previousStatus) {
 			frm.doc.status = previousStatus;
 			showMessageNotAllowedUpdateStatus();
 		}
@@ -552,10 +552,25 @@ async function recoverProjectConflict(frm, my_changes) {
 		// keep theirs (already loaded), apply only the non-conflicting autoFields.
 	}
 
-	const applyResolved = () => {
-		Object.keys(resolved).forEach((f) => frm.set_value(f, resolved[f]));
+	// MUST be awaited. frm.set_value only raises the dirty flag from inside the
+	// model's "*" change handler, which frappe.run_serially schedules on a
+	// microtask. Calling it fire-and-forget left frm.is_dirty() === false on the
+	// very next line, so the "nothing of ours left to save" shortcut below fired
+	// and told the user "merged and saved" while the merged values were never
+	// written — the edit was gone on refresh.
+	const applyResolved = async () => {
+		for (const f of Object.keys(resolved)) {
+			// frm.set_value throws for fields with no rendered control (e.g. hidden
+			// by permlevel); write those straight to the model so one such field
+			// can't abort the whole merge.
+			if (frm.get_field(f)) {
+				await frm.set_value(f, resolved[f]);
+			} else {
+				await frappe.model.set_value(frm.doctype, frm.docname, f, resolved[f]);
+			}
+		}
 	};
-	applyResolved();
+	await applyResolved();
 
 	const touched = Object.keys(resolved);
 	if (!frm.is_dirty()) {
@@ -576,7 +591,7 @@ async function recoverProjectConflict(frm, my_changes) {
 				frm.doc.__unsaved = 0;
 				await frm.reload_doc();
 				frm.__server_doc = $.extend(true, {}, frm.doc);
-				applyResolved();
+				await applyResolved();
 				if (!frm.is_dirty()) {
 					return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
 				}
