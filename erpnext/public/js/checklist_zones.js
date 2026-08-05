@@ -1,5 +1,14 @@
-// Vehicle zone vocabulary: the parts of the car a checklist photo can be
-// filed against (Checklist Photo.zone).
+// Zone vocabulary: the parts a checklist photo can be filed against
+// (Checklist Photo.zone).
+//
+// Two families live here: the body panels of the car, and the powertrain
+// parts a DSG oil change documents. One map, not two, because the consumers
+// below are family-blind -- the galleries and the Project "View Checklists"
+// dialog label and sort photos from every checklist through the same two
+// functions, and a photo does not carry which diagram produced it. Which
+// family is DRAWN is the diagram's decision (checklist_vehicle_diagram.js
+// picks the set by doctype), and no checklist ever mixes the two, so the
+// families never interleave on screen.
 //
 // This is its own module because three callers need it and they do not all
 // load the same things: checklist_vehicle_diagram.js draws the parts,
@@ -39,6 +48,18 @@ erpnext.checklist_zones.LABELS = {
 	bonnet: "Bonnet",
 	roof: "Roof",
 	boot_lid: "Boot Lid",
+	// Powertrain family (DSG Oil Change Checklist). Declared after the body
+	// panels so adding them cannot renumber the existing ones -- rank() is
+	// this list's index, and a photo already filed under `roof` must keep
+	// sorting where it always did.
+	engine_oil_cap: "Oil Filler Cap",
+	engine_block: "Engine Block",
+	engine_oil_filter: "Engine Oil Filter",
+	engine_oil_sump: "Oil Sump",
+	mechatronic_unit: "Mechatronic Unit",
+	gearbox_housing: "Gearbox Housing",
+	dsg_oil_filter: "DSG Oil Filter",
+	dsg_oil_pan: "DSG Oil Pan",
 };
 
 erpnext.checklist_zones.ORDER = Object.keys(erpnext.checklist_zones.LABELS);

@@ -34,7 +34,13 @@ EXPECTED_SECTION_NOTES = {
 # document-level field, so on screen there was no way to tell which note you
 # were reading -- in the Project modal both would print under a heading as
 # "Notes". Every label now names what it belongs to.
-GENERAL_NOTES_LABEL = "General Notes"
+#
+# The document-level one reads "Pending Task": what a mechanic writes there is
+# work left for somebody else, not a general remark. The constant and the
+# fieldname (`notes`) deliberately keep the old wording -- this was a display
+# label change, and renaming the field to follow a caption would rewrite the
+# column every existing checklist stores its text in.
+GENERAL_NOTES_LABEL = "Pending Task"
 EXPECTED_NOTE_LABELS = {
 	"arrival_notes": "Arrival Checks Notes",
 	"pre_test_drive_notes": "Before Test Drive Notes",

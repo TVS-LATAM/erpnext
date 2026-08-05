@@ -327,7 +327,7 @@ frappe.ui.form.on("Project", {
 		const isJuniorMechanic = await erpnext.utils.isJuniorMechanic(this.frm);
 
 		// Only block and notify when attempting to change the status field
-		if ((isMechanic || isJuniorMechanic) && currentStatus !== previousStatus) {
+		if ((isMechanic || isJuniorMechanic) && frm.doc.status !== previousStatus) {
 			frm.doc.status = previousStatus;
 			showMessageNotAllowedUpdateStatus();
 		}
@@ -552,10 +552,25 @@ async function recoverProjectConflict(frm, my_changes) {
 		// keep theirs (already loaded), apply only the non-conflicting autoFields.
 	}
 
-	const applyResolved = () => {
-		Object.keys(resolved).forEach((f) => frm.set_value(f, resolved[f]));
+	// MUST be awaited. frm.set_value only raises the dirty flag from inside the
+	// model's "*" change handler, which frappe.run_serially schedules on a
+	// microtask. Calling it fire-and-forget left frm.is_dirty() === false on the
+	// very next line, so the "nothing of ours left to save" shortcut below fired
+	// and told the user "merged and saved" while the merged values were never
+	// written — the edit was gone on refresh.
+	const applyResolved = async () => {
+		for (const f of Object.keys(resolved)) {
+			// frm.set_value throws for fields with no rendered control (e.g. hidden
+			// by permlevel); write those straight to the model so one such field
+			// can't abort the whole merge.
+			if (frm.get_field(f)) {
+				await frm.set_value(f, resolved[f]);
+			} else {
+				await frappe.model.set_value(frm.doctype, frm.docname, f, resolved[f]);
+			}
+		}
 	};
-	applyResolved();
+	await applyResolved();
 
 	const touched = Object.keys(resolved);
 	if (!frm.is_dirty()) {
@@ -576,7 +591,7 @@ async function recoverProjectConflict(frm, my_changes) {
 				frm.doc.__unsaved = 0;
 				await frm.reload_doc();
 				frm.__server_doc = $.extend(true, {}, frm.doc);
-				applyResolved();
+				await applyResolved();
 				if (!frm.is_dirty()) {
 					return showConflictResolvedModal(frm, other_user, touched, true, conflicts.length > 0);
 				}
@@ -1742,7 +1757,7 @@ function checklistNoteFieldnames(doctype) {
 // A field's own label off the doctype meta. The modal summarises the checklist
 // form, so any heading it writes as a literal is a second source of truth that
 // contradicts the form the day the JSON is relabelled -- which is exactly how
-// this card kept printing "Notes" over a field the JSON calls "General Notes".
+// this card kept printing "Notes" over a field the JSON calls "Pending Task".
 function checklistFieldLabel(doctype, fieldname, fallback) {
 	const meta = frappe.get_meta(doctype);
 	const matches = ((meta && meta.fields) || []).filter((f) => f.fieldname === fieldname);
@@ -2158,7 +2173,7 @@ function renderChecklistCard(doctype, doc) {
 	// says which note it is -- and only the JSON knows what it is called.
 	const notesLine = doc.notes
 		? `<div class="ckl-subsection">${cklEsc(
-				checklistFieldLabel(doctype, "notes", __("General Notes"))
+				checklistFieldLabel(doctype, "notes", __("Pending Task"))
 			)}</div><div class="ckl-notes">${cklEsc(doc.notes)}</div>`
 		: "";
 
@@ -2193,6 +2208,76 @@ function renderChecklistCard(doctype, doc) {
 		</div>`;
 }
 
+// Heading for the document-level notes summary, read off the docfield for the
+// same reason renderChecklistCard reads its own (only the JSON knows what the
+// field is called). One heading covers four doctypes, so the first checklist
+// that declares a label wins -- they agree today, and if one is ever
+// relabelled alone the panel still prints a real label rather than a stale
+// literal. That is not hypothetical: the four were relabelled from "General
+// Notes" to "Pending Task" and nothing here had to change except this
+// last-resort fallback.
+//
+// The function keeps its name, and the field is still `notes`: the rename was
+// a display-label change only, so touching either would be renaming storage to
+// follow a caption.
+function checklistGeneralNotesLabel(groups) {
+	for (const group of groups) {
+		const label = checklistFieldLabel(group.doctype, "notes", null);
+		if (label) return label;
+	}
+	return __("Pending Task");
+}
+
+// The four checklists each end with a document-level `notes` field, labelled
+// "Pending Task": the one place on the whole sheet where a mechanic writes
+// something nobody asked for. Printed only at the foot of its own card -- after every answer grid and
+// every attachment strip -- it was the last thing a service advisor reached,
+// four separate scrolls apart. This panel hoists all four to the top of the
+// modal so they are read first, side by side; the cards below still print
+// theirs in place, unchanged.
+//
+// A checklist with no note, or none created yet, still gets a row: in a
+// four-row panel a missing row and an empty one look identical, and only one
+// of them means "nobody wrote anything".
+function renderChecklistGeneralNotesSummary(groups) {
+	if (!groups.length) return "";
+
+	const rows = [];
+	groups.forEach((group) => {
+		const name = __(group.doctype);
+		if (!group.docs.length) {
+			rows.push({ name, value: null });
+			return;
+		}
+		group.docs.forEach((doc) => {
+			// A project may carry two checklists of the same type. Two rows
+			// labelled "Job Checklist" leave which note belongs to which sheet
+			// unanswerable, so the docname disambiguates -- appended only when
+			// there is something to disambiguate.
+			rows.push({
+				name: group.docs.length > 1 ? `${name} · ${doc.name}` : name,
+				value: doc.notes,
+			});
+		});
+	});
+
+	const body = rows
+		.map(
+			(row) => `
+				<div class="ckl-summary-row">
+					<div class="ckl-summary-name">${cklEsc(row.name)}</div>
+					<div class="ckl-summary-note${row.value ? "" : " ckl-muted"}">${row.value ? cklEsc(row.value) : "—"}</div>
+				</div>`
+		)
+		.join("");
+
+	return `
+		<div class="ckl-summary">
+			<div class="ckl-summary-title">${cklEsc(checklistGeneralNotesLabel(groups))}</div>
+			${body}
+		</div>`;
+}
+
 function showChecklistsDialog(frm, groups) {
 	const sections = groups
 		.map((group) => {
@@ -2217,6 +2302,16 @@ function showChecklistsDialog(frm, groups) {
 			.ckl-section-title { font-weight: 600; font-size: 15px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
 			.ckl-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; font-size: 11px; padding: 0 7px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-weight: 600; }
 			.ckl-empty { color: #9ca3af; padding: 4px 0 8px; }
+			/* General Notes panel: same card shell as a checklist card, so it
+			   reads as part of the modal rather than a banner over it. */
+			.ckl-summary { border: 1px solid #e5e7eb; border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); padding: 14px 18px 6px; margin-bottom: 26px; }
+			.ckl-summary-title { font-weight: 600; font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: #9ca3af; margin-bottom: 6px; }
+			.ckl-summary-row { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 8px 16px; padding: 9px 0; border-bottom: 1px solid #f1f3f5; }
+			.ckl-summary-row:last-child { border-bottom: 0; }
+			.ckl-summary-name { font-weight: 600; font-size: 12px; color: #374151; }
+			/* The same pre-wrap block the note bodies get: a General Note is
+			   multi-line free text and must not run off the panel. */
+			.ckl-summary-note { font-size: 12px; color: #4b5563; white-space: pre-wrap; overflow-wrap: anywhere; }
 			.ckl-card { border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 14px; background: #fff; box-shadow: 0 1px 2px rgba(16,24,40,.04); overflow: hidden; }
 			.ckl-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 18px; background: #f9fafb; border-bottom: 1px solid #eef0f2; }
 			.ckl-card-id { display: flex; flex-direction: column; gap: 2px; }
@@ -2269,7 +2364,7 @@ function showChecklistsDialog(frm, groups) {
 			.ckl-head-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 			.ckl-edit-btn { white-space: nowrap; }
 		</style>
-		<div class="ckl-wrap">${sections}</div>`;
+		<div class="ckl-wrap">${renderChecklistGeneralNotesSummary(groups)}${sections}</div>`;
 
 	const dialog = new frappe.ui.Dialog({
 		title: __("Checklists for {0}", [frm.doc.name]),

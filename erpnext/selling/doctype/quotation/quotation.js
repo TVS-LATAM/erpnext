@@ -1503,8 +1503,16 @@ async function post_quotation_send_email(frm, recipient) {
 		});
 }
 
+const RESEND_APPROVAL_ALLOWED_STATUSES = [
+	"Draft",
+	"Open",
+	"Replied",
+	"Partially Ordered",
+	"Partially Paid",
+];
+
 async function insertResendQuotationApprovalButton(frm) {
-	if (!["Approved", "Ordered"].includes(frm.doc.status)) {
+	if (RESEND_APPROVAL_ALLOWED_STATUSES.includes(frm.doc.status)) {
 		frm.add_custom_button(__('Resend Approve Message'), () => {
 			var d = new frappe.ui.Dialog({
 				title: __("The message and quotation attached will be sent to the client for approval"),
