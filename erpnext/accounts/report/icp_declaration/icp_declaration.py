@@ -43,6 +43,63 @@ def validate_filters(filters):
     if (to_date - from_date).days > 92:
         frappe.msgprint(_("Warning: ICP declarations are typically submitted quarterly. Consider using quarterly date ranges."))
 
+# V.4 — the only field in either system that separates an article 138
+# intra-community supply from an article 146 export. Both zero rates share one
+# Moneybird tax rate id and ERPNext's taxes_and_charges templates differ only by
+# name, so the stored key is the sole machine-readable discriminator, and
+# vat-rules.md states the consequence as a rule: any ICP split must be driven
+# from tvs_tax_regime.
+INTRA_COMMUNITY_REGIME = "EU_B2B_INTRA"
+
+TAX_REGIME_FIELD = "tvs_tax_regime"
+
+# The categories this report filtered on before the regime existed. Kept for the
+# invoices that predate it and nothing else — see intra_community_selector.
+LEGACY_INTRA_COMMUNITY_TAX_CATEGORIES = ("eu customer", "eu b2b", "intra-eu supply")
+
+
+def _legacy_tax_category_clause():
+    """The pre-regime selector: the tax category on the invoice or the customer."""
+    categories = ", ".join("'%s'" % category for category in LEGACY_INTRA_COMMUNITY_TAX_CATEGORIES)
+
+    return (
+        "LOWER(si.tax_category) IN ({categories})"
+        " OR LOWER(c.tax_category) IN ({categories})"
+    ).format(categories=categories)
+
+
+def intra_community_selector():
+    """
+    Which invoices belong on the ICP listing.
+
+    R.2. This report filtered on `tax_category`, and the invoicing pipeline
+    deliberately stops posting that field (VD.4) — ERPNext fills it from the
+    Customer during validate() instead, and the regime configuration defines no
+    category at all. So every invoice the new path creates carries an empty
+    category, and the listing reads it on zero lines: a report that returns
+    nothing looks exactly like a quarter with no intra-community sales.
+
+    An invoice that stores a regime is now classified by it, which is the rule
+    V.4 states. An invoice that stores none keeps the old behaviour, unchanged:
+    those are the 1,311 historical invoices that will never have one, and what
+    they should be classified by is an open accounting question (Q1), not
+    something this change may decide silently.
+
+    The regime lives in a Custom Field installed by `tvs_accountancy`. An
+    environment that has not migrated it has no such column, and naming it in
+    SQL there would turn a working report into a database error. There, the
+    legacy selector is the whole answer — which is what that environment does
+    today.
+    """
+    if not frappe.db.has_column("Sales Invoice", TAX_REGIME_FIELD):
+        return _legacy_tax_category_clause()
+
+    return (
+        "si.{field} = '{regime}'"
+        " OR (COALESCE(si.{field}, '') = '' AND ({legacy}))"
+    ).format(field=TAX_REGIME_FIELD, regime=INTRA_COMMUNITY_REGIME, legacy=_legacy_tax_category_clause())
+
+
 def fetch_icp_data(filters):
     """
     Fetch ICP data from ERPNext database with proper validation
@@ -90,10 +147,7 @@ def fetch_icp_data(filters):
             si.posting_date BETWEEN %(from_date)s AND %(to_date)s
             AND si.docstatus = 1  
             AND si.company = %(company)s
-            AND (
-                LOWER(si.tax_category) IN ('eu customer', 'eu b2b', 'intra-eu supply')
-                OR LOWER(c.tax_category) IN ('eu customer', 'eu b2b', 'intra-eu supply')
-            )
+            AND ({intra_community_selector})
             AND si.tax_id IS NOT NULL
             AND si.tax_id != ''
             AND LENGTH(TRIM(si.tax_id)) >= 8  -- Minimum valid EU VAT number length
@@ -116,11 +170,15 @@ def fetch_icp_data(filters):
             `Country Code`, si.tax_id, si.customer_name
     """
 
-    return frappe.db.sql(query, {
-        "from_date": from_date,
-        "to_date": to_date,
-        "company": company
-    }, as_dict=True)
+    return frappe.db.sql(
+        query.replace("{intra_community_selector}", intra_community_selector()),
+        {
+            "from_date": from_date,
+            "to_date": to_date,
+            "company": company,
+        },
+        as_dict=True,
+    )
 
 def validate_icp_data(data):
     """
