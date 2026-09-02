@@ -37,6 +37,47 @@ EU_COUNTRIES = [
 ]
 
 
+# VD.14. La clasificación del cliente vivía dentro del SQL, como un CASE cuya
+# última rama era `ELSE 'export'`. `customer_address` entra por un LEFT JOIN, así
+# que una factura sin dirección vinculada da `addr.country = NULL`, ningún WHEN
+# coincide y la fila cae en esa rama. Después, el bucle de clasificación reescribe
+# un `1a` correcto (nacional al 21%) a `3a` (exportación fuera de la UE), mientras
+# `rubrics["5a"]` sigue acumulando el 21% que sí se cobró: la declaración termina
+# contradiciéndose, con facturación exenta de exportación al lado del IVA cobrado
+# sobre ella.
+#
+# Ausente no es "fuera de la UE". Un país que nadie registró clasifica ahora como
+# `unknown`, que ninguna reescritura de rubriek toca, así que la factura se queda
+# en el rubriek que le ganó su categoría fiscal. Si además no tenía categoría, el
+# fallback la manda a 1c y la suma a `unknown_categories`, que ya dispara el aviso
+# al usuario: visible, no silencioso.
+#
+# Se decide en Python y no en SQL porque una regla que decide una declaración
+# fiscal tiene que poder probarse sin base de datos.
+def classify_customer_type(country):
+    """
+    Clasifica al cliente a partir del país de su dirección.
+
+    Devuelve 'domestic', 'eu', 'export' o 'unknown'. 'unknown' es el caso que
+    VD.14 separa: un país nulo, vacío o en blanco es una ausencia de dato, no
+    una venta fuera de la UE.
+    """
+    name = (country or "").strip()
+
+    if not name:
+        return "unknown"
+
+    # Países Bajos primero: EU_COUNTRIES lo contiene, así que invertir el orden
+    # convertiría cada venta nacional en una entrega intracomunitaria.
+    if name == "Netherlands":
+        return "domestic"
+
+    if name in EU_COUNTRIES:
+        return "eu"
+
+    return "export"
+
+
 def execute(filters=None):
     if not filters:
         filters = {}
@@ -95,12 +136,7 @@ def fetch_vat_data(filters):
             stc.account_head,
             stc.description,
             acc.account_type,
-            acc.account_name,
-            CASE 
-                WHEN addr.country = 'Netherlands' THEN 'domestic'
-                WHEN addr.country IN ({eu_countries}) THEN 'eu'
-                ELSE 'export'
-            END AS customer_type
+            acc.account_name
         FROM `tabSales Invoice` si
         LEFT JOIN `tabSales Taxes and Charges` stc 
             ON stc.parent = si.name AND stc.parenttype = 'Sales Invoice'
@@ -110,7 +146,7 @@ def fetch_vat_data(filters):
             AND si.docstatus = 1 
             AND (%(company)s = '' OR si.company = %(company)s)
         ORDER BY si.name, stc.idx
-    """.format(eu_countries="'" + "','".join(EU_COUNTRIES) + "'")
+    """
 
     sales_rows = frappe.db.sql(sales_query, {
         "from_date": from_date, 
@@ -166,7 +202,7 @@ def fetch_vat_data(filters):
                 "net_total": row.base_net_total or 0,
                 "category": row.category or "",
                 "incoterm": row.incoterm or "",
-                "customer_type": row.customer_type or "unknown",
+                "customer_type": classify_customer_type(row.customer_country),
                 "vat_amount": 0,
                 "reverse_charge": 0
             }
