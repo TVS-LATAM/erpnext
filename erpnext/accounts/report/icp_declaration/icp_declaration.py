@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+import calendar
 import re
 from datetime import datetime
 
@@ -40,8 +41,18 @@ def validate_filters(filters):
     from_date = datetime.strptime(filters.get("from_date"), "%Y-%m-%d")
     to_date = datetime.strptime(filters.get("to_date"), "%Y-%m-%d")
     
+    # N.1 — "The ICP declarations need to be done every month." A range of any
+    # length is still allowed, because reviewing a quarter or a year is useful;
+    # what the filing needs is that its figures never merge two months, which
+    # the per-month GROUP BY guarantees for every range. So this stays a
+    # msgprint and not a throw, and it says what a filing period is.
     if (to_date - from_date).days > 92:
-        frappe.msgprint(_("Warning: ICP declarations are typically submitted quarterly. Consider using quarterly date ranges."))
+        frappe.msgprint(
+            _(
+                "Warning: ICP declarations are filed monthly. This range covers more than a quarter; "
+                "the rows are still totalled per customer per month, one filing each."
+            )
+        )
 
 # V.4 — the only field in either system that separates an article 138
 # intra-community supply from an article 146 export. Both zero rates share one
@@ -111,6 +122,7 @@ def fetch_icp_data(filters):
     # Enhanced query with proper VAT calculations and compliance checks
     query = """
         SELECT 
+            DATE_FORMAT(si.posting_date, '%%Y-%%m') AS `Period`,
             si.customer_name AS `Customer Name`,
             si.customer AS `Customer Code`,
             si.tax_id AS `VAT Identification Number`,
@@ -154,6 +166,7 @@ def fetch_icp_data(filters):
             -- Exclude domestic (NL) customers from ICP
             AND NOT (UPPER(LEFT(REPLACE(REPLACE(REPLACE(si.tax_id, ' ', ''), '-', ''), '.', ''), 2)) = 'NL')
         GROUP BY 
+            DATE_FORMAT(si.posting_date, '%%Y-%%m'),
             si.customer_name, 
             si.customer,
             si.tax_id,
@@ -167,7 +180,7 @@ def fetch_icp_data(filters):
                 END
             )) >= 1  -- Only include transactions >= €1
         ORDER BY     
-            `Country Code`, si.tax_id, si.customer_name
+            `Period`, `Country Code`, si.tax_id, si.customer_name
     """
 
     return frappe.db.sql(
@@ -283,6 +296,12 @@ def get_columns():
     """
     return [
         {
+            "fieldname": "Period",
+            "label": _("Period"),
+            "fieldtype": "Data",
+            "width": 90
+        },
+        {
             "fieldname": "Customer Name", 
             "label": _("Customer Name"), 
             "fieldtype": "Data", 
@@ -382,6 +401,33 @@ def get_icp_summary(data):
     
     return summary
 
+def validate_declaration_period(filters):
+    """
+    Which filing period this date range is, if it is a whole one.
+
+    N.1 — "The ICP declarations need to be done every month." A monthly range
+    used to be unrecognised: only whole quarters were named, so every monthly
+    run reported no period at all and the caller could not tell a complete
+    filing from an arbitrary range.
+
+    Returns a dict describing the period, or None when the range is neither a
+    whole month nor a whole quarter. None is informational: an arbitrary range
+    is still reported, and its rows are still totalled per month.
+    """
+    from_date = datetime.strptime(filters.get("from_date"), "%Y-%m-%d").date()
+    to_date = datetime.strptime(filters.get("to_date"), "%Y-%m-%d").date()
+
+    last_day_of_month = calendar.monthrange(from_date.year, from_date.month)[1]
+    if from_date.day == 1 and to_date.year == from_date.year and to_date.month == from_date.month and to_date.day == last_day_of_month:
+        return {"type": "month", "label": from_date.strftime("%Y-%m"), "quarter": None}
+
+    quarter = validate_quarterly_submission(filters)
+    if quarter:
+        return {"type": "quarter", "label": "%d-Q%d" % (from_date.year, quarter), "quarter": quarter}
+
+    return None
+
+
 def validate_quarterly_submission(filters):
     """
     Validate that the date range represents a complete quarter
@@ -414,14 +460,18 @@ def generate_icp_report(filters):
     try:
         columns, data = execute(filters)
         summary = get_icp_summary(data)
-        quarter = validate_quarterly_submission(filters)
+        # `quarter` is kept for callers that already read it. `period` is what a
+        # monthly filing needs, and is None for both when the range is neither
+        # a whole month nor a whole quarter.
+        period = validate_declaration_period(filters)
         
         return {
             "success": True,
             "columns": columns,
             "data": data,
             "summary": summary,
-            "quarter": quarter,
+            "period": period,
+            "quarter": period["quarter"] if period else None,
             "message": _(f"ICP declaration generated successfully. {len(data)} records found.")
         }
     
