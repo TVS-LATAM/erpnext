@@ -224,8 +224,26 @@ def fetch_vat_data(filters):
         # Acumular IVA repercutido
         rubrics["5a"] += vat_amount
 
-    # Añadir reverse charge
-    rubrics["2a"] = reverse_charge_total
+    # VD.15. Esta línea era `rubrics["2a"] = reverse_charge_total`, y hacía dos
+    # cosas mal a la vez.
+    #
+    # 1. Asignaba en lugar de acumular, así que descartaba todo lo que el bucle
+    #    de arriba ya había sumado a 2a (`rubrics[rubric] += net_amount`, con
+    #    rubric = "2a" para las categorías 'reverse charge' / 'verlegd' /
+    #    'verleggingsregeling').
+    # 2. Y lo que asignaba era un importe de IVA, no de omzet. Todos los
+    #    rubrieken 1a-4b de este informe son cubetas de facturación neta —
+    #    `base_net_total` — y el IVA vive en 5a y 5b. Cambiar el `=` por un `+=`
+    #    habría dejado de descartar, pero sumando IVA sobre neto en la misma
+    #    cubeta.
+    #
+    # 2a lleva la omzet, como cada uno de sus hermanos, y el bucle ya la
+    # acumuló. `reverse_charge_total` queda calculado a propósito: dónde debe
+    # declararse el IVA trasladado es una pregunta contable abierta y sin
+    # responder, y borrar el número la escondería.
+    #
+    # Latente hoy: ninguna factura de producción lleva una categoría de reverse
+    # charge, que es la misma condición que hace disparar VD.13.
 
     # Procesar datos de compras
     processed_purchases = {}
