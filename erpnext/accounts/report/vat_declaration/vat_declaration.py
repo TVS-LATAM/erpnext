@@ -78,6 +78,120 @@ def classify_customer_type(country):
     return "export"
 
 
+# VD.20. El rubriek de cada venta salía de `tax_category`, y la tubería de
+# facturación dejó de postear ese campo a propósito (VD.4):
+# `createSalesInvoice.ts` lo desestructura del payload por nombre para que la
+# máquina de estados no pueda esquivar la omisión. ERPNext lo rellena desde el
+# Customer en validate() cuando el Customer trae uno, y medido en el sitio dev
+# la mayoría no trae.
+#
+# Medido el 2026-09-02 sobre `tabSales Invoice` con docstatus = 1:
+#
+#     (vacío)                  605 facturas   630.323,82 neto
+#     omzet werkplaats (21%)    79 facturas    80.675,64 neto
+#     netherlands vat 0%         1 factura         120,00 neto
+#
+# Ninguna de esas tres cadenas es clave de TAX_CATEGORY_MAPPING, así que las
+# tres caían por la cadena hasta el fallback nacional `rubric = "1c"`. El
+# informe sobre todas las fechas devolvía:
+#
+#     1a  Leveringen binnenland hoog tarief (21%)         0,00
+#     1c  Overige tarieven                          701.074,89
+#     5a  Verschuldigde omzetbelasting              148.800,84
+#
+# Una declaración que no reporta ni un euro de facturación nacional al tipo
+# general mientras debe 148.800,84 de IVA sobre 701.074,89 de "otras tarifas"
+# se contradice en su propia cara: 148.800,84 / 701.074,89 es el 21,2%, y 1c es
+# por definición lo que no va al tipo general. No es un arrastre histórico:
+# `(vacío)` es lo que lleva toda factura que la tubería crea hoy, así que el
+# error es el estado permanente de aquí en adelante.
+#
+# `tvs_tax_regime` no aparecía en este informe ni una vez. Es el campo que todo
+# el trabajo de regímenes calcula — VD.1, VD.2, VD.14 y VD.18 lo escriben o lo
+# reparan — y la declaración que efectivamente se presenta nunca lo leyó.
+TAX_REGIME_FIELD = "tvs_tax_regime"
+
+# Los cuatro regímenes que deciden un rubriek por sí solos. REVIEW_HOLD queda
+# fuera a propósito: es lo que VD.2 escribe cuando el sistema se NEGÓ a tasar el
+# documento, así que meterlo en cualquier rubriek sería exactamente la
+# adivinanza que el régimen existe para evitar. Cae al camino heredado y sigue
+# visible por el aviso de categorías desconocidas que el informe ya emite.
+TAX_REGIME_RUBRIC_MAPPING = {
+    "NL_STANDARD": "1a",
+    "NL_REDUCED": "1b",
+    "EU_B2B_INTRA": "3b",
+    "EXPORT_NON_EU": "3a",
+}
+
+
+def tax_regime_select():
+    """
+    La expresión SELECT que trae el régimen almacenado, o una constante.
+
+    El régimen vive en un Custom Field que instala `tvs_accountancy`. Un entorno
+    que no lo migró no tiene la columna, y nombrarla en SQL ahí convertiría un
+    informe que funciona en un error de base de datos. Allí la constante vacía
+    manda cada factura al camino heredado, que es lo que ese entorno ya corre.
+    """
+    if not frappe.db.has_column("Sales Invoice", TAX_REGIME_FIELD):
+        return "'' AS tax_regime"
+
+    return "si.{field} AS tax_regime".format(field=TAX_REGIME_FIELD)
+
+
+def classify_sales_rubric(regime, category, incoterm, customer_type):
+    """
+    En qué rubriek entra una factura de venta.
+
+    Devuelve `(rubriek, categoria_no_mapeada)`. El segundo valor es la categoría
+    que hay que sumar a `unknown_categories` para que dispare el aviso, o None
+    cuando no hay nada que avisar.
+
+    Una factura que guarda uno de los cuatro regímenes decidibles se clasifica
+    por él y nada lo reescribe después. El régimen se decidió al emitir el
+    documento, con la respuesta de VIES delante; una dirección que nadie llenó o
+    un incoterm suelto no pueden darlo vuelta. Reescribir un NL_STANDARD a 3b
+    porque la dirección dice Alemania declararía una entrega intracomunitaria
+    exenta mientras 5a sigue cargando el 21% que sí se cobró, que es la
+    contradicción de VD.14 reconstruida por otro camino.
+
+    Una factura que no guarda régimen conserva el comportamiento anterior byte
+    por byte. Son las facturas históricas que nunca van a tener uno, y Q1 se
+    respondió "para el pasado no cambia nada": no es algo que este cambio pueda
+    decidir en silencio.
+    """
+    decided = TAX_REGIME_RUBRIC_MAPPING.get((regime or "").strip())
+    if decided:
+        return decided, None
+
+    # --- camino heredado, sin tocar ---------------------------------------
+    rubric = TAX_CATEGORY_MAPPING.get(category)
+    unmapped = None
+
+    # Coherencia con el tipo de cliente
+    if rubric in ["1a", "1b", "1e"] and customer_type != "domestic":
+        if customer_type == "eu":
+            rubric = "3b"
+        elif customer_type == "export":
+            rubric = "3a"
+
+    # Exportación sólo si no es venta nacional
+    elif not rubric and incoterm in EXPORT_INCOTERMS:
+        rubric = "3a"
+
+    # Fallback por tipo de cliente
+    elif not rubric:
+        if customer_type == "eu":
+            rubric = "3b"
+        elif customer_type == "export":
+            rubric = "3a"
+        else:
+            rubric = "1c"
+            unmapped = category
+
+    return rubric, unmapped
+
+
 def execute(filters=None):
     if not filters:
         filters = {}
@@ -127,6 +241,7 @@ def fetch_vat_data(filters):
             si.name,
             si.customer,
             LOWER(TRIM(si.tax_category)) AS category,
+            {tax_regime_select},
             UPPER(TRIM(si.incoterm)) AS incoterm,
             si.base_net_total,
             si.customer_address,
@@ -148,11 +263,11 @@ def fetch_vat_data(filters):
         ORDER BY si.name, stc.idx
     """
 
-    sales_rows = frappe.db.sql(sales_query, {
-        "from_date": from_date, 
-        "to_date": to_date, 
-        "company": company
-    }, as_dict=True)
+    sales_rows = frappe.db.sql(
+        sales_query.replace("{tax_regime_select}", tax_regime_select()),
+        {"from_date": from_date, "to_date": to_date, "company": company},
+        as_dict=True,
+    )
 
     # === ANÁLISIS DE FACTURAS DE COMPRA MEJORADO ===
     purchase_query = """
@@ -201,6 +316,7 @@ def fetch_vat_data(filters):
             processed_sales[invoice_name] = {
                 "net_total": row.base_net_total or 0,
                 "category": row.category or "",
+                "regime": row.tax_regime or "",
                 "incoterm": row.incoterm or "",
                 "customer_type": classify_customer_type(row.customer_country),
                 "vat_amount": 0,
@@ -219,39 +335,20 @@ def fetch_vat_data(filters):
 
     # Clasificar ventas en rubrieken
     for invoice_name, data in processed_sales.items():
-        category = data["category"]
-        incoterm = data["incoterm"]
         net_amount = data["net_total"]
-        customer_type = data["customer_type"]
         vat_amount = data["vat_amount"]
-        
-        # Lógica de clasificación mejorada
-        rubric = None
-        
-        # 1. Prioridad a categoría fiscal para ventas nacionales
-        if category in TAX_CATEGORY_MAPPING:
-            rubric = TAX_CATEGORY_MAPPING[category]
-        
-        # 2. Verificar coherencia con tipo de cliente
-        if rubric in ["1a", "1b", "1e"] and customer_type != "domestic":
-            if customer_type == "eu":
-                rubric = "3b"
-            elif customer_type == "export":
-                rubric = "3a"
-        
-        # 3. Considerar exportación solo si no es venta nacional
-        elif not rubric and incoterm in EXPORT_INCOTERMS:
-            rubric = "3a"
-        
-        # 4. Fallback por tipo de cliente
-        elif not rubric:
-            if customer_type == "eu":
-                rubric = "3b"
-            elif customer_type == "export":
-                rubric = "3a"
-            else:
-                rubric = "1c"
-                unknown_categories.add(category)
+
+        # VD.20. La decisión vive en `classify_sales_rubric`, que el régimen
+        # gobierna cuando está y que conserva el camino heredado cuando no.
+        rubric, unmapped_category = classify_sales_rubric(
+            regime=data["regime"],
+            category=data["category"],
+            incoterm=data["incoterm"],
+            customer_type=data["customer_type"],
+        )
+
+        if unmapped_category is not None:
+            unknown_categories.add(unmapped_category)
         
         # Registrar en el rubrick correspondiente
         if rubric in rubrics:

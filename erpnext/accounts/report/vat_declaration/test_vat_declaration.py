@@ -70,3 +70,257 @@ class TestClassifyCustomerType(FrappeTestCase):
 	def test_padded_country_is_still_classified_on_its_name(self):
 		self.assertEqual(classify_customer_type("  Netherlands  "), "domestic")
 		self.assertEqual(classify_customer_type(" Germany "), "eu")
+
+
+# =====================================================================
+# VD.20 — the rubriek must follow the stored tax regime, not tax_category
+# =====================================================================
+#
+# `fetch_vat_data` decided every sales rubriek from `tax_category`, and the
+# invoicing pipeline deliberately stops posting that field (VD.4):
+# `createSalesInvoice.ts` destructures it off the payload by name so the state
+# machine cannot route around the omission. ERPNext fills it from the Customer
+# during validate() when the Customer carries one, and measured on the dev site
+# most do not.
+#
+# Measured 2026-09-02, `tabSales Invoice` where docstatus = 1:
+#
+#     (empty)                  605 invoices   630,323.82 net
+#     omzet werkplaats (21%)    79 invoices    80,675.64 net
+#     netherlands vat 0%         1 invoice         120.00 net
+#
+# None of those three strings is a key of TAX_CATEGORY_MAPPING, so every one of
+# them fell through the chain to the domestic fallback `rubric = "1c"`. Running
+# the report over all dates returned:
+#
+#     1a  Leveringen binnenland hoog tarief (21%)         0.00
+#     1c  Overige tarieven                          701,074.89
+#     5a  Verschuldigde omzetbelasting              148,800.84
+#
+# A return that declares no standard-rated domestic turnover at all while owing
+# 148,800.84 of VAT on 701,074.89 of "other rates" contradicts itself on its
+# face: 148,800.84 / 701,074.89 is 21.2%, and rubriek 1c is by definition not
+# the standard rate. This is not a historical artefact. `(empty)` is what every
+# invoice the current pipeline creates carries, so the misfiling is the steady
+# state going forward.
+#
+# `tvs_tax_regime` did not appear in this report once. It is the field the whole
+# regime effort computes — VD.1, VD.2, VD.14 and VD.18 all write or repair it —
+# and the declaration that is actually filed never read it.
+#
+# An invoice that stores no regime keeps the old behaviour byte for byte. Those
+# are the historical invoices that will never have one, and how they should be
+# classified is the accounting question Q1 answered as "nothing changes for the
+# past", not something this change may decide silently.
+
+from unittest.mock import patch
+
+from erpnext.accounts.report.vat_declaration.vat_declaration import (
+	TAX_REGIME_FIELD,
+	classify_sales_rubric,
+	tax_regime_select,
+)
+
+
+class TestClassifySalesRubricByRegime(FrappeTestCase):
+	"""classify_sales_rubric() — the regime path. VD.20."""
+
+	# --- the defect, in the exact shape production produces ----------------
+
+	def test_domestic_standard_rate_lands_in_1a_not_1c(self):
+		"""
+		The measured production shape: no tax category at all, a Netherlands
+		customer, and a regime that says standard rate. Before VD.20 this
+		returned "1c" and took 630,323.82 of turnover with it.
+		"""
+		rubric, unmapped = classify_sales_rubric(
+			regime="NL_STANDARD", category="", incoterm="", customer_type="domestic"
+		)
+
+		self.assertEqual(rubric, "1a")
+		self.assertIsNone(unmapped)
+
+	def test_the_workshop_category_no_longer_decides_the_rubriek(self):
+		"""
+		`omzet werkplaats (21%)` is a revenue-account name, not a Belastingdienst
+		category, and it is absent from TAX_CATEGORY_MAPPING. It must not pull a
+		standard-rated sale into 1c now that the regime is stored.
+		"""
+		rubric, unmapped = classify_sales_rubric(
+			regime="NL_STANDARD",
+			category="omzet werkplaats (21%)",
+			incoterm="",
+			customer_type="domestic",
+		)
+
+		self.assertEqual(rubric, "1a")
+		self.assertIsNone(unmapped)
+
+	# --- the four regimes the report can decide ----------------------------
+
+	def test_reduced_rate_lands_in_1b(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="NL_REDUCED", category="", incoterm="", customer_type="domestic"
+		)
+		self.assertEqual(rubric, "1b")
+
+	def test_intra_community_supply_lands_in_3b(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="EU_B2B_INTRA", category="", incoterm="", customer_type="eu"
+		)
+		self.assertEqual(rubric, "3b")
+
+	def test_export_lands_in_3a(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="EXPORT_NON_EU", category="", incoterm="", customer_type="export"
+		)
+		self.assertEqual(rubric, "3a")
+
+	# --- the regime outranks the address heuristics ------------------------
+
+	def test_the_regime_wins_over_a_missing_customer_country(self):
+		"""
+		VD.14 made an absent country `unknown` so no rewrite acts on it. The
+		regime is stronger still: it was decided at invoice time from a VIES
+		answer, and an address nobody filled in cannot overturn it.
+		"""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="NL_STANDARD", category="", incoterm="", customer_type="unknown"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_the_regime_wins_over_a_contradicting_address_country(self):
+		"""
+		A stored NL_STANDARD says 21% was charged as a domestic supply. If the
+		linked address says Germany the two disagree, and the field the pipeline
+		decided and wrote is the one that governs — rewriting it to 3b would
+		declare a zero-rated intra-community supply while 5a still carries the
+		21% actually collected, which is the VD.14 contradiction rebuilt.
+		"""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="NL_STANDARD", category="", incoterm="", customer_type="eu"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_the_regime_wins_over_an_export_incoterm(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="NL_STANDARD", category="", incoterm="FOB", customer_type="domestic"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_a_padded_regime_is_still_the_regime(self):
+		"""Consistent with resolve_credit_note_regime, which strips before use."""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="  NL_STANDARD  ", category="", incoterm="", customer_type="domestic"
+		)
+		self.assertEqual(rubric, "1a")
+
+	# --- REVIEW_HOLD is deliberately undecidable ---------------------------
+
+	def test_review_hold_is_not_mapped_to_any_rubriek(self):
+		"""
+		REVIEW_HOLD is what VD.2 writes when the system refused to rate the
+		document. Filing it under any rubriek would be the guess that regime
+		exists to prevent, so it takes the legacy path and stays visible through
+		the unknown-category warning the report already raises.
+		"""
+		rubric, unmapped = classify_sales_rubric(
+			regime="REVIEW_HOLD", category="", incoterm="", customer_type="domestic"
+		)
+
+		self.assertEqual(rubric, "1c")
+		self.assertEqual(unmapped, "")
+
+	def test_an_unrecognised_regime_string_is_not_guessed(self):
+		"""A value from a future release must not be mapped by accident."""
+		rubric, unmapped = classify_sales_rubric(
+			regime="SOMETHING_NEW", category="", incoterm="", customer_type="domestic"
+		)
+
+		self.assertEqual(rubric, "1c")
+		self.assertEqual(unmapped, "")
+
+
+class TestClassifySalesRubricLegacyPath(FrappeTestCase):
+	"""
+	classify_sales_rubric() with no stored regime — the pre-VD.20 behaviour,
+	which must survive byte for byte. Q1 was answered "nothing changes for the
+	past", so these are the historical invoices and they keep what they had.
+	"""
+
+	def test_a_mapped_category_still_decides(self):
+		rubric, unmapped = classify_sales_rubric(
+			regime="", category="21% binnenland", incoterm="", customer_type="domestic"
+		)
+		self.assertEqual(rubric, "1a")
+		self.assertIsNone(unmapped)
+
+	def test_a_none_regime_is_the_same_as_an_empty_one(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime=None, category="21% binnenland", incoterm="", customer_type="domestic"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_an_eu_customer_still_rewrites_a_domestic_category(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="", category="21% binnenland", incoterm="", customer_type="eu"
+		)
+		self.assertEqual(rubric, "3b")
+
+	def test_an_export_customer_still_rewrites_a_domestic_category(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="", category="21% binnenland", incoterm="", customer_type="export"
+		)
+		self.assertEqual(rubric, "3a")
+
+	def test_an_unknown_country_still_leaves_the_category_rubriek_alone(self):
+		"""VD.14 — absent is not non-EU, and no rewrite acts on it."""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="", category="21% binnenland", incoterm="", customer_type="unknown"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_an_export_incoterm_still_decides_when_no_category_maps(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="", category="", incoterm="FOB", customer_type="domestic"
+		)
+		self.assertEqual(rubric, "3a")
+
+	def test_the_domestic_fallback_still_records_the_unmapped_category(self):
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="omzet werkplaats (21%)",
+			incoterm="",
+			customer_type="domestic",
+		)
+
+		self.assertEqual(rubric, "1c")
+		self.assertEqual(unmapped, "omzet werkplaats (21%)")
+
+
+class TestTaxRegimeSelect(FrappeTestCase):
+	"""
+	tax_regime_select() — the Custom Field guard. VD.20.
+
+	`tvs_tax_regime` is installed by `tvs_accountancy`. An environment that has
+	not migrated it has no such column, and naming it in SQL there would turn a
+	working report into a database error, so the report must keep running on the
+	legacy path instead.
+	"""
+
+	def test_names_the_field_when_the_column_exists(self):
+		with patch("frappe.db.has_column", return_value=True):
+			self.assertIn(TAX_REGIME_FIELD, tax_regime_select())
+
+	def test_selects_a_constant_when_the_column_is_absent(self):
+		with patch("frappe.db.has_column", return_value=False):
+			select = tax_regime_select()
+
+		self.assertNotIn(TAX_REGIME_FIELD, select)
+		self.assertIn("tax_regime", select)
+
+	def test_asks_about_the_sales_invoice_column_by_name(self):
+		with patch("frappe.db.has_column", return_value=True) as has_column:
+			tax_regime_select()
+
+		has_column.assert_called_once_with("Sales Invoice", TAX_REGIME_FIELD)
