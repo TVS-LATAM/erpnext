@@ -215,24 +215,83 @@ class TestClassifySalesRubricByRegime(FrappeTestCase):
 		)
 		self.assertEqual(rubric, "1a")
 
-	# --- REVIEW_HOLD is deliberately undecidable ---------------------------
+	# --- REVIEW_HOLD is declared as what was actually charged (F.1) ---------
 
-	def test_review_hold_is_not_mapped_to_any_rubriek(self):
+	def test_review_hold_lands_in_1a(self):
 		"""
-		REVIEW_HOLD is what VD.2 writes when the system refused to rate the
-		document. Filing it under any rubriek would be the guess that regime
-		exists to prevent, so it takes the legacy path and stays visible through
-		the unknown-category warning the report already raises.
+		F.1, audit A.4. REVIEW_HOLD was left out of the mapping on the reasoning
+		that filing it under any rubriek would be the guess the regime exists to
+		prevent. Omission does not mean *no rubriek*, it means the legacy
+		country-guessing path — and that path files an EU customer in 3b and a
+		non-EU customer in 3a, both zero-rated, while 5a still carries the 21%
+		REVIEW_HOLD charges by definition. That is the VD.14 contradiction
+		rebuilt by the one regime that means the system refused to rate the
+		document.
+
+		1a is not a guess. It is the only thing this report knows for certain
+		about the document: 21% was charged and TVS owes it.
 		"""
 		rubric, unmapped = classify_sales_rubric(
 			regime="REVIEW_HOLD", category="", incoterm="", customer_type="domestic"
 		)
 
-		self.assertEqual(rubric, "1c")
-		self.assertEqual(unmapped, "")
+		self.assertEqual(rubric, "1a")
+		self.assertIsNone(unmapped)
+
+	def test_a_held_eu_customer_is_not_declared_as_an_intra_community_supply(self):
+		"""The measured defect: 3b is exempt turnover for VAT that was collected."""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="REVIEW_HOLD", category="", incoterm="", customer_type="eu"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_a_held_non_eu_customer_is_not_declared_as_an_export(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="REVIEW_HOLD", category="", incoterm="", customer_type="export"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_a_held_invoice_with_no_customer_country_still_lands_in_1a(self):
+		"""
+		The commonest hold there is: `resolveTaxTreatment` returns REVIEW_HOLD
+		precisely because the country could not be resolved, and 433 of 2,363
+		customers have no address at all.
+		"""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="REVIEW_HOLD", category="", incoterm="", customer_type="unknown"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_a_held_invoice_is_not_rewritten_by_an_export_incoterm(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="REVIEW_HOLD", category="", incoterm="FOB", customer_type="export"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_a_padded_review_hold_is_still_the_regime(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="  REVIEW_HOLD  ", category="", incoterm="", customer_type="eu"
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_a_held_invoice_raises_no_unknown_category_warning(self):
+		"""
+		The hold is not a mapping failure, and the unknown-category warning is
+		about categories this report cannot map. Reporting it there would put a
+		decided document on a list of undecidable ones. F.2 alerts on the hold
+		and F.3 lists it; this report files it.
+		"""
+		_rubric, unmapped = classify_sales_rubric(
+			regime="REVIEW_HOLD", category="omzet werkplaats (21%)", incoterm="", customer_type="eu"
+		)
+		self.assertIsNone(unmapped)
 
 	def test_an_unrecognised_regime_string_is_not_guessed(self):
-		"""A value from a future release must not be mapped by accident."""
+		"""
+		A value from a future release must not be mapped by accident. This is
+		the distinction F.1 turns on: REVIEW_HOLD is a *known* value whose money
+		is known, and an unknown string is neither.
+		"""
 		rubric, unmapped = classify_sales_rubric(
 			regime="SOMETHING_NEW", category="", incoterm="", customer_type="domestic"
 		)

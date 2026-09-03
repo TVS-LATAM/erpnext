@@ -111,16 +111,41 @@ def classify_customer_type(country):
 # reparan — y la declaración que efectivamente se presenta nunca lo leyó.
 TAX_REGIME_FIELD = "tvs_tax_regime"
 
-# Los cuatro regímenes que deciden un rubriek por sí solos. REVIEW_HOLD queda
-# fuera a propósito: es lo que VD.2 escribe cuando el sistema se NEGÓ a tasar el
-# documento, así que meterlo en cualquier rubriek sería exactamente la
-# adivinanza que el régimen existe para evitar. Cae al camino heredado y sigue
-# visible por el aviso de categorías desconocidas que el informe ya emite.
+# Los cinco regímenes que deciden un rubriek por sí solos.
+#
+# F.1 (auditoría A.4). REVIEW_HOLD estaba fuera a propósito, con el razonamiento
+# de que meterlo en cualquier rubriek sería la adivinanza que el régimen existe
+# para evitar. El razonamiento tiene un agujero: omitir no es "sin rubriek", es
+# el camino heredado, y el camino heredado adivina por país. Medido con el
+# arnés de F.1 sobre esta misma función antes del cambio:
+#
+#     REVIEW_HOLD + customer_type='eu'       -> 3b   (entrega intracomunitaria)
+#     REVIEW_HOLD + customer_type='export'   -> 3a   (exportación fuera de la UE)
+#     REVIEW_HOLD + customer_type='domestic' -> 1c   (otras tarifas)
+#
+# 3b y 3a son facturación exenta. Mientras tanto `rubrics["5a"]` sigue
+# acumulando el 21% que la factura sí cobró — REVIEW_HOLD cobra 21% por
+# definición, es la tarifa segura a la que degrada. Es VD.14 y VD.20 otra vez,
+# reconstruido por el único régimen que significa "el sistema se NEGÓ a tasar
+# este documento": declarar entrega exenta al lado del IVA cobrado sobre ella.
+#
+# 1a no es una adivinanza. Es lo único que este informe sabe con certeza del
+# documento: se cobró el 21% y TVS lo debe. Si la revisión decide después que la
+# entrega era de tipo cero, eso es una corrección — recuperable, a diferencia de
+# una declaración exenta por un IVA que sí se cobró.
+#
+# La duda no desaparece por mapearlo; se mueve a donde se puede actuar sobre
+# ella. F.2 avisa por Slack el día que ocurre y F.3 es la lista que el contador
+# lee antes de presentar el periodo.
+#
+# Un valor de régimen que este informe no conoce sigue sin adivinarse: cae al
+# camino heredado y dispara el aviso de categorías desconocidas.
 TAX_REGIME_RUBRIC_MAPPING = {
     "NL_STANDARD": "1a",
     "NL_REDUCED": "1b",
     "EU_B2B_INTRA": "3b",
     "EXPORT_NON_EU": "3a",
+    "REVIEW_HOLD": "1a",
 }
 
 
@@ -147,7 +172,7 @@ def classify_sales_rubric(regime, category, incoterm, customer_type):
     que hay que sumar a `unknown_categories` para que dispare el aviso, o None
     cuando no hay nada que avisar.
 
-    Una factura que guarda uno de los cuatro regímenes decidibles se clasifica
+    Una factura que guarda uno de los cinco regímenes decidibles se clasifica
     por él y nada lo reescribe después. El régimen se decidió al emitir el
     documento, con la respuesta de VIES delante; una dirección que nadie llenó o
     un incoterm suelto no pueden darlo vuelta. Reescribir un NL_STANDARD a 3b
