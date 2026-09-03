@@ -248,23 +248,38 @@ def execute(filters=None):
     return columns, data
 
 
-def fetch_vat_data(filters):
+# F.12. La clasificación por factura vivía dentro de `fetch_vat_data`, que sólo
+# devuelve los rubrieken ya sumados. La reconciliación contra la ICP necesita
+# saber QUÉ factura entró en 3b, no cuánto suma 3b, y la única forma honesta de
+# saberlo es leer la misma clasificación que declara — no una segunda copia.
+#
+# Una copia que se desviara en una sola rama reportaría las dos declaraciones
+# como coincidentes en un periodo en el que no coinciden, que es exactamente el
+# fallo silencioso que F.12 existe para hacer visible.
+def classify_period_sales(filters):
+    """
+    Cada factura de venta presentada del periodo, con el rubriek que la declara.
+
+    Devuelve `(facturas, categorias_desconocidas, total_reverse_charge)`. Las
+    facturas salen en el orden del `ORDER BY si.name` de la consulta, así que
+    dos ejecuciones sobre los mismos datos devuelven la misma lista.
+
+    `tax_id` y `posting_date` se seleccionan para la reconciliación y no
+    intervienen en la clasificación: el rubriek lo decide `classify_sales_rubric`
+    con exactamente los mismos cuatro argumentos que antes.
+    """
     from_date = filters.get("from_date", "1900-01-01")
     to_date = filters.get("to_date", "2100-12-31")
     company = filters.get("company", "")
-
-    # Inicializar rubrieken
-    rubrics = {
-        "1a": 0.0, "1b": 0.0, "1c": 0.0, "1d": 0.0, "1e": 0.0,
-        "2a": 0.0, "3a": 0.0, "3b": 0.0, "3c": 0.0,
-        "4a": 0.0, "4b": 0.0, "5a": 0.0, "5b": 0.0
-    }
 
     # === ANÁLISIS DE FACTURAS DE VENTA MEJORADO ===
     sales_query = """
         SELECT
             si.name,
             si.customer,
+            si.customer_name,
+            si.posting_date,
+            si.tax_id,
             LOWER(TRIM(si.tax_category)) AS category,
             {tax_regime_select},
             UPPER(TRIM(si.incoterm)) AS incoterm,
@@ -278,12 +293,12 @@ def fetch_vat_data(filters):
             acc.account_type,
             acc.account_name
         FROM `tabSales Invoice` si
-        LEFT JOIN `tabSales Taxes and Charges` stc 
+        LEFT JOIN `tabSales Taxes and Charges` stc
             ON stc.parent = si.name AND stc.parenttype = 'Sales Invoice'
         LEFT JOIN `tabAccount` acc ON acc.name = stc.account_head
         LEFT JOIN `tabAddress` addr ON addr.name = si.customer_address
         WHERE si.posting_date BETWEEN %(from_date)s AND %(to_date)s
-            AND si.docstatus = 1 
+            AND si.docstatus = 1
             AND (%(company)s = '' OR si.company = %(company)s)
         ORDER BY si.name, stc.idx
     """
@@ -293,6 +308,72 @@ def fetch_vat_data(filters):
         {"from_date": from_date, "to_date": to_date, "company": company},
         as_dict=True,
     )
+
+    # Procesar datos de ventas
+    processed_sales = {}
+    unknown_categories = set()
+    reverse_charge_total = 0.0
+
+    for row in sales_rows:
+        invoice_name = row.name
+        if invoice_name not in processed_sales:
+            processed_sales[invoice_name] = {
+                "invoice": invoice_name,
+                "customer": row.customer or "",
+                "customer_name": row.customer_name or "",
+                "period": row.posting_date.strftime("%Y-%m") if row.posting_date else "",
+                "tax_id": row.tax_id or "",
+                "net_total": row.base_net_total or 0,
+                "category": row.category or "",
+                "regime": row.tax_regime or "",
+                "incoterm": row.incoterm or "",
+                "customer_type": classify_customer_type(row.customer_country),
+                "vat_amount": 0,
+                "reverse_charge": 0
+            }
+
+        # Acumular IVA solo de cuentas de impuestos válidas
+        if row.account_type == "Tax" and "vat" in (row.account_name or "").lower():
+            processed_sales[invoice_name]["vat_amount"] += flt(row.base_tax_amount or 0)
+
+        # Detectar reverse charge
+        if (row.account_head and ("verlegd" in row.account_head.lower() or "reverse" in row.account_head.lower()) or
+            row.description and "verlegd" in row.description.lower()):
+            processed_sales[invoice_name]["reverse_charge"] += flt(row.base_tax_amount or 0)
+            reverse_charge_total += flt(row.base_tax_amount or 0)
+
+    # Clasificar ventas en rubrieken
+    for data in processed_sales.values():
+        # VD.20. La decisión vive en `classify_sales_rubric`, que el régimen
+        # gobierna cuando está y que conserva el camino heredado cuando no.
+        rubric, unmapped_category = classify_sales_rubric(
+            regime=data["regime"],
+            category=data["category"],
+            incoterm=data["incoterm"],
+            customer_type=data["customer_type"],
+        )
+
+        data["rubric"] = rubric
+
+        if unmapped_category is not None:
+            unknown_categories.add(unmapped_category)
+
+    return list(processed_sales.values()), unknown_categories, reverse_charge_total
+
+
+def fetch_vat_data(filters):
+    from_date = filters.get("from_date", "1900-01-01")
+    to_date = filters.get("to_date", "2100-12-31")
+    company = filters.get("company", "")
+
+    # Inicializar rubrieken
+    rubrics = {
+        "1a": 0.0, "1b": 0.0, "1c": 0.0, "1d": 0.0, "1e": 0.0,
+        "2a": 0.0, "3a": 0.0, "3b": 0.0, "3c": 0.0,
+        "4a": 0.0, "4b": 0.0, "5a": 0.0, "5b": 0.0
+    }
+
+    sales_invoices, unknown_categories, reverse_charge_total = classify_period_sales(filters)
 
     # === ANÁLISIS DE FACTURAS DE COMPRA MEJORADO ===
     purchase_query = """
@@ -330,55 +411,17 @@ def fetch_vat_data(filters):
         "company": company
     }, as_dict=True)
 
-    # Procesar datos de ventas
-    processed_sales = {}
-    unknown_categories = set()
-    reverse_charge_total = 0.0
-    
-    for row in sales_rows:
-        invoice_name = row.name
-        if invoice_name not in processed_sales:
-            processed_sales[invoice_name] = {
-                "net_total": row.base_net_total or 0,
-                "category": row.category or "",
-                "regime": row.tax_regime or "",
-                "incoterm": row.incoterm or "",
-                "customer_type": classify_customer_type(row.customer_country),
-                "vat_amount": 0,
-                "reverse_charge": 0
-            }
-        
-        # Acumular IVA solo de cuentas de impuestos válidas
-        if row.account_type == "Tax" and "vat" in (row.account_name or "").lower():
-            processed_sales[invoice_name]["vat_amount"] += flt(row.base_tax_amount or 0)
-        
-        # Detectar reverse charge
-        if (row.account_head and ("verlegd" in row.account_head.lower() or "reverse" in row.account_head.lower()) or
-            row.description and "verlegd" in row.description.lower()):
-            processed_sales[invoice_name]["reverse_charge"] += flt(row.base_tax_amount or 0)
-            reverse_charge_total += flt(row.base_tax_amount or 0)
-
-    # Clasificar ventas en rubrieken
-    for invoice_name, data in processed_sales.items():
+    # Acumular en los rubrieken. La clasificación ya la hizo
+    # `classify_period_sales`, que es lo que la reconciliación de F.12 lee.
+    for data in sales_invoices:
         net_amount = data["net_total"]
         vat_amount = data["vat_amount"]
+        rubric = data["rubric"]
 
-        # VD.20. La decisión vive en `classify_sales_rubric`, que el régimen
-        # gobierna cuando está y que conserva el camino heredado cuando no.
-        rubric, unmapped_category = classify_sales_rubric(
-            regime=data["regime"],
-            category=data["category"],
-            incoterm=data["incoterm"],
-            customer_type=data["customer_type"],
-        )
-
-        if unmapped_category is not None:
-            unknown_categories.add(unmapped_category)
-        
         # Registrar en el rubrick correspondiente
         if rubric in rubrics:
             rubrics[rubric] += net_amount
-        
+
         # Acumular IVA repercutido
         rubrics["5a"] += vat_amount
 
