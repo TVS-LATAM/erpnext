@@ -1,47 +1,41 @@
 // Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 // License: GNU General Public License v3. See license.txt
 
-const TAX_CATEGORY = {
-	NL: "Omzet Werkplaats (21%)",
-	EU_Zero: "Omzet Werkplaats (0%)",
-	Non_EU: "Outside EU"
-};
-
-async function update_customer_addresses_tax_category(frm, tax_category) {
-	if (!frm?.doc?.name || !tax_category) return;
-
-	const address_name_like = `%${frm.doc.name}%`;
-
-	const res = await frappe.call({
-		method: "frappe.client.get_list",
-		args: {
-			doctype: "Address",
-			filters: {
-				name: ["like", address_name_like]
-			},
-			fields: ["name", "tax_category"],
-			limit_page_length: 100
-		}
-	});
-
-	const addresses = res?.message || [];
-	if (!addresses.length) return;
-	await Promise.all(
-		addresses
-			.filter(addr => addr.name && addr.tax_category !== tax_category)
-			.map(addr =>
-				frappe.call({
-					method: "frappe.client.set_value",
-					args: {
-						doctype: "Address",
-						name: addr.name,
-						fieldname: "tax_category",
-						value: tax_category
-					}
-				})
-			)
-	);
-}
+/**
+ * T1.9 — this dialog validates a VAT number. It does not classify the customer.
+ *
+ * It used to write four things on the way out: `customer_type: "Company"`,
+ * `customer_group: "Garage"`, a `tax_category` it recomputed in the browser,
+ * and that same category cascaded onto every matching Address.
+ *
+ * All four are gone, and each for its own reason.
+ *
+ * `customer_type` is the one with money attached. The booking form asks the
+ * customer to choose it, `ContactView.vue` reads it back to prefill their next
+ * visit, and `resolveTaxTreatment` reads it to decide between article 138 and
+ * article 146. Overwriting it here falsified the customer's own answer and then
+ * handed that falsified value to the fiscal decision. T1.3 removed the same
+ * write from the server; this was the other writer.
+ *
+ * The category is subtler. Since T1.3 the server returns no category at all —
+ * the regime is decided once, at invoice time, from the facts of the whole
+ * sale. So the browser could only recompute one from the VAT prefix, which is
+ * precisely the second source of truth this work exists to remove. There is no
+ * third option: either the browser guesses, or it writes nothing.
+ *
+ * Verified in production on 2026-09-01 before removing it: of 1,311 submitted
+ * invoices, 659 carry `Omzet Werkplaats (21%)` and 652 carry nothing. Neither
+ * value is a key of TAX_CATEGORY_MAPPING in vat_declaration.py or
+ * tax_declaration.py, the only two things in this app that read the field, so
+ * the categories this dialog wrote have never once classified a VAT return.
+ * Removing the write takes nothing away that was working.
+ *
+ * What the dialog does now is report what VIES said, in the four states T1.4
+ * gave it. That is also the fix for the regression T1.3 caused here: a non-EU
+ * number answers `isValid: false`, and this screen used to render that as
+ * "Invalid VAT ID", so staff were told a perfectly good Swiss number was bad.
+ * VIES only covers member states — that is not a verdict on the number.
+ */
 
 frappe.ui.form.on("Customer", {
 	vat_validation: async function(frm) {
@@ -85,55 +79,59 @@ frappe.ui.form.on("Customer", {
 							fieldname: "company_details"
 						}
 					],
-					primary_action_label: __("Update Customer Group and Tax Category"),
-					primary_action: async function() {
-						// Update customer information if validation is successful
-						if (response.isValid) {
-							let tax_category = TAX_CATEGORY.Non_EU;
-							if (!response.outsideEU) {
-								const isNL =
-									response.vatNumber && response.vatNumber.toUpperCase().startsWith("NL");
-								tax_category = isNL ? TAX_CATEGORY.NL : TAX_CATEGORY.EU_Zero;
-							}
-
-							frm.set_value("customer_group", "Garage");
-							frm.set_value("tax_category", tax_category); // NL: "Omzet Werkplaats (21%)" EU: "Omzet Werkplaats (0%)" Non_EU: "Outside EU"
-							frm.set_value("customer_type", "Company");
-							await update_customer_addresses_tax_category(frm, tax_category);
-							await frm.save();
-						}
-
+					primary_action_label: __("Close"),
+					primary_action: function() {
 						dialog.hide();
 					}
 				});
 
-				// Set the status HTML based on validation result
+				// T1.4 gives the endpoint four states, and collapsing them back into
+				// valid/invalid here is what told staff a good Swiss number was bad.
+				// `status` is preferred; `isValid` is the fallback for a deploy where
+				// the service is older than this file.
+				const status = response.status || (response.isValid ? "valid" : "invalid");
+
 				let status_html = "";
-				if (response.isValid) {
+				if (status === "valid") {
 					status_html = `
                     <div class="alert alert-success">
                         <strong>${__("Valid VAT ID")}</strong>
-                        <p>${__("The provided VAT ID is valid.")}</p>
+                        <p>${__("VIES confirmed this VAT ID.")}</p>
                     </div>
                 `;
-				} else {
+				} else if (status === "invalid") {
 					status_html = `
                     <div class="alert alert-danger">
                         <strong>${__("Invalid VAT ID")}</strong>
-                        <p>${__("Error: ")} ${response.userError || __("Validation failed")}</p>
+                        <p>${__("VIES was asked and rejected this VAT ID.")} ${response.userError || ""}</p>
+                    </div>
+                `;
+				} else if (response.outsideEU) {
+					// Not a verdict on the number. VIES answers only for member states.
+					status_html = `
+                    <div class="alert alert-info">
+                        <strong>${__("Non-EU VAT ID — not checked")}</strong>
+                        <p>${__("VIES only covers EU member states, so this number could not be checked. That is not an error, and it does not mean the number is wrong.")}</p>
+                    </div>
+                `;
+				} else {
+					// An outage. Emphatically not the same as a rejection: the sale may
+					// genuinely be a zero-rated intra-community supply nobody could
+					// confirm, and an invoice raised now is held for review at 21%.
+					status_html = `
+                    <div class="alert alert-warning">
+                        <strong>${__("VIES could not answer")}</strong>
+                        <p>${__("The VAT number was not rejected — the service did not respond. Try again later; do not record this as invalid.")} ${response.userError || ""}</p>
                     </div>
                 `;
 				}
 				dialog.fields_dict.status_html.$wrapper.html(status_html);
 
-				// Set company details HTML
+				// Set company details HTML. The tax category row is gone with the
+				// write behind it: showing a category this screen no longer applies
+				// would be describing a decision made elsewhere, at invoice time.
 				let company_details = "";
-				if (response.isValid) {
-					let tax_category = TAX_CATEGORY.Non_EU;
-					if (!response.outsideEU) {
-						const isNL = response.vatNumber && response.vatNumber.toUpperCase().startsWith("NL");
-						tax_category = isNL ? TAX_CATEGORY.NL : TAX_CATEGORY.EU_Zero;
-					}
+				if (status === "valid") {
 					company_details = `
                     <div class="row">
                         <div class="col-xs-12">
@@ -149,10 +147,6 @@ frappe.ui.form.on("Customer", {
                                 <div class="col-xs-4"><strong>${__("VAT Number")}:</strong></div>
                                 <div class="col-xs-8">${response.vatNumber || "-"}</div>
                             </div>
-														<div class="row">
-                                <div class="col-xs-4"><strong>${__("Tax Category")}:</strong></div>
-                                <div class="col-xs-8">${tax_category}</div>
-                            </div>
                             <div class="row">
                                 <div class="col-xs-4"><strong>${__("Request Date")}:</strong></div>
                                 <div class="col-xs-8">${frappe.datetime.str_to_user(response.requestDate) ||
@@ -164,7 +158,7 @@ frappe.ui.form.on("Customer", {
 				} else {
 					company_details = `
                     <div class="alert alert-warning">
-                        <p>${__("No company details available for invalid VAT ID.")}</p>
+                        <p>${__("VIES returned no company details for this VAT ID.")}</p>
                     </div>
                 `;
 				}
