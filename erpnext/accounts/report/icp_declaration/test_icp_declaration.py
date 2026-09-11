@@ -257,3 +257,178 @@ class TestGetColumns(FrappeTestCase):
 
 		for fieldname in ("Period", "Country Code", "VAT Identification Number", "Net Amount"):
 			self.assertIn(fieldname, fieldnames)
+
+
+# ---------------------------------------------------------------------------
+# VD.30 — a credited supply must leave the listing, not double on it.
+#
+# `T.30` and `T.33` of the manual plan, executed on 2026-09-10: a German dealer
+# is invoiced under `EU_B2B_INTRA` and the whole sale is credited in the same
+# month. Rubriek `3b` nets to zero. The ICP listing read **twice the invoice**.
+#
+# The cause is a sign applied twice. `make_return_doc` negates `qty`, so
+# ERPNext stores the credit note's item with `base_net_amount` ALREADY
+# negative; the report's
+#
+#     CASE WHEN si.is_return = 1 THEN -sii.base_net_amount ELSE ... END
+#
+# then negates it again. Measured at item level:
+#
+#     invoice      is_return 0   stored  120,00   ICP expression  120,00
+#     credit note  is_return 1   stored −120,00   ICP expression  120,00
+#
+# The Opgaaf ICP is a legally required filing, and `chat-jantine.md` says credit
+# notes are routine at TVS rather than an edge case. It also breaks the only
+# cross-check that would have caught it: `V.20`'s reconciliation compares this
+# listing against `3b`, and `3b` is right.
+#
+# This is the first DB-backed test in this file, and it has to be: the defect is
+# in the SQL, and every pure-function test above would pass with it in place.
+# ---------------------------------------------------------------------------
+
+import frappe
+from frappe.utils import nowdate
+
+from erpnext.accounts.report.icp_declaration.icp_declaration import fetch_icp_data
+from erpnext.controllers.sales_and_purchase_return import make_return_doc
+
+GERMAN_VAT_NUMBER = "DE811128135"
+
+
+class TestIcpNettingOfCreditNotes(FrappeTestCase):
+	"""VD.30 — the arithmetic of the rows the listing returns."""
+
+	def setUp(self):
+		super().setUp()
+		self.date = nowdate()
+
+		# `--skip-before-tests` is mandatory on this bench (the `hrms` hook dies on
+		# an unrelated import), so erpnext's `_Test Company` fixtures are never
+		# seeded. The accounts are taken from a document the site already posted
+		# instead, which is also the stronger test: it exercises the real chart of
+		# accounts rather than a synthetic one.
+		model_name = frappe.db.get_value(
+			"Sales Invoice", {"docstatus": 1, "is_return": 0}, "name", order_by="creation desc"
+		)
+		if not model_name:
+			self.skipTest("no submitted Sales Invoice on this site to take accounts from")
+		self.model = frappe.get_doc("Sales Invoice", model_name)
+		self.company = self.model.company
+		self.customer = self._german_dealer()
+
+	def _german_dealer(self):
+		# One dealer per test. `bench run-tests` rolls the whole RUN back, not
+		# each test, so two tests sharing a customer would see one another's
+		# documents in the same period and the listing would read double for a
+		# reason that has nothing to do with the defect.
+		name = f"VD30 ICP Dealer {self._testMethodName[:60]}"
+		if not frappe.db.exists("Customer", name):
+			frappe.get_doc(
+				{
+					"doctype": "Customer",
+					"customer_name": name,
+					"customer_type": "Company",
+					"customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
+					"territory": frappe.db.get_value("Territory", {"is_group": 0}, "name"),
+					"tax_id": GERMAN_VAT_NUMBER,
+					# A TVS custom field, mandatory on this site.
+					"phone_number": "+31000000000",
+				}
+			).insert(ignore_permissions=True)
+		return name
+
+	def _intra_community_invoice(self, rate):
+		item = self.model.items[0]
+		invoice = frappe.get_doc(
+			{
+				"doctype": "Sales Invoice",
+				"customer": self.customer,
+				"company": self.company,
+				"posting_date": self.date,
+				"due_date": self.date,
+				"currency": self.model.currency,
+				"debit_to": self.model.debit_to,
+				"update_stock": 0,
+				"tax_id": GERMAN_VAT_NUMBER,
+				"tvs_tax_regime": "EU_B2B_INTRA",
+				"items": [
+					{
+						"item_code": item.item_code,
+						"qty": 1,
+						"rate": rate,
+						"income_account": item.income_account,
+						"cost_center": item.cost_center,
+						"warehouse": item.warehouse,
+					}
+				],
+			}
+		)
+		invoice.insert(ignore_permissions=True)
+		invoice.submit()
+		return invoice
+
+	def _credit(self, invoice):
+		credit_note = make_return_doc("Sales Invoice", invoice.name)
+		credit_note.posting_date = self.date
+		credit_note.due_date = self.date
+		credit_note.tax_id = GERMAN_VAT_NUMBER
+		credit_note.tvs_tax_regime = "EU_B2B_INTRA"
+		credit_note.insert(ignore_permissions=True)
+		credit_note.submit()
+		return credit_note
+
+	def _our_rows(self):
+		return [
+			row
+			for row in fetch_icp_data(
+				{"from_date": self.date, "to_date": self.date, "company": self.company}
+			)
+			if row["Customer Code"] == self.customer
+		]
+
+	def test_a_credit_note_stores_its_item_amount_already_negative(self):
+		"""
+		The premise the defect rests on, pinned so nobody re-derives it. If ERPNext
+		ever stopped negating a return's item, the fix below would become the bug.
+		"""
+		invoice = self._intra_community_invoice(120)
+		credit_note = self._credit(invoice)
+
+		self.assertEqual(invoice.items[0].base_net_amount, 120)
+		self.assertEqual(credit_note.items[0].base_net_amount, -120)
+
+	def test_a_fully_credited_supply_leaves_the_listing(self):
+		"""
+		`T.30`. Invoice 120,00 and credit all of it: the month supplied nothing, so
+		there is nothing to file. The `HAVING ABS(...) >= 1` threshold then drops
+		the row on its own, which is the correct outcome and not a second defect.
+		"""
+		invoice = self._intra_community_invoice(120)
+		self._credit(invoice)
+
+		for row in self._our_rows():
+			self.assertNotEqual(
+				row["Net Amount"],
+				240,
+				"the invoice and its credit note were added instead of netted (VD.30)",
+			)
+			self.assertEqual(row["Net Amount"], 0)
+
+	def test_a_month_holding_both_an_invoice_and_a_credit_note_files_the_net(self):
+		"""
+		`T.33`. Two supplies of 200,00 and 120,00, the second one credited in
+		full: the month supplied 200,00 and that is what is filed, on ONE line
+		for the customer and period.
+
+		The one-euro threshold cannot mask this the way it masks the fully
+		credited month above — the row is filed either way, and only its amount
+		says whether the arithmetic is right. Under VD.30 it read 440,00:
+		200 + 120 + 120, the credit note added instead of subtracted.
+		"""
+		self._intra_community_invoice(200)
+		credited = self._intra_community_invoice(120)
+		self._credit(credited)
+
+		rows = self._our_rows()
+		self.assertEqual(len(rows), 1, "one customer and one period must produce one line")
+		self.assertEqual(rows[0]["Net Amount"], 200)
