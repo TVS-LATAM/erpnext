@@ -960,6 +960,22 @@ frappe.ui.form.on("Quotation", {
 		}
 		frm.add_custom_button(__("Build from diagnosis"), () => build_from_diagnosis(frm));
 	},
+	before_save(frm) {
+		// Builder runs made on this unsaved Quotation (see bldLogApplied); linked after save.
+		const pending = frm.__builder_logs;
+		frm.__builder_logs_to_link = pending && pending.doc === frm.doc ? pending.logs : [];
+	},
+	after_save(frm) {
+		const logs = frm.__builder_logs_to_link || [];
+		if (!logs.length) return;
+		frm.__builder_logs = null;
+		frm.__builder_logs_to_link = [];
+		logs.forEach((log) =>
+			frappe
+				.xcall("erpnext.selling.quotation_builder.update_builder_log", { log, quotation: frm.doc.name })
+				.catch(() => {})
+		);
+	},
 });
 
 function build_from_diagnosis(frm) {
@@ -971,7 +987,7 @@ function build_from_diagnosis(frm) {
 	frappe
 		.call({
 			method: "erpnext.selling.quotation_builder.build_quotation_suggestions",
-			args: { project: frm.doc.project_name },
+			args: { project: frm.doc.project_name, quotation: frm.is_new() ? null : frm.doc.name },
 		})
 		.then((r) => {
 			frappe.dom.unfreeze();
@@ -980,6 +996,25 @@ function build_from_diagnosis(frm) {
 			}
 		})
 		.catch(() => frappe.dom.unfreeze());
+}
+
+// Usage monitoring: mark the run's Quotation Builder Log as applied. Fire-and-forget.
+// On an unsaved Quotation the log is remembered and linked in after_save.
+function bldLogApplied(frm, log, rows) {
+	if (!log) return;
+	if (frm.is_new()) {
+		if (!frm.__builder_logs || frm.__builder_logs.doc !== frm.doc) {
+			frm.__builder_logs = { doc: frm.doc, logs: [] };
+		}
+		frm.__builder_logs.logs.push(log);
+	}
+	frappe
+		.xcall("erpnext.selling.quotation_builder.update_builder_log", {
+			log,
+			rows,
+			quotation: frm.is_new() ? null : frm.doc.name,
+		})
+		.catch(() => {});
 }
 
 // Small DOM helper (translate-style plain JS — no Vue / web components).
@@ -1413,6 +1448,7 @@ function show_builder_dialog(frm, bundle) {
 						frm.doc.items.forEach((r, i) => (r.idx = i + 1));
 					}
 					frm.refresh_field("items");
+					bldLogApplied(frm, bundle.log, rows);
 					dialog.hide();
 					frappe.show_alert(
 						{ message: __("Added {0} line(s) — review rates.", [rows.length]), indicator: "green" },
