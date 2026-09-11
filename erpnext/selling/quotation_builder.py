@@ -664,12 +664,13 @@ def _dedupe_sold_with_by_subcategory(jobs):
 
 
 @frappe.whitelist()
-def build_quotation_suggestions(project):
+def build_quotation_suggestions(project, quotation=None):
 	"""Assemble the diagnosis-driven suggestion bundle for a Project.
 
-	Read-only: keyed off the Project so it works before the Quotation is saved.
-	The client renders the bundle and appends the chosen lines to the Quotation
-	in memory; nothing is written here.
+	Keyed off the Project so it works before the Quotation is saved. The client
+	renders the bundle and appends the chosen lines to the Quotation in memory.
+	The only write is a Quotation Builder Log row for usage monitoring; its name is
+	returned as `log` so the client can mark it applied (see update_builder_log).
 	"""
 	from erpnext.selling.doctype.standard_labour_hours.standard_labour_hours import (
 		get_standard_labour_hours,
@@ -696,11 +697,14 @@ def build_quotation_suggestions(project):
 	repair_advice = extract_repair_advice(diag_html)
 	if repair_advice:
 		diagnosis_text = repair_advice
+		diagnosis_source = "Reparatie advies"
 	elif diag_html:
 		diagnosis_text = _strip_html(diag_html)
+		diagnosis_source = "Full diagnosis"
 		messages.append(_("No 'Reparatie advies' section found — scanned the full diagnosis."))
 	else:
 		diagnosis_text = project.get("client_description") or ""
+		diagnosis_source = "Client description" if diagnosis_text else "None"
 
 	detected = detect_jobs_from_text(diagnosis_text)
 	if not detected:
@@ -745,7 +749,7 @@ def build_quotation_suggestions(project):
 
 	_dedupe_sold_with_by_subcategory(jobs)
 
-	return {
+	bundle = {
 		"project": project.get("name"),
 		"car": {
 			"engine_code": engine_code,
@@ -758,6 +762,69 @@ def build_quotation_suggestions(project):
 		"jobs": jobs,
 		"messages": messages,
 	}
+	bundle["log"] = _log_builder_run(bundle, quotation, diagnosis_source, diagnosis_text)
+	return bundle
+
+
+def _log_builder_run(bundle, quotation, diagnosis_source, diagnosis_text):
+	"""Record a builder run in Quotation Builder Log. Logging must never break the
+	builder, so failures go to the Error Log and return None."""
+	try:
+		summary = [
+			{
+				"job": j["job"],
+				"matched_keyword": j["matched_keyword"],
+				"parts": [p.get("item_code") for p in j["suggested_parts"]],
+				"oem_refs": [r.get("part_no") for r in j["oem_refs"]],
+				"labour": [
+					{"variant": v.get("vehicle_variant"), "hours": v.get("hours")}
+					for v in j["labour"]["variants"]
+				],
+			}
+			for j in bundle["jobs"]
+		]
+		log = frappe.get_doc(
+			{
+				"doctype": "Quotation Builder Log",
+				"status": "Suggested",
+				"user": frappe.session.user,
+				"project": bundle["project"],
+				"quotation": quotation if quotation and frappe.db.exists("Quotation", quotation) else None,
+				"dsg_family": bundle["car"].get("dsg_family"),
+				"detected_jobs": ", ".join(j["job"] for j in bundle["jobs"]),
+				"diagnosis_source": diagnosis_source,
+				"diagnosis_text": diagnosis_text,
+				"messages": "\n".join(str(m) for m in bundle["messages"]),
+				"suggestions": frappe.as_json(summary),
+			}
+		).insert(ignore_permissions=True)
+		return log.name
+	except Exception:
+		frappe.log_error(title="Quotation Builder Log")
+		return None
+
+
+@frappe.whitelist()
+def update_builder_log(log, rows=None, quotation=None):
+	"""Mark a builder run as applied and/or link it to its Quotation.
+
+	The client calls this after "Add to Quotation" (with `rows`), and again after
+	the first save of a new Quotation (with `quotation`) so runs made before the
+	Quotation had a name still get linked.
+	"""
+	doc = frappe.get_doc("Quotation Builder Log", log)
+	if doc.user != frappe.session.user and "System Manager" not in frappe.get_roles():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if rows is not None:
+		rows = frappe.parse_json(rows) or []
+		doc.status = "Applied"
+		doc.lines_added = len(rows)
+		doc.applied_rows = frappe.as_json(rows)
+	# Only link a Quotation that belongs to the same Project as the run.
+	if quotation and frappe.db.get_value("Quotation", quotation, "project_name") == doc.project:
+		doc.quotation = quotation
+	doc.save(ignore_permissions=True)
 
 
 @frappe.whitelist()
