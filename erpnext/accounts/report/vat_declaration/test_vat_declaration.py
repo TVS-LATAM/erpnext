@@ -1087,3 +1087,202 @@ class TestFetchVatDataBlanksTheUnsourcedPurchaseHalf(FrappeTestCase):
 			fetch_vat_data(_UNPOPULATED_WINDOW)
 
 		self.assertFalse(msgprint.called)
+
+
+# =====================================================================
+# B8 — 5b could never see a Dutch input-VAT account
+# =====================================================================
+#
+# The accumulator that feeds rubriek 5b required the account name to
+# contain "vat" AND one of "input"/"soportado". The chart of accounts of
+# the Dutch company is written in Dutch, and none of the 49 Tax accounts on
+# the site can satisfy that:
+#
+#     Btw te vorderen hoog / laag / overig      input VAT
+#     Btw af te dragen hoog / laag / overig     output VAT
+#     Te vorderen Btw-verlegd                   input side of a reverse charge
+#     Af te dragen Btw-verlegd                  output side of a reverse charge
+#     Btw-afdracht, Btw oude jaren
+#     VAT 21%, VAT 6%, VAT 0% - TVS             the NL purchase templates
+#
+# "Btw te vorderen hoog" contains neither "vat" nor "input". Neither does
+# "VAT 21%" contain "input", and that is the account the one existing NL
+# Purchase Taxes and Charges Template posts to. So 5b was structurally
+# pinned at 0.00 and `Totaal`, which is `5a - 5b`, overstated the VAT
+# payable by the whole deductible amount.
+#
+# Whitelisting account names was the wrong shape of rule. The document type
+# already says which side of the ledger a tax line is on: on a PURCHASE
+# invoice a VAT account is voorbelasting unless its own name says it is the
+# remittance side or a verlegd account. That reads the same in Dutch,
+# English or Spanish, and it stops depending on one deployment's naming.
+#
+# The verlegd pair is recognised and deliberately NOT summed into 5b. Its
+# counterpart belongs in 5a, and declaring one side of a reverse charge
+# without the other makes the net wrong rather than incomplete — that is
+# the purchase-half scope decision of P2.3 option A. It warns instead.
+
+from erpnext.accounts.report.vat_declaration.vat_declaration import (
+	classify_purchase_tax_account,
+)
+
+
+class TestClassifyPurchaseTaxAccount(FrappeTestCase):
+	"""classify_purchase_tax_account() — B8."""
+
+	# --- the defect, in the shape the site actually has --------------------
+
+	def test_the_dutch_input_vat_accounts_are_recognised(self):
+		for account_name in (
+			"Btw te vorderen hoog",
+			"Btw te vorderen laag",
+			"Btw te vorderen overig",
+		):
+			self.assertEqual(
+				classify_purchase_tax_account("Tax", account_name), "input", account_name
+			)
+
+	def test_the_account_the_nl_purchase_template_posts_to_is_recognised(self):
+		"""
+		`VAT 21% - T` is the only NL purchase tax template on the site. It
+		contains "vat" but not "input", so the old rule missed it too.
+		"""
+		self.assertEqual(classify_purchase_tax_account("Tax", "VAT 21%"), "input")
+		self.assertEqual(classify_purchase_tax_account("Tax", "VAT 6%"), "input")
+
+	# --- the side the name rules out ---------------------------------------
+
+	def test_the_remittance_side_is_not_deductible(self):
+		for account_name in ("Btw af te dragen hoog", "Btw af te dragen laag", "Btw-afdracht"):
+			self.assertIsNone(
+				classify_purchase_tax_account("Tax", account_name), account_name
+			)
+
+	def test_both_verlegd_accounts_are_reported_as_reverse_charge_not_as_input(self):
+		"""
+		`Te vorderen Btw-verlegd` names the deductible side, but summing it
+		into 5b while nothing puts its counterpart in 5a would make the net
+		wrong, not merely incomplete.
+		"""
+		for account_name in ("Te vorderen Btw-verlegd", "Af te dragen Btw-verlegd"):
+			self.assertEqual(
+				classify_purchase_tax_account("Tax", account_name),
+				"reverse_charge",
+				account_name,
+			)
+
+	# --- what must stay out ------------------------------------------------
+
+	def test_a_tax_account_that_is_not_vat_is_ignored(self):
+		for account_name in ("Duties and Taxes", "ST 4%", "GST"):
+			self.assertIsNone(
+				classify_purchase_tax_account("Tax", account_name), account_name
+			)
+
+	def test_an_account_that_is_not_a_tax_account_is_ignored(self):
+		self.assertIsNone(classify_purchase_tax_account("Payable", "Btw te vorderen hoog"))
+		self.assertIsNone(classify_purchase_tax_account(None, "Btw te vorderen hoog"))
+
+	def test_a_missing_account_name_is_ignored_not_crashed_on(self):
+		self.assertIsNone(classify_purchase_tax_account("Tax", None))
+		self.assertIsNone(classify_purchase_tax_account("Tax", ""))
+
+	# --- the names the old rule did match still match ----------------------
+
+	def test_the_english_and_spanish_names_still_resolve(self):
+		"""
+		Another deployment of this fork may still name them the old way. B8
+		widens the rule; it must not narrow it.
+		"""
+		self.assertEqual(classify_purchase_tax_account("Tax", "Input VAT 21%"), "input")
+		self.assertEqual(classify_purchase_tax_account("Tax", "IVA soportado 21%"), "input")
+
+	def test_the_match_is_case_insensitive(self):
+		self.assertEqual(classify_purchase_tax_account("Tax", "BTW TE VORDEREN HOOG"), "input")
+		self.assertEqual(
+			classify_purchase_tax_account("Tax", "AF TE DRAGEN BTW-VERLEGD"), "reverse_charge"
+		)
+
+
+class TestFetchVatDataAccumulatesDutchInputVat(FrappeTestCase):
+	"""fetch_vat_data() — B8, end to end."""
+
+	def _purchase_row(self, **overrides):
+		row = frappe._dict({
+			"name": "PINV-B8-0001",
+			"supplier": "_Test Supplier",
+			"category": "",
+			"base_net_total": 1000.0,
+			"supplier_address": "Test Address-Billing",
+			"supplier_country": "Netherlands",
+			"rate": 21.0,
+			"base_tax_amount": 210.0,
+			"account_head": "Btw te vorderen hoog - T",
+			"account_type": "Tax",
+			"account_name": "Btw te vorderen hoog",
+			"supplier_type": "domestic",
+		})
+		row.update(overrides)
+		return row
+
+	def _rows_for(self, purchase_rows):
+		sales = [_fake_sales_invoice(net_total=2000.0, vat_amount=420.0, rubric="1a")]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(sales, set(), 0.0),
+		), _only_purchase_query(purchase_rows), patch("frappe.msgprint"):
+			return fetch_vat_data(_UNPOPULATED_WINDOW)
+
+	def test_a_dutch_input_vat_line_reaches_5b(self):
+		"""Before B8 this was 0.00 and Totaal claimed the full 420.00 was owed."""
+		rows = self._rows_for([self._purchase_row()])
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertEqual(by_rubric["5b"]["amount"], 210.00)
+		self.assertEqual(by_rubric["5a"]["amount"], 420.00)
+		self.assertEqual(by_rubric["Totaal"]["amount"], 210.00)
+
+	def test_a_verlegd_line_stays_out_of_5b(self):
+		purchase_rows = [
+			self._purchase_row(
+				account_head="Te vorderen Btw-verlegd - T",
+				account_name="Te vorderen Btw-verlegd",
+			)
+		]
+
+		rows = self._rows_for(purchase_rows)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertEqual(by_rubric["5b"]["amount"], 0.00)
+
+	def test_a_verlegd_line_is_reported_to_the_user_not_swallowed(self):
+		purchase_rows = [
+			self._purchase_row(
+				account_head="Te vorderen Btw-verlegd - T",
+				account_name="Te vorderen Btw-verlegd",
+			)
+		]
+		sales = [_fake_sales_invoice(net_total=2000.0, vat_amount=420.0, rubric="1a")]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(sales, set(), 0.0),
+		), _only_purchase_query(purchase_rows), patch("frappe.msgprint") as msgprint:
+			fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		self.assertTrue(msgprint.called)
+		warned = " ".join(str(call) for call in msgprint.call_args_list)
+		self.assertIn("PINV-B8-0001", warned)
+
+	def test_a_non_vat_tax_line_does_not_reach_5b(self):
+		purchase_rows = [
+			self._purchase_row(
+				account_head="Duties and Taxes - T", account_name="Duties and Taxes"
+			)
+		]
+
+		rows = self._rows_for(purchase_rows)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertEqual(by_rubric["5b"]["amount"], 0.00)

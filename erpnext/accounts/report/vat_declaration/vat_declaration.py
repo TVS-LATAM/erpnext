@@ -439,6 +439,72 @@ def classify_period_sales(filters):
 UNSOURCED_WITHOUT_PURCHASES = ("4a", "4b", "5b", "5c", "Totaal")
 
 
+# B8. El acumulador de 5b exigía que el nombre de la cuenta contuviera "vat" Y
+# además "input" o "soportado". El plan de cuentas de la empresa neerlandesa está
+# escrito en neerlandés, y ninguna de las 49 cuentas de tipo Tax del sitio puede
+# cumplir eso:
+#
+#     Btw te vorderen hoog / laag / overig      IVA soportado
+#     Btw af te dragen hoog / laag / overig     IVA repercutido
+#     Te vorderen Btw-verlegd                   lado deducible de una verlegging
+#     Af te dragen Btw-verlegd                  lado repercutido de una verlegging
+#     Btw-afdracht, Btw oude jaren
+#     VAT 21%, VAT 6%, VAT 0% - TVS             las plantillas NL de compra
+#
+# "Btw te vorderen hoog" no contiene ni "vat" ni "input". Y "VAT 21%" tampoco
+# contiene "input", siendo la cuenta a la que apunta la única plantilla NL de
+# impuestos de compra que existe. Así que 5b quedaba clavado en 0,00 y `Totaal`,
+# que es `5a - 5b`, sobredeclaraba el IVA a pagar por todo el deducible.
+#
+# Listar nombres era la forma equivocada de regla. El tipo de documento ya dice
+# de qué lado del libro está una línea de impuesto: en una factura de COMPRA una
+# cuenta de IVA es voorbelasting salvo que su propio nombre diga que es el lado
+# de la afdracht o una cuenta verlegd. Eso se lee igual en neerlandés, inglés o
+# español, y deja de depender de cómo nombró sus cuentas un despliegue.
+VAT_ACCOUNT_MARKERS = ("vat", "btw", "iva", "omzetbelasting", "voorbelasting")
+
+# El lado repercutido. En una compra no es deducible.
+REMITTANCE_ACCOUNT_MARKERS = ("af te dragen", "afdracht", "output", "repercutido")
+
+# La verlegging se reconoce, pero no se declara: ver classify_purchase_tax_account.
+REVERSE_CHARGE_ACCOUNT_MARKER = "verlegd"
+
+
+def classify_purchase_tax_account(account_type, account_name):
+    """
+    Qué es una línea de impuesto de una factura de compra.
+
+    Devuelve `"input"` (voorbelasting, va a 5b), `"reverse_charge"` (una cuenta
+    verlegd) o `None` (ni siquiera es IVA).
+
+    La verlegging se reconoce y deliberadamente NO se suma a 5b. Su contrapartida
+    pertenece a 5a, y declarar un lado de una autorepercusión sin el otro deja el
+    neto MAL, no meramente incompleto — que es peor. Mientras la mitad de compras
+    siga fuera de alcance (P2.3, opción A), el informe avisa en vez de declarar.
+
+    BORDE CONOCIDO, sin decidir: `Btw oude jaren` clasifica como "input" y por lo
+    tanto entraría en 5b. Es una cuenta de corrección de ejercicios anteriores, y
+    una corrección de otro período pertenece a 5e ("Correctie vorige aangifte"),
+    que hoy este informe emite fijo en 0,00. No se le hace una regla propia porque
+    sería atarse al nombre que le puso un despliegue, y porque no hay dónde
+    mandarla que sea correcto. Hoy es latente: ninguna factura de compra existe.
+    """
+    if account_type != "Tax":
+        return None
+
+    name = (account_name or "").lower()
+    if not any(marker in name for marker in VAT_ACCOUNT_MARKERS):
+        return None
+
+    if REVERSE_CHARGE_ACCOUNT_MARKER in name:
+        return "reverse_charge"
+
+    if any(marker in name for marker in REMITTANCE_ACCOUNT_MARKERS):
+        return None
+
+    return "input"
+
+
 def mark_unsourced_purchase_rubrics(rows, purchases_sourced):
     """
     Deja en blanco los rubrieken que ninguna compra alimentó.
@@ -577,14 +643,17 @@ def fetch_vat_data(filters):
                 "net_total": row.base_net_total or 0,
                 "category": row.category or "",
                 "supplier_type": row.supplier_type or "unknown",
-                "input_vat": 0
+                "input_vat": 0,
+                "reverse_charge_vat": 0
             }
         
-        # Acumular IVA soportado solo de cuentas válidas
-        if (row.account_type == "Tax" and 
-            "vat" in (row.account_name or "").lower() and 
-            ("input" in (row.account_name or "").lower() or "soportado" in (row.account_name or "").lower())):
+        # B8. Acumular IVA soportado. La regla vive en
+        # classify_purchase_tax_account, que se puede probar sin base de datos.
+        kind = classify_purchase_tax_account(row.account_type, row.account_name)
+        if kind == "input":
             processed_purchases[invoice_name]["input_vat"] += flt(row.base_tax_amount or 0)
+        elif kind == "reverse_charge":
+            processed_purchases[invoice_name]["reverse_charge_vat"] += flt(row.base_tax_amount or 0)
 
     # Clasificar compras
     for invoice_name, data in processed_purchases.items():
@@ -620,6 +689,24 @@ def fetch_vat_data(filters):
             _("Categorías fiscales desconocidas detectadas (sumadas a 1c):") + 
             "<br>" + "<br>".join(sorted(unknown_categories)),
             title=_("Advertencia de Mapeo de Categorías"),
+            indicator="orange"
+        )
+
+    # B8. Una verlegging reconocida y no declarada tiene que verse. Su
+    # contrapartida en 5a está fuera de alcance (P2.3, opción A), y declarar sólo
+    # el lado deducible dejaría el neto mal.
+    undeclared_reverse_charge = sorted(
+        invoice_name
+        for invoice_name, data in processed_purchases.items()
+        if data["reverse_charge_vat"]
+    )
+    if undeclared_reverse_charge:
+        frappe.msgprint(
+            _("Estas facturas de compra llevan una línea de IVA verlegd que este "
+              "informe NO declara, ni en 5a ni en 5b, porque la mitad de compras "
+              "está fuera de alcance:") +
+            "<br>" + "<br>".join(undeclared_reverse_charge),
+            title=_("Verlegging reconocida y no declarada"),
             indicator="orange"
         )
 
