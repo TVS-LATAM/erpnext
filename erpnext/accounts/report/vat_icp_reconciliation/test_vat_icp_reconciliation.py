@@ -404,6 +404,51 @@ class TestTheItemisationIsComplete(FrappeTestCase):
 		self.assertEqual(result["rows"][0]["difference"], 50.0)
 
 
+class TestValidationRowsSurviveAZeroResidual(FrappeTestCase):
+	"""
+	P.2.1 companion — a listing group whose residual nets to zero must still
+	surface here if `validate_icp_data` flagged it.
+
+	P.2.1 makes an invoice with no usable VAT number land on the ICP listing
+	instead of being dropped by the WHERE clause. Once it lands, it forms its
+	own listing group (grouped by, among other things, its own — blank —
+	`tax_id`), its declared 3b net equals its ICP net exactly, the residual
+	nets to zero, and `reconcile()` used to drop the group here on
+	`if abs(residual) < MATERIAL: continue` — never reading `Validation` at
+	all. The exact row P.2.1 exists to reveal would disappear again, one
+	layer further downstream, with no reconciliation row ever mentioning it.
+	"""
+
+	def test_a_zero_residual_group_with_a_validation_flag_is_still_itemised(self):
+		icp_row = listed(250.0, ["SI-1"], tax_id=None, customer="CUST-NOVAT")
+		icp_row["Validation"] = "Missing VAT number: ..."
+
+		result = reconcile([declared("SI-1", 250.0, tax_id=None, customer="CUST-NOVAT")], [icp_row])
+
+		self.assertEqual(len(result["rows"]), 1)
+		self.assertEqual(result["rows"][0]["difference"], 0.0)
+		self.assertIn("Missing VAT number", result["rows"][0]["reason"])
+
+	def test_the_zero_residual_validation_row_does_not_corrupt_unexplained(self):
+		"""
+		Its `difference` is 0.0 by construction (matched 3b net equals ICP
+		net), so adding it to `rows` must not move `unexplained` away from
+		zero for an otherwise-agreeing period.
+		"""
+		icp_row = listed(250.0, ["SI-1"], tax_id=None, customer="CUST-NOVAT")
+		icp_row["Validation"] = "Missing VAT number: ..."
+
+		result = reconcile([declared("SI-1", 250.0, tax_id=None, customer="CUST-NOVAT")], [icp_row])
+
+		self.assertEqual(result["unexplained"], 0.0)
+
+	def test_a_zero_residual_group_with_no_validation_flag_still_itemises_nothing(self):
+		"""The existing behaviour for a clean, agreeing group is unchanged."""
+		result = reconcile([declared("SI-1", 100.0)], [listed(100.0, ["SI-1"])])
+
+		self.assertEqual(result["rows"], [])
+
+
 class TestColumns(FrappeTestCase):
 	"""F.10's lesson: a value with no column to appear in is still dropped."""
 

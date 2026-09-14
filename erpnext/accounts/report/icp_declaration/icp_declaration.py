@@ -164,11 +164,23 @@ def fetch_icp_data(filters):
             AND si.docstatus = 1  
             AND si.company = %(company)s
             AND ({intra_community_selector})
-            AND si.tax_id IS NOT NULL
-            AND si.tax_id != ''
-            AND LENGTH(TRIM(si.tax_id)) >= 8  -- Minimum valid EU VAT number length
-            -- Exclude domestic (NL) customers from ICP
-            AND NOT (UPPER(LEFT(REPLACE(REPLACE(REPLACE(si.tax_id, ' ', ''), '-', ''), '.', ''), 2)) = 'NL')
+            -- P.2.1 (audit A.5) — a missing, blank or too-short si.tax_id used to be
+            -- dropped right here: three conditions that silently removed every
+            -- intra-community invoice whose customer has no usable VAT number.
+            -- `validate_icp_data`'s own docstring (F.10) states the contract this
+            -- contradicted: a row that fails validation is REPORTED, never dropped —
+            -- the supply is still zero-rated under article 138 and belongs on the
+            -- listing, an unusable VAT number is a data error a human fixes before
+            -- filing, and rubriek 3b of the VAT return has no such gate at all. So
+            -- those three conditions are gone, and the row now reaches
+            -- validate_icp_data(), which flags it instead of erasing it.
+            --
+            -- Exclude domestic (NL) customers from ICP. COALESCE guards a NULL
+            -- si.tax_id, which the deletion above makes reachable here for the
+            -- first time: REPLACE(NULL, ...) is NULL, and WHERE discards NULL
+            -- exactly like FALSE — so an uncoalesced expression would silently
+            -- drop the very rows this fix exists to surface, one gate further down.
+            AND NOT (UPPER(LEFT(REPLACE(REPLACE(REPLACE(COALESCE(si.tax_id, ''), ' ', ''), '-', ''), '.', ''), 2)) = 'NL')
         -- P.1.3. `si.currency` used to sit in this GROUP BY, which split one
         -- customer's month across two rows whenever they were invoiced in more
         -- than one currency. The amounts summed above are already
@@ -233,8 +245,13 @@ def validate_icp_data(data):
     errors = []
 
     for row in data:
-        vat_number = row.get("VAT Identification Number", "")
-        country_code = row.get("Country Code", "")
+        # P.2.1 — `.get(key, "")` defaults only apply when the key is ABSENT.
+        # Since fetch_icp_data() stopped filtering out invoices with no usable
+        # si.tax_id, these keys now regularly exist holding None (both are
+        # derived from si.tax_id in SQL), and an unguarded `.get` would pass
+        # None straight through into the checks below.
+        vat_number = row.get("VAT Identification Number") or ""
+        country_code = row.get("Country Code") or ""
         net_amount = float(row.get("Net Amount", 0) or 0)
 
         if abs(net_amount) < 1:
@@ -242,7 +259,15 @@ def validate_icp_data(data):
 
         problems = []
 
-        if not validate_eu_vat_number(vat_number, country_code):
+        # P.2.1 — a blank VAT number and a malformed one are different
+        # problems for the human who has to fix them, so a missing number
+        # gets its own message instead of falling through into the generic
+        # "Invalid VAT number format: None for country None".
+        if not vat_number:
+            problems.append(
+                _("Missing VAT number: the invoice carries no VAT Identification Number to validate.")
+            )
+        elif not validate_eu_vat_number(vat_number, country_code):
             problems.append(
                 _("Invalid VAT number format: {0} for country {1}").format(vat_number, country_code)
             )

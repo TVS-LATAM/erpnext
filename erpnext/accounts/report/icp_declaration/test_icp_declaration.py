@@ -239,6 +239,27 @@ class TestValidateIcpData(FrappeTestCase):
 		self.log_error.assert_called_once()
 		self.msgprint.assert_called_once()
 
+	def test_a_missing_vat_number_is_kept_and_flagged_with_its_own_message(self):
+		"""
+		P.2.1 — `fetch_icp_data` no longer drops an invoice for lacking a
+		usable `si.tax_id`, so this function now regularly receives a row
+		whose `VAT Identification Number` and `Country Code` are `None`
+		(the SQL columns are derived from `si.tax_id` itself).
+
+		A dict `.get(key, "")` default does NOT apply when the key exists
+		holding `None`, so an unguarded read would pass `None` straight into
+		`validate_eu_vat_number` and the row would be flagged with the
+		generic "Invalid VAT number format: None for country None" —
+		indistinguishable from a malformed number typed by a human. A blank
+		number and a malformed number are different problems to fix, so a
+		missing one gets its own message and "None" must never appear in it.
+		"""
+		data = validate_icp_data([_row(None, None, net_amount=250.0)])
+
+		self.assertEqual(len(data), 1)
+		self.assertNotIn("None", data[0]["Validation"])
+		self.assertIn("Missing VAT number", data[0]["Validation"])
+
 
 class TestGetColumns(FrappeTestCase):
 	"""A reported failure that has no column to appear in is still dropped."""
@@ -547,3 +568,124 @@ class TestIcpDoesNotSplitByCurrency(FrappeTestCase):
 			len(rows), 1, "one customer and one period must produce one line, regardless of currency"
 		)
 		self.assertEqual(rows[0]["Net Amount"], 320)
+
+
+# ---------------------------------------------------------------------------
+# P.2.1 — an intra-community invoice with no usable si.tax_id must be
+# SURFACED by fetch_icp_data, not silently dropped by its WHERE clause.
+#
+# `validate_icp_data`'s own docstring (F.10) states the contract: a row that
+# fails validation is reported, never dropped, because the supply was
+# zero-rated under article 138 and belongs on the listing — an unusable VAT
+# number is a data error a human fixes before filing, not turnover the filing
+# may forget. Three WHERE-clause conditions contradicted that contract by
+# removing such a row before it ever reached validate_icp_data() at all.
+#
+# This is a DB-backed test on purpose, and it has to be: the defect is in the
+# SQL, so every pure-function test in TestValidateIcpData above would pass
+# unchanged even if the row never reached fetch_icp_data's output.
+# ---------------------------------------------------------------------------
+
+
+class TestIcpSurfacesInvoicesWithNoUsableVatNumber(FrappeTestCase):
+	"""P.2.1 — the WHERE clause must stop filtering these rows out."""
+
+	def setUp(self):
+		super().setUp()
+		self.date = nowdate()
+
+		model_name = frappe.db.get_value(
+			"Sales Invoice", {"docstatus": 1, "is_return": 0}, "name", order_by="creation desc"
+		)
+		if not model_name:
+			self.skipTest("no submitted Sales Invoice on this site to take accounts from")
+		self.model = frappe.get_doc("Sales Invoice", model_name)
+		self.company = self.model.company
+		self.customer = self._dealer_with_no_usable_vat_number()
+
+	def _dealer_with_no_usable_vat_number(self):
+		name = f"P21 ICP Dealer {self._testMethodName[:60]}"
+		if not frappe.db.exists("Customer", name):
+			frappe.get_doc(
+				{
+					"doctype": "Customer",
+					"customer_name": name,
+					"customer_type": "Company",
+					"customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
+					"territory": frappe.db.get_value("Territory", {"is_group": 0}, "name"),
+					# A TVS custom field, mandatory on this site.
+					"phone_number": "+31000000000",
+				}
+			).insert(ignore_permissions=True)
+		return name
+
+	def _invoice(self, rate, tax_id):
+		item = self.model.items[0]
+		invoice = frappe.get_doc(
+			{
+				"doctype": "Sales Invoice",
+				"customer": self.customer,
+				"company": self.company,
+				"posting_date": self.date,
+				"due_date": self.date,
+				"currency": self.model.currency,
+				"debit_to": self.model.debit_to,
+				"update_stock": 0,
+				"tax_id": tax_id or "",
+				"tvs_tax_regime": "EU_B2B_INTRA",
+				"items": [
+					{
+						"item_code": item.item_code,
+						"qty": 1,
+						"rate": rate,
+						"income_account": item.income_account,
+						"cost_center": item.cost_center,
+						"warehouse": item.warehouse,
+					}
+				],
+			}
+		)
+		invoice.insert(ignore_permissions=True)
+		invoice.submit()
+
+		if tax_id is None:
+			# A blank Data field cannot reach a real NULL through the ORM
+			# (the `tax_id` column defaults to '' on insert here); force it
+			# directly to exercise the NULL path the NL-exclusion clause
+			# must survive: REPLACE(NULL, ...) is NULL, and WHERE discards
+			# NULL exactly like FALSE.
+			frappe.db.set_value("Sales Invoice", invoice.name, "tax_id", None, update_modified=False)
+
+		return invoice
+
+	def _our_rows(self):
+		return [
+			row
+			for row in fetch_icp_data(
+				{"from_date": self.date, "to_date": self.date, "company": self.company}
+			)
+			if row["Customer Code"] == self.customer
+		]
+
+	def test_an_invoice_with_an_empty_tax_id_still_reaches_fetch_icp_data(self):
+		invoice = self._invoice(250, "")
+
+		rows = self._our_rows()
+
+		self.assertEqual(len(rows), 1, "P.2.1 — a row with an unusable VAT number must not be dropped")
+		self.assertIn(invoice.name, rows[0]["Invoice Numbers"])
+
+	def test_an_invoice_with_a_null_tax_id_still_reaches_fetch_icp_data(self):
+		"""
+		The CRITICAL half of P.2.1: deleting the three conditions is not
+		enough on its own, because the NL-exclusion clause immediately below
+		them evaluates to UNKNOWN — discarded by WHERE exactly like FALSE —
+		when `si.tax_id` is NULL, unless that expression is wrapped in
+		COALESCE.
+		"""
+		invoice = self._invoice(250, None)
+
+		rows = self._our_rows()
+
+		self.assertEqual(len(rows), 1, "P.2.1 — a NULL si.tax_id must not fall through the NL exclusion")
+		self.assertIn(invoice.name, rows[0]["Invoice Numbers"])
