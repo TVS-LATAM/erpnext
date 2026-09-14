@@ -70,7 +70,7 @@ def icp_invoice_names(icp_row):
     """
     The invoices behind one filed listing row.
 
-    The listing groups by month, customer, VAT number and currency, and names
+    The listing groups by month, customer and VAT number, and names
     its documents in a `GROUP_CONCAT`. That string is the only tie from a filed
     row back to the invoices it was built from.
     """

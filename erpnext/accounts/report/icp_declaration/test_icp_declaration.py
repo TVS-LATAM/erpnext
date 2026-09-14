@@ -258,6 +258,18 @@ class TestGetColumns(FrappeTestCase):
 		for fieldname in ("Period", "Country Code", "VAT Identification Number", "Net Amount"):
 			self.assertIn(fieldname, fieldnames)
 
+	def test_currency_and_exchange_rate_columns_are_gone(self):
+		"""
+		P.1.3 — once a row can aggregate invoices originally issued in different
+		currencies, a single currency code or an averaged rate on that row is
+		actively misleading, not merely redundant. Both columns are removed
+		rather than kept as a MAX() or AVG().
+		"""
+		fieldnames = [column["fieldname"] for column in get_columns()]
+
+		self.assertNotIn("Currency", fieldnames)
+		self.assertNotIn("Exchange Rate", fieldnames)
+
 
 # ---------------------------------------------------------------------------
 # VD.30 — a credited supply must leave the listing, not double on it.
@@ -432,3 +444,106 @@ class TestIcpNettingOfCreditNotes(FrappeTestCase):
 		rows = self._our_rows()
 		self.assertEqual(len(rows), 1, "one customer and one period must produce one line")
 		self.assertEqual(rows[0]["Net Amount"], 200)
+
+
+# ---------------------------------------------------------------------------
+# P.1.3 — one ICP customer must not split across currencies.
+#
+# The GROUP BY used to include `si.currency`. The amounts it sums are already
+# `base_net_amount` (company currency), so grouping by the invoice's own
+# currency on top of that is pure noise: the same customer, same month,
+# invoiced once in EUR and once in USD, produced two filing rows instead of
+# one. The `HAVING ABS(SUM(...)) >= 1` threshold runs per group, after the
+# split, so the two fragments could not even net against each other.
+# ---------------------------------------------------------------------------
+
+
+class TestIcpDoesNotSplitByCurrency(FrappeTestCase):
+	"""P.1.3 — a single customer, one month, two currencies, one line."""
+
+	def setUp(self):
+		super().setUp()
+		self.date = nowdate()
+
+		model_name = frappe.db.get_value(
+			"Sales Invoice", {"docstatus": 1, "is_return": 0}, "name", order_by="creation desc"
+		)
+		if not model_name:
+			self.skipTest("no submitted Sales Invoice on this site to take accounts from")
+		self.model = frappe.get_doc("Sales Invoice", model_name)
+		self.company = self.model.company
+		self.customer = self._german_dealer()
+		self.foreign_currency = "USD" if self.model.currency != "USD" else "EUR"
+
+	def _german_dealer(self):
+		name = f"P13 ICP Dealer {self._testMethodName[:60]}"
+		if not frappe.db.exists("Customer", name):
+			frappe.get_doc(
+				{
+					"doctype": "Customer",
+					"customer_name": name,
+					"customer_type": "Company",
+					"customer_group": frappe.db.get_value("Customer Group", {"is_group": 0}, "name"),
+					"territory": frappe.db.get_value("Territory", {"is_group": 0}, "name"),
+					"tax_id": GERMAN_VAT_NUMBER,
+					"phone_number": "+31000000000",
+				}
+			).insert(ignore_permissions=True)
+		return name
+
+	def _invoice(self, rate, currency, conversion_rate):
+		item = self.model.items[0]
+		invoice = frappe.get_doc(
+			{
+				"doctype": "Sales Invoice",
+				"customer": self.customer,
+				"company": self.company,
+				"posting_date": self.date,
+				"due_date": self.date,
+				"currency": currency,
+				"conversion_rate": conversion_rate,
+				"debit_to": self.model.debit_to,
+				"update_stock": 0,
+				"tax_id": GERMAN_VAT_NUMBER,
+				"tvs_tax_regime": "EU_B2B_INTRA",
+				"items": [
+					{
+						"item_code": item.item_code,
+						"qty": 1,
+						"rate": rate,
+						"income_account": item.income_account,
+						"cost_center": item.cost_center,
+						"warehouse": item.warehouse,
+					}
+				],
+			}
+		)
+		invoice.insert(ignore_permissions=True)
+		invoice.submit()
+		return invoice
+
+	def _our_rows(self):
+		return [
+			row
+			for row in fetch_icp_data(
+				{"from_date": self.date, "to_date": self.date, "company": self.company}
+			)
+			if row["Customer Code"] == self.customer
+		]
+
+	def test_two_currencies_same_customer_same_month_collapse_to_one_row(self):
+		"""
+		200,00 invoiced in the model's own currency and 120,00 (60 x 2,00)
+		invoiced in a different one, both already stored as
+		`base_net_amount` in company currency. One customer, one period: one
+		filing row, whose net is the sum of both.
+		"""
+		self._invoice(200, self.model.currency, 1)
+		self._invoice(60, self.foreign_currency, 2)
+
+		rows = self._our_rows()
+
+		self.assertEqual(
+			len(rows), 1, "one customer and one period must produce one line, regardless of currency"
+		)
+		self.assertEqual(rows[0]["Net Amount"], 320)

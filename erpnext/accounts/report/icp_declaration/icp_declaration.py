@@ -154,10 +154,8 @@ def fetch_icp_data(filters):
                 ELSE "L"
             END AS `Transaction Code`,
             COUNT(DISTINCT si.name) AS `Transaction Count`,
-            GROUP_CONCAT(DISTINCT si.name ORDER BY si.name) AS `Invoice Numbers`,
-            si.currency AS `Currency`,
-            AVG(si.conversion_rate) AS `Exchange Rate`
-        FROM  
+            GROUP_CONCAT(DISTINCT si.name ORDER BY si.name) AS `Invoice Numbers`
+        FROM
             `tabSales Invoice` si
         INNER JOIN `tabSales Invoice Item` sii ON sii.parent = si.name
         LEFT JOIN `tabCustomer` c ON c.name = si.customer
@@ -171,14 +169,23 @@ def fetch_icp_data(filters):
             AND LENGTH(TRIM(si.tax_id)) >= 8  -- Minimum valid EU VAT number length
             -- Exclude domestic (NL) customers from ICP
             AND NOT (UPPER(LEFT(REPLACE(REPLACE(REPLACE(si.tax_id, ' ', ''), '-', ''), '.', ''), 2)) = 'NL')
-        GROUP BY 
+        -- P.1.3. `si.currency` used to sit in this GROUP BY, which split one
+        -- customer's month across two rows whenever they were invoiced in more
+        -- than one currency. The amounts summed above are already
+        -- `base_net_amount` (company currency), so the split carried no
+        -- information — and it ran before the HAVING threshold, so the
+        -- fragments could not even net against each other. `Currency` and
+        -- `Exchange Rate` are dropped from the SELECT and from get_columns()
+        -- for the same reason: once a row can aggregate invoices issued in
+        -- different currencies, a single currency code or an averaged rate is
+        -- actively misleading, not merely redundant.
+        GROUP BY
             DATE_FORMAT(si.posting_date, '%%Y-%%m'),
-            si.customer_name, 
+            si.customer_name,
             si.customer,
             si.tax_id,
-            UPPER(LEFT(REPLACE(REPLACE(REPLACE(si.tax_id, ' ', ''), '-', ''), '.', ''), 2)),
-            si.currency
-        HAVING 
+            UPPER(LEFT(REPLACE(REPLACE(REPLACE(si.tax_id, ' ', ''), '-', ''), '.', ''), 2))
+        HAVING
             -- VD.30. Same correction as `Net Amount` above, and it has to move
             -- with it: a month whose supplies are fully credited now nets to
             -- zero and is dropped here, which is the right filing — there is
@@ -443,19 +450,6 @@ def get_columns():
             "label": _("Transaction Count"), 
             "fieldtype": "Int", 
             "width": 80
-        },
-        {
-            "fieldname": "Currency", 
-            "label": _("Currency"), 
-            "fieldtype": "Data", 
-            "width": 80
-        },
-        {
-            "fieldname": "Exchange Rate", 
-            "label": _("Avg Exchange Rate"), 
-            "fieldtype": "Float", 
-            "width": 100,
-            "precision": 6
         },
         # F.10 — a reported failure with no column to appear in is still dropped.
         # Empty on every row that is ready to file.
