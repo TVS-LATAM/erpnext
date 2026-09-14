@@ -16,8 +16,23 @@ TAX_CATEGORY_MAPPING = {
     "afstandsverkopen": "3c",
     "privégebruik": "1d",
     "private gebruik": "1d",
-    "diensten buiten eu": "4a",
-    "diensten eu": "4b",
+    # D4. Aquí vivían "diensten buiten eu": "4a" y "diensten eu": "4b". Este
+    # mapa lo lee una sola función, `classify_sales_rubric`, que sólo ve
+    # facturas de VENTA, y 4a/4b son rubrieken de ADQUISICIONES — el propio
+    # informe los rotula "Diensten uit landen buiten de EU" y "Diensten uit
+    # EU-landen": servicios recibidos DE fuera. Una venta no puede declararse
+    # ahí. El lado compras nunca leyó este mapa: compara las mismas dos
+    # cadenas literales inline (ver el bucle de clasificación de compras), así
+    # que estas claves no servían a nadie y sacaban de 3b/3a toda venta que
+    # llevara la categoría, mientras su IVA seguía acumulando en 5a — la
+    # contradicción de VD.14 por otro camino.
+    #
+    # Se borran en vez de reapuntarlas a 3b/3a porque el propio clasificador ya
+    # decide bien cuando nada mapea: cliente UE cae a 3b, no-UE a 3a, y
+    # nacional a 1c registrando la categoría en `unknown_categories`, que es lo
+    # que dispara el aviso al usuario. Reapuntarlas fijaría una opinión fiscal
+    # sobre una categoría que ninguna factura de venta neerlandesa debería
+    # llevar, y además silenciaría ese aviso.
     "reverse charge": "2a",
     "verlegd": "2a",
     "verleggingsregeling": "2a",

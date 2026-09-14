@@ -688,3 +688,155 @@ class TestClassifyPeriodSalesReverseChargeWiring(FrappeTestCase):
 
 		self.assertEqual(len(invoices), 1)
 		self.assertEqual(invoices[0]["rubric"], "2a")
+
+
+# =====================================================================
+# D4 — no sales category may file into an acquisitions rubriek (4a/4b)
+# =====================================================================
+#
+# TAX_CATEGORY_MAPPING carried two entries that name a rubriek this report
+# labels itself, on rows 4a/4b, as "Diensten uit landen buiten de EU" and
+# "Diensten uit EU-landen" — services received FROM abroad. 4a and 4b are
+# acquisition rubrieken: they hold purchases on which the VAT is reverse
+# charged to us. A sale can never legitimately land in either.
+#
+# The map is read in exactly one place, `classify_sales_rubric`, which only
+# ever sees Sales Invoices. The purchase side of `fetch_vat_data` never reads
+# it: it compares `category` against the same two literal strings inline. So
+# those two entries served no purchase-side purpose and mis-filed every sale
+# that carried the category — out of 3b/3a, into an acquisitions bucket, while
+# its VAT kept accumulating in 5a. That is the VD.14 self-contradiction
+# reached by another road.
+#
+# Traced to `6373f18069` (2025-05-05), the commit that introduced the map in
+# tax_declaration.py before vat_declaration.py copied it. It predates the
+# regime migration (`894178abad`, 2026-09-02) by sixteen months, so this is
+# not a regression from that work — it was wrong from the first draft.
+#
+# The fix removes the two entries rather than re-pointing them at 3b/3a,
+# because `classify_sales_rubric` already decides the right rubriek from the
+# customer type once nothing maps: an EU customer falls to 3b, a non-EU one to
+# 3a, and a domestic one to 1c WITH the category recorded in
+# `unknown_categories`, which raises the visible warning. Re-pointing the keys
+# would instead hardcode a fiscal opinion about a category no Dutch sales
+# invoice should carry, and would silence that warning.
+#
+# Measured on the dev site (see the VD.20 note above), no submitted Sales
+# Invoice carries either category today, so this closes a latent misfiling
+# rather than moving money in the current return.
+
+from erpnext.accounts.report.vat_declaration.vat_declaration import TAX_CATEGORY_MAPPING
+
+ACQUISITION_RUBRICS = ("4a", "4b")
+
+
+class TestNoSalesCategoryFilesIntoAnAcquisitionRubric(FrappeTestCase):
+	"""classify_sales_rubric() / TAX_CATEGORY_MAPPING — D4."""
+
+	def test_the_map_names_no_acquisition_rubriek(self):
+		"""
+		The invariant, stated once over the whole table: this map only ever
+		feeds the sales classifier, so no value of it may be 4a or 4b.
+		"""
+		filed_into_acquisitions = {
+			category: rubric
+			for category, rubric in TAX_CATEGORY_MAPPING.items()
+			if rubric in ACQUISITION_RUBRICS
+		}
+
+		self.assertEqual(filed_into_acquisitions, {})
+
+	def test_an_eu_services_sale_lands_in_3b_not_4b(self):
+		"""
+		Services to an EU business are an intra-community supply: rubriek 3b,
+		the same bucket the ICP listing reconciles against. Before D4 this
+		returned "4b" and declared the sale as an acquisition.
+		"""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="", category="diensten eu", incoterm="", customer_type="eu"
+		)
+
+		self.assertEqual(rubric, "3b")
+
+	def test_a_non_eu_services_sale_lands_in_3a_not_4a(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="", category="diensten buiten eu", incoterm="", customer_type="export"
+		)
+
+		self.assertEqual(rubric, "3a")
+
+	def test_a_domestic_sale_carrying_a_services_category_is_flagged_not_filed_silently(self):
+		"""
+		"diensten eu" on an invoice to a Netherlands customer is a
+		contradiction someone has to look at. It falls to the 1c fallback and
+		reports the category back, which is what raises the user-facing
+		unknown-category warning — 4b would have swallowed it in silence.
+		"""
+		rubric, unmapped = classify_sales_rubric(
+			regime="", category="diensten eu", incoterm="", customer_type="domestic"
+		)
+
+		self.assertEqual(rubric, "1c")
+		self.assertEqual(unmapped, "diensten eu")
+
+	def test_a_stored_regime_still_outranks_the_services_category(self):
+		rubric, unmapped = classify_sales_rubric(
+			regime="NL_STANDARD", category="diensten eu", incoterm="", customer_type="domestic"
+		)
+
+		self.assertEqual(rubric, "1a")
+		self.assertIsNone(unmapped)
+
+
+class TestPurchaseSideStillFilesServicesIntoAcquisitionRubrics(FrappeTestCase):
+	"""
+	fetch_vat_data() — D4 regression guard.
+
+	The two categories keep their meaning on the buy side, where they are
+	correct. That branch compares the literal strings and never read the map,
+	so removing the entries must leave it untouched. Without this test the
+	fix looks like it could take 4a/4b down with it.
+	"""
+
+	def _purchase_row(self, **overrides):
+		row = frappe._dict({
+			"name": "PINV-D4-0001",
+			"supplier": "_Test Supplier",
+			"category": "diensten eu",
+			"base_net_total": 1000.0,
+			"supplier_address": "Test Address-Billing",
+			"supplier_country": "Germany",
+			"rate": 0.0,
+			"base_tax_amount": 0.0,
+			"account_head": None,
+			"account_type": None,
+			"account_name": None,
+			"supplier_type": "eu",
+		})
+		row.update(overrides)
+		return row
+
+	def _rubric_amount(self, purchase_rows, rubric):
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=([], set(), 0.0),
+		), patch("frappe.db.sql", return_value=purchase_rows):
+			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		return next(row for row in rows if row["rubric"] == rubric)["amount"]
+
+	def test_an_eu_services_purchase_still_lands_in_4b(self):
+		amount = self._rubric_amount([self._purchase_row()], "4b")
+
+		self.assertEqual(amount, 1000.00)
+
+	def test_a_non_eu_services_purchase_still_lands_in_4a(self):
+		purchase_rows = [
+			self._purchase_row(
+				category="diensten buiten eu", supplier_country="Norway", supplier_type="non_eu"
+			)
+		]
+
+		amount = self._rubric_amount(purchase_rows, "4a")
+
+		self.assertEqual(amount, 1000.00)
