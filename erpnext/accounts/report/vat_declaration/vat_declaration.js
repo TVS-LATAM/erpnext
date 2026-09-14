@@ -43,7 +43,7 @@ frappe.query_reports["VAT Declaration"] = {
 		}
 		
 		// Highlight the net payable/refundable amount
-		if (data && data.rubric === "5c") {
+		if (data && data.rubric === "5c" && !data.unsourced) {
 			value = "<span style='font-weight: bold; color: " + 
 				(data.amount >= 0 ? "red" : "green") + ";'>" + value + "</span>";
 		}
@@ -122,6 +122,28 @@ frappe.query_reports["VAT Declaration"] = {
 			// que nada avise; el rubriek es el único identificador estable.
 			function pickRow(rows, rubric) {
 				return (rows || []).find(function(row) { return row && row.rubric === rubric; });
+			}
+
+			// P2.3 (opción A). Una fila sin fuente de datos no imprime 0,00:
+			// imprime un guión que dice por qué. Un cero en una declaración
+			// fiscal es una MEDICIÓN — "5b Voorbelasting 0,00" afirma que no se
+			// soportó IVA deducible — y 4a/4b/5b no miden nada mientras ninguna
+			// compra se registre en ERPNext. Python marca esas filas con
+			// `unsourced`; acá sólo se las muestra.
+			function formatRubric(rows, rubric, field) {
+				const row = pickRow(rows, rubric);
+				if (row && row.unsourced) {
+					return '<span class="text-muted">&mdash; geen bron</span>';
+				}
+				return formatAmount(row ? row[field || "amount"] : undefined);
+			}
+
+			// Un importe que no existe no es ni deuda ni crédito, así que no se
+			// pinta de rojo ni de verde.
+			function rubricTone(rows, rubric) {
+				const row = pickRow(rows, rubric);
+				if (!row || row.unsourced) return "";
+				return row.amount >= 0 ? "text-danger" : "text-success";
 			}
 
 			async function getLetterHead(fromDate, toDate, frequency) {
@@ -247,13 +269,13 @@ frappe.query_reports["VAT Declaration"] = {
 							</tr>
 							<tr>
 								<td>4a. Leveringen/diensten uit landen buiten de EU</td>
-								<td class="text-right">${formatAmount(pickRow(reportData, "4a")?.amount)}</td>
-								<td class="text-right">${formatAmount(pickRow(reportData, "4a")?.vat_amount)}</td>
+								<td class="text-right">${formatRubric(reportData, "4a")}</td>
+								<td class="text-right">${formatRubric(reportData, "4a", "vat_amount")}</td>
 							</tr>
 							<tr>
 								<td>4b. Leveringen/diensten uit landen binnen de EU</td>
-								<td class="text-right">${formatAmount(pickRow(reportData, "4b")?.amount)}</td>
-								<td class="text-right">${formatAmount(pickRow(reportData, "4b")?.vat_amount)}</td>
+								<td class="text-right">${formatRubric(reportData, "4b")}</td>
+								<td class="text-right">${formatRubric(reportData, "4b", "vat_amount")}</td>
 							</tr>
 							
 							<!-- 5. Voorbelasting en kleineondernemersregeling -->
@@ -268,14 +290,14 @@ frappe.query_reports["VAT Declaration"] = {
 							<tr>
 								<td>5b. Voorbelasting</td>
 								<td class="text-right"></td>
-								<td class="text-right">${formatAmount(pickRow(reportData, "5b")?.amount)}</td>
+								<td class="text-right">${formatRubric(reportData, "5b")}</td>
 							</tr>
 							<tr class="subtotal-row">
 								<td>5c. Subtotaal (rubriek 5a min 5b)</td>
 								<td class="text-right"></td>
 								<td class="text-right">
-									<span class="${pickRow(reportData, "5c")?.amount >= 0 ? 'text-danger' : 'text-success'}">
-										${formatAmount(pickRow(reportData, "5c")?.amount)}
+									<span class="${rubricTone(reportData, "5c")}">
+										${formatRubric(reportData, "5c")}
 									</span>
 								</td>
 							</tr>
@@ -305,8 +327,8 @@ frappe.query_reports["VAT Declaration"] = {
 								<th>Totaal</th>
 								<th></th>
 								<th class="text-right">
-									<span class="${pickRow(reportData, "Totaal")?.amount >= 0 ? 'text-danger' : 'text-success'}">
-										${formatAmount(pickRow(reportData, "Totaal")?.amount)}
+									<span class="${rubricTone(reportData, "Totaal")}">
+										${formatRubric(reportData, "Totaal")}
 									</span>
 								</th>
 							</tr>

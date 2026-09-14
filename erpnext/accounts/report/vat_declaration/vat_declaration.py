@@ -403,6 +403,68 @@ def classify_period_sales(filters):
     return list(processed_sales.values()), unknown_categories, reverse_charge_total
 
 
+# P2.3 (opción A). Los rubrieken 4a, 4b y 5b son la mitad de COMPRAS de la
+# declaración, y en este stack nada registra compras. Verificado read-only el
+# 2026-09-14 sobre el único sitio alcanzable:
+#
+#   * `frappe.db.count("Purchase Invoice")` = 0, en cualquier docstatus. Las 37
+#     filas de `Purchase Taxes and Charges` son todas de Templates.
+#   * No hay un solo Custom Field en Purchase Invoice, y `tvs_tax_regime` existe
+#     únicamente en Sales Invoice.
+#   * Los `doc_events` de `tvs_accountancy` cubren Quotation, Customer y Sales
+#     Invoice. No hay clave "Purchase Invoice" en ninguna parte de esa app.
+#   * Ningún writer de Purchase Invoice en este bench ni en tvs-cloud-services.
+#   * `Te vorderen Btw-verlegd` y `Af te dragen Btw-verlegd` existen en el plan
+#     de cuentas con cero asientos en GL.
+#   * La integración Moneybird es sólo de ventas: empuja Customer y Sales
+#     Invoice, y su webhook entrante crea Items con `is_purchase_item: 0`.
+#
+# Un cero en una declaración fiscal es una MEDICIÓN. "5b Voorbelasting 0,00"
+# afirma que no se soportó IVA deducible, y `Totaal` es `5a - 5b`: presentar ese
+# cero sobredeclara el IVA a pagar por el total del deducible. Ausente no es
+# cero — la misma distinción que VD.14 trazó para un país desconocido.
+#
+# 5c y Totaal son ambos `5a - 5b`, así que heredan la falta de fuente de 5b. 5a
+# se deja intacto: es el lado ventas, y sí está medido.
+#
+# El disparador se MIDE, nunca se fija a mano: un período cuya consulta de
+# compras devuelve filas se comporta exactamente como antes, byte por byte. Eso
+# deja intacto cualquier entorno que sí registre compras y hace que el informe
+# se cure solo el día que las haya, sin ninguna constante que tocar.
+#
+# Fuera de alcance acá, con seguimiento aparte como B8: aun con filas de compra,
+# el acumulador de 5b compara el nombre de la cuenta contra "vat" más
+# "input"/"soportado", y el plan de cuentas neerlandés usa "Btw te vorderen ...",
+# así que ninguna de las 49 cuentas de tipo Tax del sitio puede coincidir nunca.
+UNSOURCED_WITHOUT_PURCHASES = ("4a", "4b", "5b", "5c", "Totaal")
+
+
+def mark_unsourced_purchase_rubrics(rows, purchases_sourced):
+    """
+    Deja en blanco los rubrieken que ninguna compra alimentó.
+
+    `rows` son las filas ya armadas del informe; `purchases_sourced` dice si la
+    consulta de compras del período devolvió al menos una fila. Cuando devolvió
+    alguna, las filas vuelven tal cual. Cuando no, las de
+    `UNSOURCED_WITHOUT_PURCHASES` pierden su importe y quedan marcadas con
+    `unsourced`, para que el dato siga siendo legible por una máquina y no sólo
+    por el humano que ve el guión en el PDF.
+    """
+    if purchases_sourced:
+        return rows
+
+    for row in rows:
+        if row.get("rubric") not in UNSOURCED_WITHOUT_PURCHASES:
+            continue
+
+        row["amount"] = None
+        if "vat_amount" in row:
+            row["vat_amount"] = None
+        row["unsourced"] = True
+
+    return rows
+
+
 def fetch_vat_data(filters):
     from_date = filters.get("from_date", "1900-01-01")
     to_date = filters.get("to_date", "2100-12-31")
@@ -462,6 +524,9 @@ def fetch_vat_data(filters):
         "to_date": to_date, 
         "company": company
     }, as_dict=True)
+
+    # P2.3 (opción A). Medido, no fijado a mano. Ver mark_unsourced_purchase_rubrics.
+    purchases_sourced = bool(purchase_rows)
 
     # Acumular en los rubrieken. La clasificación ya la hizo
     # `classify_period_sales`, que es lo que la reconciliación de F.12 lee.
@@ -558,8 +623,18 @@ def fetch_vat_data(filters):
             indicator="orange"
         )
 
+    if not purchases_sourced:
+        frappe.msgprint(
+            _("Este período no tiene ninguna factura de compra, así que los rubrieken "
+              "4a, 4b y 5b no tienen fuente de datos. Se informan en blanco, no en "
+              "cero: un cero afirmaría que no se soportó IVA deducible. 5c y Totaal "
+              "son 5a - 5b, así que tampoco pueden calcularse."),
+            title=_("Mitad de compras sin fuente de datos"),
+            indicator="orange"
+        )
+
     # Retornar datos estructurados
-    return [
+    return mark_unsourced_purchase_rubrics([
         {"rubric": "1a", "description": _("1a. Leveringen binnenland hoog tarief (21%)"), "amount": rubrics["1a"], "vat_amount": rubrics_vat["1a"]},
         {"rubric": "1b", "description": _("1b. Leveringen binnenland laag tarief (9%/6%)"), "amount": rubrics["1b"], "vat_amount": rubrics_vat["1b"]},
         {"rubric": "1c", "description": _("1c. Overige tarieven"), "amount": rubrics["1c"], "vat_amount": rubrics_vat["1c"]},
@@ -579,7 +654,7 @@ def fetch_vat_data(filters):
         {"rubric": "5e", "description": _("5e. Correctie vorige aangifte"), "amount": 0.0},
         {"rubric": "5f", "description": _("5f. Schatting deze aangifte"), "amount": 0.0},
         {"rubric": "Totaal", "description": _("Totaal te betalen of terug te vorderen"), "amount": net_total}
-    ]
+    ], purchases_sourced)
 
 
 def validate_data_integrity(filters):

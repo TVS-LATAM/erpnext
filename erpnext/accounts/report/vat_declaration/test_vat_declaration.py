@@ -411,6 +411,56 @@ from erpnext.accounts.report.vat_declaration.vat_declaration import fetch_vat_da
 _UNPOPULATED_WINDOW = {"from_date": "1900-01-01", "to_date": "1900-01-02", "company": ""}
 
 
+def _neutral_purchase_row():
+	"""
+	One purchase row that lands in no rubriek at all.
+
+	It carries an empty tax category and no tax line, so it adds nothing to 4a,
+	4b or 5b. Its only job is to make the period count as sourced, which is what
+	the P1.5 and P1.6 assertions need: a period with no purchase invoice at all
+	blanks 5c and Totaal (P2.3 option A), and a blank total cannot demonstrate
+	anything about rounding.
+	"""
+	return frappe._dict({
+		"name": "PINV-NEUTRAL-0001",
+		"supplier": "_Test Supplier",
+		"category": "",
+		"base_net_total": 0.0,
+		"supplier_address": None,
+		"supplier_country": None,
+		"rate": 0.0,
+		"base_tax_amount": 0.0,
+		"account_head": None,
+		"account_type": None,
+		"account_name": None,
+		"supplier_type": "domestic",
+	})
+
+
+def _only_purchase_query(purchase_rows):
+	"""
+	Patch `frappe.db.sql` so ONLY the purchase query is faked.
+
+	Replacing `frappe.db.sql` wholesale also intercepts the lookups Frappe makes
+	for its own bookkeeping. `flt(value, 2)` resolves the system rounding method
+	through the database, so a blanket mock answers that lookup with a list of
+	purchase rows and rounding then returns 0.0 — every rubriek in the report
+	silently collapses to zero, and which tests it hits depends on class name
+	order, because the resolved method is cached per process.
+
+	Faking one query and delegating the rest keeps the assertion about the
+	report instead of about the mock.
+	"""
+	real_sql = frappe.db.sql
+
+	def fake(query, *args, **kwargs):
+		if "tabPurchase Invoice" in str(query):
+			return purchase_rows
+		return real_sql(query, *args, **kwargs)
+
+	return patch("frappe.db.sql", side_effect=fake)
+
+
 def _fake_sales_invoice(**overrides):
 	"""A minimal dict shaped like one entry of classify_period_sales()'s return list."""
 	base = {
@@ -449,7 +499,7 @@ class TestFetchVatDataRoundsAtTheReportingBoundary(FrappeTestCase):
 		with patch(
 			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
 			return_value=(fake_invoices, set(), 0.0),
-		), patch("frappe.db.sql", return_value=[]):
+		), _only_purchase_query([_neutral_purchase_row()]):
 			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
 
 		row_1a = next(row for row in rows if row["rubric"] == "1a")
@@ -469,7 +519,7 @@ class TestFetchVatDataRoundsAtTheReportingBoundary(FrappeTestCase):
 		with patch(
 			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
 			return_value=(fake_invoices, set(), 0.0),
-		), patch("frappe.db.sql", return_value=[]):
+		), _only_purchase_query([_neutral_purchase_row()]):
 			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
 
 		totaal = next(row for row in rows if row["rubric"] == "Totaal")
@@ -501,7 +551,7 @@ class TestFetchVatDataReturnsActualPerRubriekVat(FrappeTestCase):
 		with patch(
 			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
 			return_value=(fake_invoices, set(), 0.0),
-		), patch("frappe.db.sql", return_value=[]):
+		), _only_purchase_query([_neutral_purchase_row()]):
 			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
 
 		row_1a = next(row for row in rows if row["rubric"] == "1a")
@@ -514,7 +564,7 @@ class TestFetchVatDataReturnsActualPerRubriekVat(FrappeTestCase):
 		with patch(
 			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
 			return_value=(fake_invoices, set(), 0.0),
-		), patch("frappe.db.sql", return_value=[]):
+		), _only_purchase_query([_neutral_purchase_row()]):
 			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
 
 		row_1b = next(row for row in rows if row["rubric"] == "1b")
@@ -820,7 +870,7 @@ class TestPurchaseSideStillFilesServicesIntoAcquisitionRubrics(FrappeTestCase):
 		with patch(
 			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
 			return_value=([], set(), 0.0),
-		), patch("frappe.db.sql", return_value=purchase_rows):
+		), _only_purchase_query(purchase_rows):
 			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
 
 		return next(row for row in rows if row["rubric"] == rubric)["amount"]
@@ -840,3 +890,200 @@ class TestPurchaseSideStillFilesServicesIntoAcquisitionRubrics(FrappeTestCase):
 		amount = self._rubric_amount(purchase_rows, "4a")
 
 		self.assertEqual(amount, 1000.00)
+
+
+# =====================================================================
+# P2.3 (option A) — a rubriek with no data source does not report 0.00
+# =====================================================================
+#
+# Rubrieken 4a, 4b and 5b are the PURCHASE half of the return, and nothing
+# in this stack books purchases. Verified read-only on 2026-09-14, on the
+# only reachable site:
+#
+#   * `frappe.db.count("Purchase Invoice")` is 0 at any docstatus. The 37
+#     `Purchase Taxes and Charges` rows all belong to Templates.
+#   * There are no Custom Fields on Purchase Invoice at all, and
+#     `tvs_tax_regime` exists only on Sales Invoice.
+#   * `tvs_accountancy`'s doc_events cover Quotation, Customer and Sales
+#     Invoice. There is no "Purchase Invoice" key anywhere in that app.
+#   * No writer of Purchase Invoices exists in this bench or in
+#     tvs-cloud-services.
+#   * `Te vorderen Btw-verlegd` and `Af te dragen Btw-verlegd` exist in the
+#     chart of accounts with zero GL entries.
+#   * The Moneybird integration is sales-only: it pushes Customer and Sales
+#     Invoice out, and its inbound webhook creates Items with
+#     `is_sales_item: 1, is_purchase_item: 0`.
+#
+# A zero in a tax return is a MEASUREMENT. "5b Voorbelasting 0,00" asserts
+# that no deductible input VAT was incurred, and `Totaal` is `5a - 5b`, so
+# filing that zero overstates the VAT payable by the whole deductible
+# amount. Absent is not zero — the same distinction VD.14 drew for an
+# unknown country.
+#
+# The trigger is measured, never hardcoded: a period whose purchase query
+# returns rows behaves exactly as before, byte for byte. That keeps an
+# environment that DOES book purchases untouched, and makes the report heal
+# itself the day purchases arrive — no constant to flip.
+#
+# 5c and Totaal are both `5a - 5b`, so they inherit 5b's missing source.
+# 5a is left alone: it is the sales side, and it is measured.
+#
+# Out of scope here, tracked separately as B8: even with purchase rows
+# present, the 5b accumulator matches an account name against "vat" plus
+# "input"/"soportado", and the Dutch chart of accounts uses "Btw te
+# vorderen ..." — so none of the site's 49 Tax accounts can ever match.
+
+from erpnext.accounts.report.vat_declaration.vat_declaration import (
+	UNSOURCED_WITHOUT_PURCHASES,
+	mark_unsourced_purchase_rubrics,
+)
+
+
+class TestMarkUnsourcedPurchaseRubrics(FrappeTestCase):
+	"""mark_unsourced_purchase_rubrics() — P2.3 option A, in isolation."""
+
+	def _rows(self):
+		return [
+			{"rubric": "1a", "description": "", "amount": 1000.0, "vat_amount": 210.0},
+			{"rubric": "4a", "description": "", "amount": 0.0, "vat_amount": 0.0},
+			{"rubric": "4b", "description": "", "amount": 0.0, "vat_amount": 0.0},
+			{"rubric": "5a", "description": "", "amount": 210.0},
+			{"rubric": "5b", "description": "", "amount": 0.0},
+			{"rubric": "5c", "description": "", "amount": 210.0},
+			{"rubric": "Totaal", "description": "", "amount": 210.0},
+		]
+
+	def test_purchase_rubrieken_report_no_amount_when_nothing_sourced_them(self):
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=False)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		for rubric in ("4a", "4b", "5b"):
+			self.assertIsNone(by_rubric[rubric]["amount"], rubric)
+
+	def test_the_subtotal_and_the_total_inherit_the_missing_5b(self):
+		"""
+		Both are `5a - 5b`. Reporting 210.00 while 5b is unknown states the
+		VAT payable as if the deductible were zero.
+		"""
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=False)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertIsNone(by_rubric["5c"]["amount"])
+		self.assertIsNone(by_rubric["Totaal"]["amount"])
+
+	def test_the_vat_column_is_blanked_too_not_left_at_zero(self):
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=False)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertIsNone(by_rubric["4a"]["vat_amount"])
+		self.assertIsNone(by_rubric["4b"]["vat_amount"])
+
+	def test_each_blanked_row_carries_a_machine_readable_flag(self):
+		"""
+		The dash the print template shows must be distinguishable from a
+		missing row by anything reading this data, not only by a human.
+		"""
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=False)
+
+		flagged = {row["rubric"] for row in rows if row.get("unsourced")}
+		self.assertEqual(flagged, set(UNSOURCED_WITHOUT_PURCHASES))
+
+	def test_the_sales_side_is_left_alone(self):
+		"""1a and 5a are measured from Sales Invoices. They keep their numbers."""
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=False)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertEqual(by_rubric["1a"]["amount"], 1000.0)
+		self.assertEqual(by_rubric["1a"]["vat_amount"], 210.0)
+		self.assertEqual(by_rubric["5a"]["amount"], 210.0)
+		self.assertNotIn("unsourced", by_rubric["1a"])
+
+	def test_a_sourced_period_is_returned_byte_for_byte(self):
+		"""
+		The guard against breaking an environment that DOES book purchases:
+		one purchase row in the period and nothing is blanked or flagged.
+		"""
+		original = self._rows()
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=True)
+
+		self.assertEqual(rows, original)
+
+
+class TestFetchVatDataBlanksTheUnsourcedPurchaseHalf(FrappeTestCase):
+	"""fetch_vat_data() — P2.3 option A, end to end."""
+
+	def _purchase_row(self, **overrides):
+		row = frappe._dict({
+			"name": "PINV-A-0001",
+			"supplier": "_Test Supplier",
+			"category": "diensten eu",
+			"base_net_total": 1000.0,
+			"supplier_address": "Test Address-Billing",
+			"supplier_country": "Germany",
+			"rate": 0.0,
+			"base_tax_amount": 0.0,
+			"account_head": None,
+			"account_type": None,
+			"account_name": None,
+			"supplier_type": "eu",
+		})
+		row.update(overrides)
+		return row
+
+	def _rows_for(self, purchase_rows):
+		sales = [_fake_sales_invoice(net_total=1000.0, vat_amount=210.0, rubric="1a")]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(sales, set(), 0.0),
+		), _only_purchase_query(purchase_rows), patch("frappe.msgprint"):
+			return fetch_vat_data(_UNPOPULATED_WINDOW)
+
+	def test_a_period_with_no_purchase_invoice_reports_no_total(self):
+		rows = self._rows_for([])
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertEqual(by_rubric["1a"]["amount"], 1000.00)
+		self.assertEqual(by_rubric["5a"]["amount"], 210.00)
+		self.assertIsNone(by_rubric["5b"]["amount"])
+		self.assertIsNone(by_rubric["Totaal"]["amount"])
+
+	def test_a_period_with_a_purchase_invoice_still_reports_its_numbers(self):
+		rows = self._rows_for([self._purchase_row()])
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertEqual(by_rubric["4b"]["amount"], 1000.00)
+		self.assertEqual(by_rubric["5b"]["amount"], 0.00)
+		self.assertEqual(by_rubric["Totaal"]["amount"], 210.00)
+		self.assertNotIn("unsourced", by_rubric["4b"])
+
+	def test_the_user_is_told_which_rubrieken_have_no_source(self):
+		"""
+		Blanking silently would trade one invisible wrong number for an
+		invisible missing one. The warning is the point.
+		"""
+		sales = [_fake_sales_invoice(net_total=1000.0, vat_amount=210.0, rubric="1a")]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(sales, set(), 0.0),
+		), _only_purchase_query([]), patch("frappe.msgprint") as msgprint:
+			fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		self.assertTrue(msgprint.called)
+		warned = " ".join(str(call) for call in msgprint.call_args_list)
+		for rubric in ("4a", "4b", "5b"):
+			self.assertIn(rubric, warned)
+
+	def test_no_warning_fires_when_the_period_has_purchases(self):
+		sales = [_fake_sales_invoice(net_total=1000.0, vat_amount=210.0, rubric="1a")]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(sales, set(), 0.0),
+		), _only_purchase_query([self._purchase_row()]), patch(
+			"frappe.msgprint"
+		) as msgprint:
+			fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		self.assertFalse(msgprint.called)
