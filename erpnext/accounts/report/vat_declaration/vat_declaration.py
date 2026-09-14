@@ -33,9 +33,24 @@ TAX_CATEGORY_MAPPING = {
     # que dispara el aviso al usuario. Reapuntarlas fijaría una opinión fiscal
     # sobre una categoría que ninguna factura de venta neerlandesa debería
     # llevar, y además silenciaría ese aviso.
-    "reverse charge": "2a",
-    "verlegd": "2a",
-    "verleggingsregeling": "2a",
+    #
+    # P2.4. Estas tres claves apuntaban a "2a", verificado contra
+    # belastingdienst.nl el 2026-09-14: rubriek 2a "Verleggingsregelingen
+    # binnenland" es del COMPRADOR ("Bent u de afnemer? Dan moet u de btw die
+    # naar u is verlegd, zelf uitrekenen... U vult dit bedrag in bij rubriek
+    # 2a"). Esta función sólo ve Sales Invoices, es decir, siempre el lado
+    # VENDEDOR de la operación. El vendedor que aplica una verlegging
+    # nacional declara la facturación en 1e ("Leveringen/diensten belast met
+    # 0% of niet bij u belast").
+    #
+    # Se reapuntan a 1e en vez de borrarse — a diferencia de las claves D4 de
+    # arriba — porque borrarlas las haría caer en el fallback nacional 1c, que
+    # es un rubriek GRAVADO: eso sería peor que el error que se corrige, no
+    # mejor. 1e sí es un rubriek de tipo 0%/exento, coherente con una entrega
+    # donde el vendedor no cobra IVA.
+    "reverse charge": "1e",
+    "verlegd": "1e",
+    "verleggingsregeling": "1e",
     "export": "3a"
 }
 
@@ -205,10 +220,17 @@ def classify_sales_rubric(regime, category, incoterm, customer_type, reverse_cha
     (una que suena a "verlegd" o "reverse"). Es mejor evidencia que la ausencia
     de categoría, y peor evidencia que una categoría explícita, así que decide
     sólo cuando `category` no mapeó a nada en TAX_CATEGORY_MAPPING — un mapeo
-    explícito sigue ganando. 2a es "Verleggingsregeling BINNENLAND" por
-    definición, de modo que la heurística exige además `customer_type ==
-    "domestic"`: un cliente UE o de exportación con una línea de aspecto
-    verlegd pertenece a 3b o 3a, no a 2a.
+    explícito sigue ganando.
+
+    P2.4. La heurística manda a 1e, no a 2a. Verificado contra
+    belastingdienst.nl el 2026-09-14: rubriek 2a "Verleggingsregelingen
+    binnenland" es del COMPRADOR, y esta función sólo clasifica facturas de
+    VENTA — siempre el lado vendedor. El vendedor que aplica una verlegging
+    nacional declara la facturación en 1e. La heurística exige además
+    `customer_type == "domestic"`: un cliente UE o de exportación con una
+    línea de aspecto verlegd no es una verlegging binnenland en absoluto, y la
+    reescritura de coherencia de más abajo (`rubric in ["1a", "1b", "1e"]`) ya
+    lo manda a 3b o 3a cuando el mapeo explícito lo deja en 1e.
     """
     decided = TAX_REGIME_RUBRIC_MAPPING.get((regime or "").strip())
     if decided:
@@ -225,11 +247,13 @@ def classify_sales_rubric(regime, category, incoterm, customer_type, reverse_cha
         elif customer_type == "export":
             rubric = "3a"
 
-    # P2.2. Una línea de impuesto verlegd sólo decide cuando la categoría no
-    # mapeó a nada, y sólo para el cliente nacional: 2a es el rubriek de
-    # verlegging BINNENLAND.
+    # P2.2 / P2.4. Una línea de impuesto verlegd sólo decide cuando la
+    # categoría no mapeó a nada, y sólo para el cliente nacional. Manda a 1e,
+    # no a 2a: 2a es el rubriek del COMPRADOR de una verlegging binnenland, y
+    # esta función sólo ve facturas de VENTA — el vendedor de esa misma
+    # operación declara en 1e.
     elif not rubric and reverse_charge and customer_type == "domestic":
-        rubric = "2a"
+        rubric = "1e"
 
     # Exportación sólo si no es venta nacional
     elif not rubric and incoterm in EXPORT_INCOTERMS:
@@ -439,6 +463,22 @@ def classify_period_sales(filters):
 UNSOURCED_WITHOUT_PURCHASES = ("4a", "4b", "5b", "5c", "Totaal")
 
 
+# P2.4. Rubriek 2a es del COMPRADOR ("Verleggingsregelingen binnenland",
+# verificado contra belastingdienst.nl el 2026-09-14), y este informe no
+# tiene, ni tuvo nunca, ningún camino de COMPRAS que lo calcule: el lado
+# vendedor de una verlegging nacional ahora se declara en 1e (ver
+# TAX_CATEGORY_MAPPING y classify_sales_rubric), así que ningún código escribe
+# `rubrics["2a"]`, con o sin facturas de compra en el período.
+#
+# Por eso 2a NO entra en `UNSOURCED_WITHOUT_PURCHASES`: esa lista describe
+# rubrieken que se curan solos el día que el sitio registre compras, y 2a no
+# se cura nunca — necesitaría un camino de compras que hoy no existe y que
+# construirlo está fuera del alcance de este cambio. Imprimir 0,00 para un
+# rubriek que nadie calcula es la misma mentira que B8 y P2.3 existen para
+# eliminar, así que se declara en blanco siempre, en su propio conjunto.
+UNSOURCED_ALWAYS = ("2a",)
+
+
 # B8. El acumulador de 5b exigía que el nombre de la cuenta contuviera "vat" Y
 # además "input" o "soportado". El plan de cuentas de la empresa neerlandesa está
 # escrito en neerlandés, y ninguna de las 49 cuentas de tipo Tax del sitio puede
@@ -510,17 +550,35 @@ def mark_unsourced_purchase_rubrics(rows, purchases_sourced):
     Deja en blanco los rubrieken que ninguna compra alimentó.
 
     `rows` son las filas ya armadas del informe; `purchases_sourced` dice si la
-    consulta de compras del período devolvió al menos una fila. Cuando devolvió
-    alguna, las filas vuelven tal cual. Cuando no, las de
-    `UNSOURCED_WITHOUT_PURCHASES` pierden su importe y quedan marcadas con
-    `unsourced`, para que el dato siga siendo legible por una máquina y no sólo
-    por el humano que ve el guión en el PDF.
-    """
-    if purchases_sourced:
-        return rows
+    consulta de compras del período devolvió al menos una fila. El nombre
+    sigue siendo apto tras P2.4: 2a también es, por definición, un rubriek del
+    lado compras (del comprador), aunque la razón por la que no tiene fuente
+    sea distinta de la de sus hermanos.
 
+    Dos conjuntos, dos razones:
+
+    - `UNSOURCED_WITHOUT_PURCHASES` (4a, 4b, 5b, 5c, Totaal): sin fuente sólo
+      cuando `purchases_sourced` es falso. Un período que sí registra compras
+      las cura solas.
+    - `UNSOURCED_ALWAYS` (2a): sin fuente siempre, tenga o no el período
+      facturas de compra, porque este informe no tiene ningún camino de
+      compras que lo calcule.
+
+    En ambos casos la fila pierde `amount` y `vat_amount` y queda marcada con
+    `unsourced`, para que el dato siga siendo legible por una máquina y no
+    sólo por el humano que ve el guión en el PDF.
+    """
     for row in rows:
-        if row.get("rubric") not in UNSOURCED_WITHOUT_PURCHASES:
+        rubric = row.get("rubric")
+
+        if rubric in UNSOURCED_ALWAYS:
+            blank = True
+        elif not purchases_sourced and rubric in UNSOURCED_WITHOUT_PURCHASES:
+            blank = True
+        else:
+            blank = False
+
+        if not blank:
             continue
 
         row["amount"] = None
@@ -625,10 +683,23 @@ def fetch_vat_data(filters):
     #    habría dejado de descartar, pero sumando IVA sobre neto en la misma
     #    cubeta.
     #
-    # 2a lleva la omzet, como cada uno de sus hermanos, y el bucle ya la
-    # acumuló. `reverse_charge_total` queda calculado a propósito: dónde debe
-    # declararse el IVA trasladado es una pregunta contable abierta y sin
-    # responder, y borrar el número la escondería.
+    # P2.4 (actualiza esta nota, ya no vigente en su forma original). El
+    # supuesto de arriba era que 2a lleva la omzet "como cada uno de sus
+    # hermanos". Verificado contra belastingdienst.nl el 2026-09-14: 2a
+    # "Verleggingsregelingen binnenland" es del COMPRADOR, no del vendedor, y
+    # este informe sólo clasifica facturas de VENTA. Por eso el bucle de
+    # arriba ya no escribe nunca en `rubrics["2a"]` — la categoría verlegd
+    # ahora mapea a 1e (ver TAX_CATEGORY_MAPPING) — y `rubrics["2a"]` se
+    # declara sin fuente de datos siempre (ver UNSOURCED_ALWAYS), exactamente
+    # igual que 4a/4b/5b lo hacen cuando no hay compras.
+    #
+    # `reverse_charge_total` sigue calculándose en `classify_period_sales` y
+    # sigue sin usarse en esta función: verificado con grep en todo el árbol
+    # de erpnext, nada lo lee salvo este mismo desempaquetado. Sigue sin
+    # borrarse por la misma razón que antes — dónde debe declararse el IVA
+    # trasladado al comprador es una pregunta contable abierta que este
+    # cambio no responde, y borrar el número la escondería en vez de dejarla
+    # pendiente y visible en el código.
     #
     # Latente hoy: ninguna factura de producción lleva una categoría de reverse
     # charge, que es la misma condición que hace disparar VD.13.
@@ -710,13 +781,30 @@ def fetch_vat_data(filters):
             indicator="orange"
         )
 
+    # P2.4. Rubriek 2a no tiene fuente de datos NUNCA: a diferencia de
+    # 4a/4b/5b, que se curan solos el día que el período registre compras,
+    # este informe no tiene ningún cálculo del lado compras que alimente 2a
+    # (ver UNSOURCED_ALWAYS). El aviso original de P2.3 sólo se disparaba
+    # cuando el período no tenía facturas de compra; ahora también nombra 2a
+    # ahí, y dispara un aviso propio cuando SÍ hay compras, porque 2a sigue
+    # sin fuente igual.
     if not purchases_sourced:
         frappe.msgprint(
             _("Este período no tiene ninguna factura de compra, así que los rubrieken "
-              "4a, 4b y 5b no tienen fuente de datos. Se informan en blanco, no en "
-              "cero: un cero afirmaría que no se soportó IVA deducible. 5c y Totaal "
-              "son 5a - 5b, así que tampoco pueden calcularse."),
+              "4a, 4b, 5b y 2a no tienen fuente de datos. Se informan en blanco, no en "
+              "cero: un cero afirmaría que no se soportó IVA deducible o que no hubo "
+              "verlegging. 5c y Totaal son 5a - 5b, así que tampoco pueden calcularse. "
+              "2a en particular no tiene fuente en ningún período: este informe no "
+              "tiene ningún cálculo del lado compras que lo alimente."),
             title=_("Mitad de compras sin fuente de datos"),
+            indicator="orange"
+        )
+    else:
+        frappe.msgprint(
+            _("El rubriek 2a no tiene fuente de datos en este informe: no existe "
+              "ningún cálculo del lado compras que lo alimente. Se informa en "
+              "blanco, no en cero."),
+            title=_("Rubriek sin fuente de datos"),
             indicator="orange"
         )
 
@@ -727,7 +815,9 @@ def fetch_vat_data(filters):
         {"rubric": "1c", "description": _("1c. Overige tarieven"), "amount": rubrics["1c"], "vat_amount": rubrics_vat["1c"]},
         {"rubric": "1d", "description": _("1d. Privégebruik"), "amount": rubrics["1d"], "vat_amount": rubrics_vat["1d"]},
         {"rubric": "1e", "description": _("1e. Leveringen tegen 0% of vrijgesteld"), "amount": rubrics["1e"], "vat_amount": rubrics_vat["1e"]},
-        {"rubric": "2a", "description": _("2a. Verleggingsregeling binnenland"), "amount": rubrics["2a"], "vat_amount": rubrics_vat["2a"]},
+        # P2.4. Etiqueta con la redacción del COMPRADOR: es su rubriek, no el
+        # del vendedor. Verificado contra belastingdienst.nl el 2026-09-14.
+        {"rubric": "2a", "description": _("2a. Leveringen/diensten waarbij de omzetbelasting naar u is verlegd"), "amount": rubrics["2a"], "vat_amount": rubrics_vat["2a"]},
         {"rubric": "3a", "description": _("3a. Export buiten de EU"), "amount": rubrics["3a"], "vat_amount": rubrics_vat["3a"]},
         {"rubric": "3b", "description": _("3b. Leveringen binnen de EU"), "amount": rubrics["3b"], "vat_amount": rubrics_vat["3b"]},
         {"rubric": "3c", "description": _("3c. Afstandsverkopen binnen de EU"), "amount": rubrics["3c"], "vat_amount": rubrics_vat["3c"]},

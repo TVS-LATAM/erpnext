@@ -572,33 +572,44 @@ class TestFetchVatDataReturnsActualPerRubriekVat(FrappeTestCase):
 
 
 # =====================================================================
-# P2.2 — a verlegd tax line routes an otherwise-unmapped domestic sale to 2a
+# P2.2 — a verlegd tax line routes an otherwise-unmapped domestic sale to 1e
 # =====================================================================
 #
 # `classify_period_sales` already computed a per-invoice reverse-charge signal
 # from the tax line's account_head/description ("verlegd" or "reverse"), but
 # `classify_sales_rubric` never read it again when it decided the rubriek: an
 # invoice with a genuine "BTW Verlegd" tax line and an unmapped (or empty)
-# tax_category silently filed as 1c — "Overige tarieven" — instead of 2a.
+# tax_category silently filed as 1c — "Overige tarieven" — instead of the
+# rubriek the seller of a domestic reverse-charge supply actually owes.
+#
+# P2.4 corrected the destination. Rubriek 2a "Verleggingsregelingen
+# binnenland" belongs to the BUYER (Belastingdienst: "Bent u de afnemer? Dan
+# moet u de btw die naar u is verlegd, zelf uitrekenen... U vult dit bedrag in
+# bij rubriek 2a"). The SELLER who applies the domestic reverse charge reports
+# the turnover in rubriek 1e ("Leveringen/diensten belast met 0% of niet bij u
+# belast"), because this report only ever sees Sales Invoices — i.e. the
+# seller's side of the transaction.
 #
 # The heuristic only ever fires when nothing stronger already decided: a
 # stored tvs_tax_regime and an explicit TAX_CATEGORY_MAPPING hit both still
-# outrank it. And it is scoped to customer_type == "domestic", because 2a is
-# "Verleggingsregeling BINNENLAND" by definition — an EU or export customer
-# whose invoice happens to carry a verlegd-looking tax line belongs in 3b or
-# 3a, and letting the heuristic steal it into 2a would file an intra-community
-# supply as a domestic reverse charge.
+# outrank it. And it is scoped to customer_type == "domestic": an EU or
+# export customer whose invoice happens to carry a verlegd-looking tax line
+# belongs in 3b or 3a via the existing coherence rewrite, not in 1e.
 
 from erpnext.accounts.report.vat_declaration.vat_declaration import classify_sales_rubric
 
 
 class TestClassifySalesRubricReverseChargeHeuristic(FrappeTestCase):
-	"""classify_sales_rubric() — the verlegd tax-line heuristic. P2.2."""
+	"""classify_sales_rubric() — the verlegd tax-line heuristic. P2.2 / P2.4."""
 
 	# --- the defect, in the exact shape production produces ----------------
 
-	def test_domestic_verlegd_tax_line_with_unmapped_category_lands_in_2a(self):
-		"""No stored regime, no mapped category. Today this lands in 1c."""
+	def test_domestic_verlegd_tax_line_with_unmapped_category_lands_in_1e(self):
+		"""
+		No stored regime, no mapped category. Today this lands in 1c. The
+		seller side of a domestic reverse charge belongs in 1e, not in 2a —
+		2a is the buyer's rubriek (P2.4).
+		"""
 		rubric, unmapped = classify_sales_rubric(
 			regime="",
 			category="",
@@ -607,7 +618,7 @@ class TestClassifySalesRubricReverseChargeHeuristic(FrappeTestCase):
 			reverse_charge=True,
 		)
 
-		self.assertEqual(rubric, "2a")
+		self.assertEqual(rubric, "1e")
 		self.assertIsNone(unmapped)
 
 	# --- the precedence is the feature --------------------------------------
@@ -632,10 +643,13 @@ class TestClassifySalesRubricReverseChargeHeuristic(FrappeTestCase):
 		)
 		self.assertEqual(rubric, "1a")
 
-	def test_an_eu_customer_with_a_verlegd_looking_line_is_not_stolen_into_2a(self):
+	def test_an_eu_customer_with_a_verlegd_looking_line_is_not_stolen_into_1e(self):
 		"""
-		2a is Verleggingsregeling BINNENLAND by definition. An EU customer
-		belongs in 3b even when a tax line on the invoice looks verlegd.
+		The heuristic is scoped to `customer_type == "domestic"`, so it never
+		fires for an EU customer. The invoice falls through to the plain
+		customer-type fallback that already existed, landing in 3b — the same
+		outcome this test asserted before P2.4, only the rubriek it must NOT
+		land in changed from 2a to 1e.
 		"""
 		rubric, _unmapped = classify_sales_rubric(
 			regime="",
@@ -645,6 +659,17 @@ class TestClassifySalesRubricReverseChargeHeuristic(FrappeTestCase):
 			reverse_charge=True,
 		)
 		self.assertEqual(rubric, "3b")
+
+	def test_an_export_customer_with_a_verlegd_looking_line_is_not_stolen_into_1e(self):
+		"""Same fallback, export side."""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="",
+			category="",
+			incoterm="",
+			customer_type="export",
+			reverse_charge=True,
+		)
+		self.assertEqual(rubric, "3a")
 
 	def test_no_reverse_charge_signal_keeps_the_1c_fallback(self):
 		"""Without the signal, an unmapped domestic category still falls to 1c."""
@@ -660,6 +685,89 @@ class TestClassifySalesRubricReverseChargeHeuristic(FrappeTestCase):
 		self.assertEqual(unmapped, "")
 
 
+# =====================================================================
+# P2.4 — an explicit verlegd tax_category maps to 1e, not 2a
+# =====================================================================
+#
+# TAX_CATEGORY_MAPPING carried "reverse charge", "verlegd" and
+# "verleggingsregeling" pointing at "2a". 2a "Verleggingsregelingen
+# binnenland" belongs to the BUYER (see the P2.4 header comment in
+# vat_declaration.py); this report only sees Sales Invoices, so it can only
+# ever be the seller. A seller applying a domestic reverse charge reports the
+# turnover in 1e ("Leveringen/diensten belast met 0% of niet bij u belast").
+# The keys are repointed rather than removed, unlike the D4 keys above:
+# deleting them would drop these invoices into the taxed 1c fallback, which
+# overstates VAT due even more than the wrong rubriek did.
+class TestVerlegdCategoryMapsToOneE(FrappeTestCase):
+	"""classify_sales_rubric() / TAX_CATEGORY_MAPPING — P2.4."""
+
+	def test_domestic_sale_with_a_verlegd_category_lands_in_1e(self):
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="verlegd",
+			incoterm="",
+			customer_type="domestic",
+			reverse_charge=False,
+		)
+		self.assertEqual(rubric, "1e")
+		self.assertIsNone(unmapped)
+
+	def test_domestic_sale_with_a_reverse_charge_category_lands_in_1e(self):
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="reverse charge",
+			incoterm="",
+			customer_type="domestic",
+			reverse_charge=False,
+		)
+		self.assertEqual(rubric, "1e")
+		self.assertIsNone(unmapped)
+
+	def test_domestic_sale_with_a_verleggingsregeling_category_lands_in_1e(self):
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="verleggingsregeling",
+			incoterm="",
+			customer_type="domestic",
+			reverse_charge=False,
+		)
+		self.assertEqual(rubric, "1e")
+		self.assertIsNone(unmapped)
+
+	# --- the coherence rewrite now reroutes it correctly for EU/export -----
+
+	def test_an_eu_customer_with_a_verlegd_category_is_rerouted_to_3b(self):
+		"""
+		P2.4. The pre-existing coherence rewrite —
+		`if rubric in ["1a", "1b", "1e"] and customer_type != "domestic"` —
+		now catches a verlegd category too, because it maps to 1e. An EU
+		customer is rerouted to 3b: exactly what the Belastingdienst
+		prescribes for an intra-EU delivery. No new code was written for
+		this; it falls out of the existing rewrite once the mapping changed.
+		"""
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="verlegd",
+			incoterm="",
+			customer_type="eu",
+			reverse_charge=False,
+		)
+		self.assertEqual(rubric, "3b")
+		self.assertIsNone(unmapped)
+
+	def test_an_export_customer_with_a_verlegd_category_is_rerouted_to_3a(self):
+		"""P2.4. Same coherence rewrite, export side."""
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="verlegd",
+			incoterm="",
+			customer_type="export",
+			reverse_charge=False,
+		)
+		self.assertEqual(rubric, "3a")
+		self.assertIsNone(unmapped)
+
+
 # ---------------------------------------------------------------------
 # P2.2 — end to end: the signal classify_period_sales already computes from
 # the SQL row must be the one that reaches classify_sales_rubric.
@@ -673,9 +781,10 @@ from erpnext.accounts.report.vat_declaration.vat_declaration import classify_per
 
 class TestClassifyPeriodSalesReverseChargeWiring(FrappeTestCase):
 	"""
-	classify_period_sales() — P2.2, end to end. Proves the reverse-charge
-	signal computed from the tax line's account_head actually reaches the
-	rubriek decision, not just `reverse_charge_total`.
+	classify_period_sales() — P2.2 / P2.4, end to end. Proves the
+	reverse-charge signal computed from the tax line's account_head actually
+	reaches the rubriek decision, not just `reverse_charge_total`, and that it
+	lands in 1e — the seller's rubriek — not in 2a, which belongs to the buyer.
 	"""
 
 	def _sales_row(self, **overrides):
@@ -701,10 +810,12 @@ class TestClassifyPeriodSalesReverseChargeWiring(FrappeTestCase):
 		row.update(overrides)
 		return row
 
-	def test_a_real_verlegd_tax_line_routes_an_unmapped_domestic_invoice_to_2a(self):
+	def test_a_real_verlegd_tax_line_routes_an_unmapped_domestic_invoice_to_1e(self):
 		"""
 		A domestic invoice, empty tax_category, no tvs_tax_regime, one tax
 		row whose account_head is "BTW Verlegd - T". Today this lands in 1c.
+		P2.4: the seller side of a domestic reverse charge is 1e, not 2a —
+		2a is the buyer's rubriek.
 		"""
 		rows = [self._sales_row(account_head="BTW Verlegd - T")]
 
@@ -714,13 +825,13 @@ class TestClassifyPeriodSalesReverseChargeWiring(FrappeTestCase):
 			)
 
 		self.assertEqual(len(invoices), 1)
-		self.assertEqual(invoices[0]["rubric"], "2a")
+		self.assertEqual(invoices[0]["rubric"], "1e")
 		self.assertEqual(unknown_categories, set())
 
-	def test_a_verlegd_line_carrying_no_vat_still_routes_to_2a(self):
+	def test_a_verlegd_line_carrying_no_vat_still_routes_to_1e(self):
 		"""
-		P2.2 — the realistic verlegging invoice, and the one the heuristic
-		exists for.
+		P2.2 / P2.4 — the realistic verlegging invoice, and the one the
+		heuristic exists for.
 
 		Under de verleggingsregeling the VAT is shifted to the buyer, so the
 		seller charges nothing: the "BTW Verlegd" tax row carries a
@@ -737,7 +848,7 @@ class TestClassifyPeriodSalesReverseChargeWiring(FrappeTestCase):
 			)
 
 		self.assertEqual(len(invoices), 1)
-		self.assertEqual(invoices[0]["rubric"], "2a")
+		self.assertEqual(invoices[0]["rubric"], "1e")
 
 
 # =====================================================================
@@ -933,18 +1044,24 @@ class TestPurchaseSideStillFilesServicesIntoAcquisitionRubrics(FrappeTestCase):
 # "input"/"soportado", and the Dutch chart of accounts uses "Btw te
 # vorderen ..." — so none of the site's 49 Tax accounts can ever match.
 
+# P2.4. `UNSOURCED_ALWAYS` blanks 2a for a different reason than
+# `UNSOURCED_WITHOUT_PURCHASES`: 2a has no purchase-side computation at all in
+# this report, with or without purchase invoices, so it never gets "cured" by
+# a period that does book purchases the way 4a/4b/5b do.
 from erpnext.accounts.report.vat_declaration.vat_declaration import (
+	UNSOURCED_ALWAYS,
 	UNSOURCED_WITHOUT_PURCHASES,
 	mark_unsourced_purchase_rubrics,
 )
 
 
 class TestMarkUnsourcedPurchaseRubrics(FrappeTestCase):
-	"""mark_unsourced_purchase_rubrics() — P2.3 option A, in isolation."""
+	"""mark_unsourced_purchase_rubrics() — P2.3 option A / P2.4, in isolation."""
 
 	def _rows(self):
 		return [
 			{"rubric": "1a", "description": "", "amount": 1000.0, "vat_amount": 210.0},
+			{"rubric": "2a", "description": "", "amount": 0.0, "vat_amount": 0.0},
 			{"rubric": "4a", "description": "", "amount": 0.0, "vat_amount": 0.0},
 			{"rubric": "4b", "description": "", "amount": 0.0, "vat_amount": 0.0},
 			{"rubric": "5a", "description": "", "amount": 210.0},
@@ -986,7 +1103,29 @@ class TestMarkUnsourcedPurchaseRubrics(FrappeTestCase):
 		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=False)
 
 		flagged = {row["rubric"] for row in rows if row.get("unsourced")}
-		self.assertEqual(flagged, set(UNSOURCED_WITHOUT_PURCHASES))
+		self.assertEqual(flagged, set(UNSOURCED_WITHOUT_PURCHASES) | set(UNSOURCED_ALWAYS))
+
+	# --- P2.4: 2a is unsourced for a different, unconditional reason --------
+
+	def test_rubriek_2a_has_no_amount_when_purchases_are_absent(self):
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=False)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertIsNone(by_rubric["2a"]["amount"])
+		self.assertIsNone(by_rubric["2a"]["vat_amount"])
+		self.assertTrue(by_rubric["2a"]["unsourced"])
+
+	def test_rubriek_2a_has_no_amount_even_when_purchases_are_present(self):
+		"""
+		Unlike 4a/4b/5b, 2a is never cured by a sourced period: this report
+		has no purchase-side computation for it at all.
+		"""
+		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=True)
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertIsNone(by_rubric["2a"]["amount"])
+		self.assertIsNone(by_rubric["2a"]["vat_amount"])
+		self.assertTrue(by_rubric["2a"]["unsourced"])
 
 	def test_the_sales_side_is_left_alone(self):
 		"""1a and 5a are measured from Sales Invoices. They keep their numbers."""
@@ -998,15 +1137,18 @@ class TestMarkUnsourcedPurchaseRubrics(FrappeTestCase):
 		self.assertEqual(by_rubric["5a"]["amount"], 210.0)
 		self.assertNotIn("unsourced", by_rubric["1a"])
 
-	def test_a_sourced_period_is_returned_byte_for_byte(self):
+	def test_a_sourced_period_leaves_every_rubriek_except_2a_untouched(self):
 		"""
 		The guard against breaking an environment that DOES book purchases:
-		one purchase row in the period and nothing is blanked or flagged.
+		one purchase row in the period blanks nothing except 2a, which P2.4
+		blanks regardless because no purchase-side computation ever feeds it.
 		"""
 		original = self._rows()
 		rows = mark_unsourced_purchase_rubrics(self._rows(), purchases_sourced=True)
 
-		self.assertEqual(rows, original)
+		untouched = [row for row in rows if row["rubric"] != "2a"]
+		untouched_original = [row for row in original if row["rubric"] != "2a"]
+		self.assertEqual(untouched, untouched_original)
 
 
 class TestFetchVatDataBlanksTheUnsourcedPurchaseHalf(FrappeTestCase):
@@ -1057,6 +1199,28 @@ class TestFetchVatDataBlanksTheUnsourcedPurchaseHalf(FrappeTestCase):
 		self.assertEqual(by_rubric["Totaal"]["amount"], 210.00)
 		self.assertNotIn("unsourced", by_rubric["4b"])
 
+	# --- P2.4: 2a has no purchase-side source, sourced or not ---------------
+
+	def test_rubriek_2a_is_unsourced_when_purchases_are_absent(self):
+		rows = self._rows_for([])
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertIsNone(by_rubric["2a"]["amount"])
+		self.assertIsNone(by_rubric["2a"]["vat_amount"])
+		self.assertTrue(by_rubric["2a"]["unsourced"])
+
+	def test_rubriek_2a_is_unsourced_even_when_purchases_are_present(self):
+		"""
+		The case that distinguishes this from P2.3: a period that DOES source
+		4a/4b/5b still has no purchase-side computation for 2a at all.
+		"""
+		rows = self._rows_for([self._purchase_row()])
+		by_rubric = {row["rubric"]: row for row in rows}
+
+		self.assertIsNone(by_rubric["2a"]["amount"])
+		self.assertIsNone(by_rubric["2a"]["vat_amount"])
+		self.assertTrue(by_rubric["2a"]["unsourced"])
+
 	def test_the_user_is_told_which_rubrieken_have_no_source(self):
 		"""
 		Blanking silently would trade one invisible wrong number for an
@@ -1072,10 +1236,15 @@ class TestFetchVatDataBlanksTheUnsourcedPurchaseHalf(FrappeTestCase):
 
 		self.assertTrue(msgprint.called)
 		warned = " ".join(str(call) for call in msgprint.call_args_list)
-		for rubric in ("4a", "4b", "5b"):
+		for rubric in ("4a", "4b", "5b", "2a"):
 			self.assertIn(rubric, warned)
 
-	def test_no_warning_fires_when_the_period_has_purchases(self):
+	def test_only_the_2a_warning_fires_when_the_period_has_purchases(self):
+		"""
+		P2.4. 4a/4b/5b are sourced once a period books purchases, but 2a never
+		is: no purchase-side computation feeds it in this report. A sourced
+		period must still warn about 2a, and only about 2a.
+		"""
 		sales = [_fake_sales_invoice(net_total=1000.0, vat_amount=210.0, rubric="1a")]
 
 		with patch(
@@ -1086,7 +1255,11 @@ class TestFetchVatDataBlanksTheUnsourcedPurchaseHalf(FrappeTestCase):
 		) as msgprint:
 			fetch_vat_data(_UNPOPULATED_WINDOW)
 
-		self.assertFalse(msgprint.called)
+		self.assertTrue(msgprint.called)
+		warned = " ".join(str(call) for call in msgprint.call_args_list)
+		self.assertIn("2a", warned)
+		for rubric in ("4a", "4b", "5b"):
+			self.assertNotIn(rubric, warned)
 
 
 # =====================================================================
@@ -1383,3 +1556,16 @@ class TestPrintTemplateAddressesRubrieksByName(FrappeTestCase):
 		]
 
 		self.assertEqual(missing, [])
+
+	def test_rubriek_2a_is_named_with_the_buyers_wording(self):
+		"""
+		P2.4. 2a "Verleggingsregelingen binnenland" belongs to the buyer:
+		the official label is "Leveringen/diensten waarbij de omzetbelasting
+		naar u is verlegd". The template used to carry seller-side wording
+		("Leveringen waarop de verleggingsregeling van toepassing is"), which
+		was itself evidence of the wrong assumption this defect fixes.
+		"""
+		template = _print_template()
+
+		self.assertIn("Leveringen/diensten waarbij de omzetbelasting naar u is verlegd", template)
+		self.assertNotIn("Leveringen waarop de verleggingsregeling van toepassing is", template)
