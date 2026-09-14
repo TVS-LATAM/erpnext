@@ -373,6 +373,16 @@ def fetch_vat_data(filters):
         "4a": 0.0, "4b": 0.0, "5a": 0.0, "5b": 0.0
     }
 
+    # P1.6. IVA realmente cobrado por rubriek, en paralelo a `rubrics`. Antes
+    # sólo se sumaba a rubrics["5a"] y se perdía por rubriek en el camino, así
+    # que el frontend no tenía de dónde leerlo y lo inventaba con una tarifa
+    # fija (ver vat_declaration.js).
+    rubrics_vat = {
+        "1a": 0.0, "1b": 0.0, "1c": 0.0, "1d": 0.0, "1e": 0.0,
+        "2a": 0.0, "3a": 0.0, "3b": 0.0, "3c": 0.0,
+        "4a": 0.0, "4b": 0.0
+    }
+
     sales_invoices, unknown_categories, reverse_charge_total = classify_period_sales(filters)
 
     # === ANÁLISIS DE FACTURAS DE COMPRA MEJORADO ===
@@ -421,6 +431,10 @@ def fetch_vat_data(filters):
         # Registrar en el rubrick correspondiente
         if rubric in rubrics:
             rubrics[rubric] += net_amount
+
+        # P1.6. Retener el IVA cobrado en su propio rubriek, no sólo en 5a.
+        if rubric in rubrics_vat:
+            rubrics_vat[rubric] += vat_amount
 
         # Acumular IVA repercutido
         rubrics["5a"] += vat_amount
@@ -482,8 +496,16 @@ def fetch_vat_data(filters):
         # Acumular IVA soportado
         rubrics["5b"] += data["input_vat"]
 
+    # P1.5. Redondear una sola vez, en el límite del informe, después de
+    # acumular todas las facturas — nunca por factura, que compondría el
+    # error a lo largo de cientos de filas. `flt`, no el `round` nativo de
+    # Python, para no arrastrar su artefacto de coma flotante binaria
+    # (round(2.675, 2) da 2.67).
+    rubrics = {k: flt(v, 2) for k, v in rubrics.items()}
+    rubrics_vat = {k: flt(v, 2) for k, v in rubrics_vat.items()}
+
     # Calcular totales
-    net_total = rubrics["5a"] - rubrics["5b"]
+    net_total = flt(rubrics["5a"] - rubrics["5b"], 2)
 
     # Mostrar advertencias
     if unknown_categories:
@@ -496,17 +518,17 @@ def fetch_vat_data(filters):
 
     # Retornar datos estructurados
     return [
-        {"rubric": "1a", "description": _("1a. Leveringen binnenland hoog tarief (21%)"), "amount": rubrics["1a"]},
-        {"rubric": "1b", "description": _("1b. Leveringen binnenland laag tarief (9%/6%)"), "amount": rubrics["1b"]},
-        {"rubric": "1c", "description": _("1c. Overige tarieven"), "amount": rubrics["1c"]},
-        {"rubric": "1d", "description": _("1d. Privégebruik"), "amount": rubrics["1d"]},
-        {"rubric": "1e", "description": _("1e. Leveringen tegen 0% of vrijgesteld"), "amount": rubrics["1e"]},
-        {"rubric": "2a", "description": _("2a. Verleggingsregeling binnenland"), "amount": rubrics["2a"]},
-        {"rubric": "3a", "description": _("3a. Export buiten de EU"), "amount": rubrics["3a"]},
-        {"rubric": "3b", "description": _("3b. Leveringen binnen de EU"), "amount": rubrics["3b"]},
-        {"rubric": "3c", "description": _("3c. Afstandsverkopen binnen de EU"), "amount": rubrics["3c"]},
-        {"rubric": "4a", "description": _("4a. Diensten uit landen buiten de EU"), "amount": rubrics["4a"]},
-        {"rubric": "4b", "description": _("4b. Diensten uit EU-landen"), "amount": rubrics["4b"]},
+        {"rubric": "1a", "description": _("1a. Leveringen binnenland hoog tarief (21%)"), "amount": rubrics["1a"], "vat_amount": rubrics_vat["1a"]},
+        {"rubric": "1b", "description": _("1b. Leveringen binnenland laag tarief (9%/6%)"), "amount": rubrics["1b"], "vat_amount": rubrics_vat["1b"]},
+        {"rubric": "1c", "description": _("1c. Overige tarieven"), "amount": rubrics["1c"], "vat_amount": rubrics_vat["1c"]},
+        {"rubric": "1d", "description": _("1d. Privégebruik"), "amount": rubrics["1d"], "vat_amount": rubrics_vat["1d"]},
+        {"rubric": "1e", "description": _("1e. Leveringen tegen 0% of vrijgesteld"), "amount": rubrics["1e"], "vat_amount": rubrics_vat["1e"]},
+        {"rubric": "2a", "description": _("2a. Verleggingsregeling binnenland"), "amount": rubrics["2a"], "vat_amount": rubrics_vat["2a"]},
+        {"rubric": "3a", "description": _("3a. Export buiten de EU"), "amount": rubrics["3a"], "vat_amount": rubrics_vat["3a"]},
+        {"rubric": "3b", "description": _("3b. Leveringen binnen de EU"), "amount": rubrics["3b"], "vat_amount": rubrics_vat["3b"]},
+        {"rubric": "3c", "description": _("3c. Afstandsverkopen binnen de EU"), "amount": rubrics["3c"], "vat_amount": rubrics_vat["3c"]},
+        {"rubric": "4a", "description": _("4a. Diensten uit landen buiten de EU"), "amount": rubrics["4a"], "vat_amount": rubrics_vat["4a"]},
+        {"rubric": "4b", "description": _("4b. Diensten uit EU-landen"), "amount": rubrics["4b"], "vat_amount": rubrics_vat["4b"]},
         {"rubric": "", "description": "", "amount": ""},  # Separador
         {"rubric": "5a", "description": _("5a. Verschuldigde omzetbelasting"), "amount": rubrics["5a"]},
         {"rubric": "5b", "description": _("5b. Voorbelasting"), "amount": rubrics["5b"]},

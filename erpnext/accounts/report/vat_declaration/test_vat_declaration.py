@@ -383,3 +383,139 @@ class TestTaxRegimeSelect(FrappeTestCase):
 			tax_regime_select()
 
 		has_column.assert_called_once_with("Sales Invoice", TAX_REGIME_FIELD)
+
+
+# =====================================================================
+# P1.5 — rubrics round once, at the reporting boundary, not per invoice
+# =====================================================================
+#
+# There was no rounding anywhere in fetch_vat_data. Summing hundreds of
+# invoice net_total/vat_amount floats accumulates the usual binary-float
+# drift (0.1 + 0.2 is 0.30000000000000004, not 0.3), and rounding per
+# invoice would compound that error across hundreds of rows instead of
+# fixing it. The fix rounds the rubrics dict once, after every invoice has
+# already been accumulated into it.
+#
+# classify_period_sales does its own SQL, so these tests replace it with a
+# fixed list of already-processed invoices (its documented return shape) and
+# never touch a real Sales Invoice. The one other DB call fetch_vat_data
+# makes directly — the purchase invoice query that feeds 5b — is stubbed to
+# an empty result so a real Purchase Invoice already sitting in this dev
+# site cannot leak into an assertion about rounding.
+
+from erpnext.accounts.report.vat_declaration.vat_declaration import fetch_vat_data
+
+# A window with no realistic chance of real invoices, so the live purchase
+# query fetch_vat_data still runs (unstubbed in the P1.6 tests) can't leak
+# unrelated data into an assertion.
+_UNPOPULATED_WINDOW = {"from_date": "1900-01-01", "to_date": "1900-01-02", "company": ""}
+
+
+def _fake_sales_invoice(**overrides):
+	"""A minimal dict shaped like one entry of classify_period_sales()'s return list."""
+	base = {
+		"invoice": "SINV-TEST-0001",
+		"customer": "_Test Customer",
+		"customer_name": "_Test Customer",
+		"period": "2026-01",
+		"tax_id": "",
+		"net_total": 0.0,
+		"category": "21% binnenland",
+		"regime": "",
+		"incoterm": "",
+		"customer_type": "domestic",
+		"vat_amount": 0.0,
+		"reverse_charge": 0,
+		"rubric": "1a",
+	}
+	base.update(overrides)
+	return base
+
+
+class TestFetchVatDataRoundsAtTheReportingBoundary(FrappeTestCase):
+	"""fetch_vat_data() — P1.5. Rubrics round once, after accumulation."""
+
+	def test_rubric_amount_rounds_the_accumulated_binary_float_drift(self):
+		"""
+		0.1 + 0.2 is 0.30000000000000004 in raw float arithmetic. Two invoices
+		landing in the same rubriek must come out as 0.3, not that drift —
+		proving the rounding happens after the sum, not nowhere at all.
+		"""
+		fake_invoices = [
+			_fake_sales_invoice(net_total=0.1, rubric="1a"),
+			_fake_sales_invoice(net_total=0.2, rubric="1a"),
+		]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(fake_invoices, set(), 0.0),
+		), patch("frappe.db.sql", return_value=[]):
+			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		row_1a = next(row for row in rows if row["rubric"] == "1a")
+		self.assertEqual(row_1a["amount"], 0.3)
+
+	def test_totaal_rounds_the_5a_minus_5b_subtraction(self):
+		"""
+		Two invoices whose VAT is 0.1 and 0.2 give 5a the same binary-float
+		drift on its subtotal. Totaal (and 5c, the same figure) must report
+		0.3, not the raw float difference.
+		"""
+		fake_invoices = [
+			_fake_sales_invoice(net_total=1.0, vat_amount=0.1, rubric="1a"),
+			_fake_sales_invoice(net_total=1.0, vat_amount=0.2, rubric="1a"),
+		]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(fake_invoices, set(), 0.0),
+		), patch("frappe.db.sql", return_value=[]):
+			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		totaal = next(row for row in rows if row["rubric"] == "Totaal")
+		subtotaal = next(row for row in rows if row["rubric"] == "5c")
+		self.assertEqual(totaal["amount"], 0.3)
+		self.assertEqual(subtotaal["amount"], 0.3)
+
+
+# =====================================================================
+# P1.6 — return the real per-rubriek VAT instead of a hardcoded rate
+# =====================================================================
+#
+# The per-invoice VAT is already computed in classify_period_sales. Before
+# this fix it was only ever summed into rubrics["5a"] and never retained per
+# rubriek, so vat_declaration.js had no field to read and invented the VAT
+# client-side as amount * 0.21 / 0.09 / 0.05 — a 5% rate that exists nowhere
+# in Dutch VAT law.
+class TestFetchVatDataReturnsActualPerRubriekVat(FrappeTestCase):
+	"""fetch_vat_data() — P1.6. Each row carries the VAT actually charged."""
+
+	def test_row_reports_the_charged_vat_not_a_recomputed_rate(self):
+		"""
+		Net 1000, VAT actually charged 150 — deliberately not 21% of the net
+		(which would be 210), so a passing assertion proves the figure was
+		READ off the invoice, not recomputed from a hardcoded rate.
+		"""
+		fake_invoices = [_fake_sales_invoice(net_total=1000.0, vat_amount=150.0, rubric="1a")]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(fake_invoices, set(), 0.0),
+		), patch("frappe.db.sql", return_value=[]):
+			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		row_1a = next(row for row in rows if row["rubric"] == "1a")
+		self.assertEqual(row_1a["amount"], 1000.00)
+		self.assertEqual(row_1a["vat_amount"], 150.00)
+
+	def test_a_rubriek_with_no_invoices_reports_zero_vat_not_a_missing_key(self):
+		fake_invoices = [_fake_sales_invoice(net_total=1000.0, vat_amount=150.0, rubric="1a")]
+
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=(fake_invoices, set(), 0.0),
+		), patch("frappe.db.sql", return_value=[]):
+			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		row_1b = next(row for row in rows if row["rubric"] == "1b")
+		self.assertEqual(row_1b["vat_amount"], 0.0)

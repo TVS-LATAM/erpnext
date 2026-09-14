@@ -115,14 +115,15 @@ frappe.query_reports["VAT Declaration"] = {
 				if (amount === undefined || amount === null) return "-";
 				return frappe.format(amount, {fieldtype: 'Currency'});
 			}
-			
-			// Función para obtener el valor VAT (impuesto) basado en el índice
-			function getVat(idx) {
-				// Por defecto, devolver "-"
-				if (!reportData[idx] || reportData[idx].vat === undefined) return "-";
-				return formatAmount(reportData[idx].vat);
+
+			// P1.7. La fila se busca por su rubriek, no por su posición en el
+			// array. Un índice fijo es un contrato implícito entre Python y
+			// JavaScript que cualquier fila nueva (o movida) puede romper sin
+			// que nada avise; el rubriek es el único identificador estable.
+			function pickRow(rows, rubric) {
+				return (rows || []).find(function(row) { return row && row.rubric === rubric; });
 			}
-			
+
 			async function getLetterHead(fromDate, toDate, frequency) {
 				let letterhead_html = "";
 				await frappe.call({
@@ -186,27 +187,27 @@ frappe.query_reports["VAT Declaration"] = {
 							</tr>
 							<tr>
 								<td>1a. Leveringen/diensten belast met hoog tarief</td>
-								<td class="text-right">${formatAmount(reportData[0]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[0]?.amount * 0.21)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1a")?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1a")?.vat_amount)}</td>
 							</tr>
 							<tr>
 								<td>1b. Leveringen/diensten belast met laag tarief</td>
-								<td class="text-right">${formatAmount(reportData[1]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[1]?.amount * 0.09)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1b")?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1b")?.vat_amount)}</td>
 							</tr>
 							<tr>
 								<td>1c. Leveringen/diensten belast met overige tarieven, behalve 0%</td>
-								<td class="text-right">${formatAmount(reportData[2]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[2]?.vat_amount || (reportData[2]?.amount * 0.05))}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1c")?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1c")?.vat_amount)}</td>
 							</tr>
 							<tr>
 								<td>1d. Prive-gebruik</td>
-								<td class="text-right">${formatAmount(reportData[3]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[3]?.amount * 0.21)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1d")?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1d")?.vat_amount)}</td>
 							</tr>
 							<tr>
 								<td>1e. Leveringen/diensten belast met 0% of niet bij u belast</td>
-								<td class="text-right">${formatAmount(reportData[4]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "1e")?.amount)}</td>
 								<td class="text-right">€ 0</td>
 							</tr>
 							
@@ -216,8 +217,8 @@ frappe.query_reports["VAT Declaration"] = {
 							</tr>
 							<tr>
 								<td>2a. Leveringen/diensten waarbij de omzetbelasting naar u is verlegd</td>
-								<td class="text-right">${formatAmount(reportData[5]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[5]?.amount * 0.21)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "2a")?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "2a")?.vat_amount)}</td>
 							</tr>
 							
 							<!-- 3. Prestaties naar of in het buitenland -->
@@ -226,17 +227,17 @@ frappe.query_reports["VAT Declaration"] = {
 							</tr>
 							<tr>
 								<td>3a. Leveringen naar landen buiten de EU (uitvoer)</td>
-								<td class="text-right">${formatAmount(reportData[6]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "3a")?.amount)}</td>
 								<td class="text-right">€ 0</td>
 							</tr>
 							<tr>
 								<td>3b. Leveringen naar of diensten in landen binnen de EU</td>
-								<td class="text-right">${formatAmount(reportData[7]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "3b")?.amount)}</td>
 								<td class="text-right">€ 0</td>
 							</tr>
 							<tr>
 								<td>3c. Installatie/afstandsverkopen binnen de EU</td>
-								<td class="text-right">${formatAmount(reportData[8]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "3c")?.amount)}</td>
 								<td class="text-right">€ 0</td>
 							</tr>
 							
@@ -246,13 +247,13 @@ frappe.query_reports["VAT Declaration"] = {
 							</tr>
 							<tr>
 								<td>4a. Leveringen/diensten uit landen buiten de EU</td>
-								<td class="text-right">${formatAmount(reportData[9]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[9]?.amount * 0.21)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "4a")?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "4a")?.vat_amount)}</td>
 							</tr>
 							<tr>
 								<td>4b. Leveringen/diensten uit landen binnen de EU</td>
-								<td class="text-right">${formatAmount(reportData[10]?.amount)}</td>
-								<td class="text-right">${formatAmount(reportData[10]?.amount * 0.21)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "4b")?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "4b")?.vat_amount)}</td>
 							</tr>
 							
 							<!-- 5. Voorbelasting en kleineondernemersregeling -->
@@ -262,36 +263,36 @@ frappe.query_reports["VAT Declaration"] = {
 							<tr>
 								<td>5a. Verschuldigde omzetbelasting (rubriek 1 t/m 4)</td>
 								<td class="text-right"></td>
-								<td class="text-right">${formatAmount(reportData[12]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "5a")?.amount)}</td>
 							</tr>
 							<tr>
 								<td>5b. Voorbelasting</td>
 								<td class="text-right"></td>
-								<td class="text-right">${formatAmount(reportData[11]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "5b")?.amount)}</td>
 							</tr>
 							<tr class="subtotal-row">
 								<td>5c. Subtotaal (rubriek 5a min 5b)</td>
 								<td class="text-right"></td>
 								<td class="text-right">
-									<span class="${reportData[13]?.amount >= 0 ? 'text-danger' : 'text-success'}">
-										${formatAmount(reportData[13]?.amount)}
+									<span class="${pickRow(reportData, "5c")?.amount >= 0 ? 'text-danger' : 'text-success'}">
+										${formatAmount(pickRow(reportData, "5c")?.amount)}
 									</span>
 								</td>
 							</tr>
 							<tr>
 								<td>5d. Vermindering volgens de kleineondernemersregeling (KOR)</td>
 								<td class="text-right"></td>
-								<td class="text-right">${formatAmount(reportData[14]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "5d")?.amount)}</td>
 							</tr>
 							<tr>
 								<td>5e. Schatting vorige aangifte(n)</td>
 								<td class="text-right"></td>
-								<td class="text-right">${formatAmount(reportData[15]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "5e")?.amount)}</td>
 							</tr>
 							<tr>
 								<td>5f. Schatting deze aangifte</td>
 								<td class="text-right"></td>
-								<td class="text-right">${formatAmount(reportData[16]?.amount)}</td>
+								<td class="text-right">${formatAmount(pickRow(reportData, "5f")?.amount)}</td>
 							</tr>
 						</tbody>
 						<tfoot>
@@ -304,8 +305,8 @@ frappe.query_reports["VAT Declaration"] = {
 								<th>Totaal</th>
 								<th></th>
 								<th class="text-right">
-									<span class="${reportData[13]?.amount >= 0 ? 'text-danger' : 'text-success'}">
-										${formatAmount(reportData[13]?.amount)}
+									<span class="${pickRow(reportData, "Totaal")?.amount >= 0 ? 'text-danger' : 'text-success'}">
+										${formatAmount(pickRow(reportData, "Totaal")?.amount)}
 									</span>
 								</th>
 							</tr>
