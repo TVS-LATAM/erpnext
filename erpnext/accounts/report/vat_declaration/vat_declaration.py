@@ -164,7 +164,7 @@ def tax_regime_select():
     return "si.{field} AS tax_regime".format(field=TAX_REGIME_FIELD)
 
 
-def classify_sales_rubric(regime, category, incoterm, customer_type):
+def classify_sales_rubric(regime, category, incoterm, customer_type, reverse_charge=False):
     """
     En qué rubriek entra una factura de venta.
 
@@ -184,6 +184,16 @@ def classify_sales_rubric(regime, category, incoterm, customer_type):
     por byte. Son las facturas históricas que nunca van a tener uno, y Q1 se
     respondió "para el pasado no cambia nada": no es algo que este cambio pueda
     decidir en silencio.
+
+    P2.2. `reverse_charge` es la señal por factura que `classify_period_sales`
+    ya calcula a partir del account_head/description de la línea de impuesto
+    (una que suena a "verlegd" o "reverse"). Es mejor evidencia que la ausencia
+    de categoría, y peor evidencia que una categoría explícita, así que decide
+    sólo cuando `category` no mapeó a nada en TAX_CATEGORY_MAPPING — un mapeo
+    explícito sigue ganando. 2a es "Verleggingsregeling BINNENLAND" por
+    definición, de modo que la heurística exige además `customer_type ==
+    "domestic"`: un cliente UE o de exportación con una línea de aspecto
+    verlegd pertenece a 3b o 3a, no a 2a.
     """
     decided = TAX_REGIME_RUBRIC_MAPPING.get((regime or "").strip())
     if decided:
@@ -199,6 +209,12 @@ def classify_sales_rubric(regime, category, incoterm, customer_type):
             rubric = "3b"
         elif customer_type == "export":
             rubric = "3a"
+
+    # P2.2. Una línea de impuesto verlegd sólo decide cuando la categoría no
+    # mapeó a nada, y sólo para el cliente nacional: 2a es el rubriek de
+    # verlegging BINNENLAND.
+    elif not rubric and reverse_charge and customer_type == "domestic":
+        rubric = "2a"
 
     # Exportación sólo si no es venta nacional
     elif not rubric and incoterm in EXPORT_INCOTERMS:
@@ -329,7 +345,14 @@ def classify_period_sales(filters):
                 "incoterm": row.incoterm or "",
                 "customer_type": classify_customer_type(row.customer_country),
                 "vat_amount": 0,
-                "reverse_charge": 0
+                "reverse_charge": 0,
+                # P2.2. La PRESENCIA de una línea verlegd, aparte del importe
+                # que esa línea acumule en `reverse_charge`. Bajo la
+                # verleggingsregeling el IVA se traslada al comprador, así que
+                # el vendedor no cobra nada y la línea vale 0: derivar la señal
+                # del importe sumado haría invisible justo la factura que el
+                # heurístico existe para encontrar.
+                "has_reverse_charge_line": False
             }
 
         # Acumular IVA solo de cuentas de impuestos válidas
@@ -340,17 +363,21 @@ def classify_period_sales(filters):
         if (row.account_head and ("verlegd" in row.account_head.lower() or "reverse" in row.account_head.lower()) or
             row.description and "verlegd" in row.description.lower()):
             processed_sales[invoice_name]["reverse_charge"] += flt(row.base_tax_amount or 0)
+            processed_sales[invoice_name]["has_reverse_charge_line"] = True
             reverse_charge_total += flt(row.base_tax_amount or 0)
 
     # Clasificar ventas en rubrieken
     for data in processed_sales.values():
-        # VD.20. La decisión vive en `classify_sales_rubric`, que el régimen
-        # gobierna cuando está y que conserva el camino heredado cuando no.
+        # VD.20 / P2.2. La decisión vive en `classify_sales_rubric`, que el
+        # régimen gobierna cuando está, que conserva el camino heredado cuando
+        # no, y a la que aquí se le pasa la señal de verlegd ya calculada
+        # arriba para que la heurística pueda decidir 2a.
         rubric, unmapped_category = classify_sales_rubric(
             regime=data["regime"],
             category=data["category"],
             incoterm=data["incoterm"],
             customer_type=data["customer_type"],
+            reverse_charge=data["has_reverse_charge_line"],
         )
 
         data["rubric"] = rubric

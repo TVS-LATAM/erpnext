@@ -519,3 +519,172 @@ class TestFetchVatDataReturnsActualPerRubriekVat(FrappeTestCase):
 
 		row_1b = next(row for row in rows if row["rubric"] == "1b")
 		self.assertEqual(row_1b["vat_amount"], 0.0)
+
+
+# =====================================================================
+# P2.2 — a verlegd tax line routes an otherwise-unmapped domestic sale to 2a
+# =====================================================================
+#
+# `classify_period_sales` already computed a per-invoice reverse-charge signal
+# from the tax line's account_head/description ("verlegd" or "reverse"), but
+# `classify_sales_rubric` never read it again when it decided the rubriek: an
+# invoice with a genuine "BTW Verlegd" tax line and an unmapped (or empty)
+# tax_category silently filed as 1c — "Overige tarieven" — instead of 2a.
+#
+# The heuristic only ever fires when nothing stronger already decided: a
+# stored tvs_tax_regime and an explicit TAX_CATEGORY_MAPPING hit both still
+# outrank it. And it is scoped to customer_type == "domestic", because 2a is
+# "Verleggingsregeling BINNENLAND" by definition — an EU or export customer
+# whose invoice happens to carry a verlegd-looking tax line belongs in 3b or
+# 3a, and letting the heuristic steal it into 2a would file an intra-community
+# supply as a domestic reverse charge.
+
+from erpnext.accounts.report.vat_declaration.vat_declaration import classify_sales_rubric
+
+
+class TestClassifySalesRubricReverseChargeHeuristic(FrappeTestCase):
+	"""classify_sales_rubric() — the verlegd tax-line heuristic. P2.2."""
+
+	# --- the defect, in the exact shape production produces ----------------
+
+	def test_domestic_verlegd_tax_line_with_unmapped_category_lands_in_2a(self):
+		"""No stored regime, no mapped category. Today this lands in 1c."""
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="",
+			incoterm="",
+			customer_type="domestic",
+			reverse_charge=True,
+		)
+
+		self.assertEqual(rubric, "2a")
+		self.assertIsNone(unmapped)
+
+	# --- the precedence is the feature --------------------------------------
+
+	def test_a_stored_regime_still_wins_over_a_verlegd_tax_line(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="NL_STANDARD",
+			category="",
+			incoterm="",
+			customer_type="domestic",
+			reverse_charge=True,
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_an_explicitly_mapped_category_still_wins_over_a_verlegd_tax_line(self):
+		rubric, _unmapped = classify_sales_rubric(
+			regime="",
+			category="21% binnenland",
+			incoterm="",
+			customer_type="domestic",
+			reverse_charge=True,
+		)
+		self.assertEqual(rubric, "1a")
+
+	def test_an_eu_customer_with_a_verlegd_looking_line_is_not_stolen_into_2a(self):
+		"""
+		2a is Verleggingsregeling BINNENLAND by definition. An EU customer
+		belongs in 3b even when a tax line on the invoice looks verlegd.
+		"""
+		rubric, _unmapped = classify_sales_rubric(
+			regime="",
+			category="",
+			incoterm="",
+			customer_type="eu",
+			reverse_charge=True,
+		)
+		self.assertEqual(rubric, "3b")
+
+	def test_no_reverse_charge_signal_keeps_the_1c_fallback(self):
+		"""Without the signal, an unmapped domestic category still falls to 1c."""
+		rubric, unmapped = classify_sales_rubric(
+			regime="",
+			category="",
+			incoterm="",
+			customer_type="domestic",
+			reverse_charge=False,
+		)
+
+		self.assertEqual(rubric, "1c")
+		self.assertEqual(unmapped, "")
+
+
+# ---------------------------------------------------------------------
+# P2.2 — end to end: the signal classify_period_sales already computes from
+# the SQL row must be the one that reaches classify_sales_rubric.
+# ---------------------------------------------------------------------
+
+import frappe
+from datetime import date
+
+from erpnext.accounts.report.vat_declaration.vat_declaration import classify_period_sales
+
+
+class TestClassifyPeriodSalesReverseChargeWiring(FrappeTestCase):
+	"""
+	classify_period_sales() — P2.2, end to end. Proves the reverse-charge
+	signal computed from the tax line's account_head actually reaches the
+	rubriek decision, not just `reverse_charge_total`.
+	"""
+
+	def _sales_row(self, **overrides):
+		row = frappe._dict({
+			"name": "SINV-P2.2-0001",
+			"customer": "_Test Customer",
+			"customer_name": "_Test Customer",
+			"posting_date": date(2026, 1, 15),
+			"tax_id": "",
+			"category": "",
+			"tax_regime": "",
+			"incoterm": "",
+			"base_net_total": 1000.0,
+			"customer_address": "Test Address-Billing",
+			"customer_country": "Netherlands",
+			"rate": 21.0,
+			"base_tax_amount": 210.0,
+			"account_head": None,
+			"description": None,
+			"account_type": None,
+			"account_name": None,
+		})
+		row.update(overrides)
+		return row
+
+	def test_a_real_verlegd_tax_line_routes_an_unmapped_domestic_invoice_to_2a(self):
+		"""
+		A domestic invoice, empty tax_category, no tvs_tax_regime, one tax
+		row whose account_head is "BTW Verlegd - T". Today this lands in 1c.
+		"""
+		rows = [self._sales_row(account_head="BTW Verlegd - T")]
+
+		with patch("frappe.db.sql", return_value=rows):
+			invoices, unknown_categories, _reverse_charge_total = classify_period_sales(
+				{"from_date": "2026-01-01", "to_date": "2026-01-31", "company": ""}
+			)
+
+		self.assertEqual(len(invoices), 1)
+		self.assertEqual(invoices[0]["rubric"], "2a")
+		self.assertEqual(unknown_categories, set())
+
+	def test_a_verlegd_line_carrying_no_vat_still_routes_to_2a(self):
+		"""
+		P2.2 — the realistic verlegging invoice, and the one the heuristic
+		exists for.
+
+		Under de verleggingsregeling the VAT is shifted to the buyer, so the
+		seller charges nothing: the "BTW Verlegd" tax row carries a
+		`base_tax_amount` of 0. Deriving the signal from the summed amount
+		makes that invoice indistinguishable from one with no verlegd line at
+		all, so the heuristic would miss precisely the case it was written
+		for. The signal is whether such a line is PRESENT, not what it totals.
+		"""
+		rows = [self._sales_row(account_head="BTW Verlegd - T", base_tax_amount=0.0, rate=0.0)]
+
+		with patch("frappe.db.sql", return_value=rows):
+			invoices, _unknown_categories, _reverse_charge_total = classify_period_sales(
+				{"from_date": "2026-01-01", "to_date": "2026-01-31", "company": ""}
+			)
+
+		self.assertEqual(len(invoices), 1)
+		self.assertEqual(invoices[0]["rubric"], "2a")
