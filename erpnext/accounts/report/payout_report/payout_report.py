@@ -92,7 +92,11 @@ def fetch_payout_data(filters):
 			-- Payment Information
 			pe.name AS payment_entry,
 			pe.posting_date AS payment_date,
-			pe.paid_amount AS paid_amount,
+			-- Use the reference row's own allocated amount, converted with its own
+			-- exchange rate, instead of pe.paid_amount (the whole Payment Entry
+			-- total in paid_from_account_currency), which would put the full
+			-- amount of a split payment against every invoice it is allocated to.
+			per.allocated_amount * IFNULL(per.exchange_rate, 1) AS paid_amount,
 			CASE 
 				WHEN pe.status IS NULL THEN 'Unpaid'
 				ELSE pe.status 
@@ -120,8 +124,10 @@ def fetch_payout_data(filters):
 			`tabSales Invoice` si
 		LEFT JOIN 
 			`tabPayment Entry Reference` per ON per.reference_name = si.name
+			AND per.reference_doctype = 'Sales Invoice'
 		LEFT JOIN 
 			`tabPayment Entry` pe ON pe.name = per.parent
+			AND pe.docstatus = 1
 		LEFT JOIN 
 			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
 		WHERE 
@@ -333,15 +339,19 @@ def get_report_totals(filters):
 	"""
 	
 	# Query to get total payments
+	# Use the reference row's own allocated amount, converted with its own
+	# exchange rate, instead of pe.paid_amount (see fetch_payout_data).
 	payment_query = """
 		SELECT 
-			SUM(pe.paid_amount) as total_payments
+			SUM(per.allocated_amount * IFNULL(per.exchange_rate, 1)) as total_payments
 		FROM 
 			`tabSales Invoice` si
 		LEFT JOIN 
 			`tabPayment Entry Reference` per ON per.reference_name = si.name
+			AND per.reference_doctype = 'Sales Invoice'
 		LEFT JOIN 
 			`tabPayment Entry` pe ON pe.name = per.parent
+			AND pe.docstatus = 1
 		LEFT JOIN 
 			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
 		WHERE 
@@ -412,8 +422,10 @@ def get_payment_gateways():
 			`tabSales Invoice` si
 		LEFT JOIN 
 			`tabPayment Entry Reference` per ON per.reference_name = si.name
+			AND per.reference_doctype = 'Sales Invoice'
 		LEFT JOIN 
 			`tabPayment Entry` pe ON pe.name = per.parent
+			AND pe.docstatus = 1
 		LEFT JOIN 
 			`tabMode of Payment` mop ON mop.name = pe.mode_of_payment
 		WHERE 

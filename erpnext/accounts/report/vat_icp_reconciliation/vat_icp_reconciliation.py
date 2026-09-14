@@ -70,7 +70,7 @@ def icp_invoice_names(icp_row):
     """
     The invoices behind one filed listing row.
 
-    The listing groups by month, customer, VAT number and currency, and names
+    The listing groups by month, customer and VAT number, and names
     its documents in a `GROUP_CONCAT`. That string is the only tie from a filed
     row back to the invoices it was built from.
     """
@@ -130,9 +130,10 @@ def _explain_group(icp_row, member_names, declared_by_name):
     """
     Why a filed listing row and the declared supplies behind it differ.
 
-    Three shapes, and the row says which one it is: an invoice the declaration
-    never returned, an invoice the declaration filed under another rubriek, or
-    the same invoices carrying different money on the two sides.
+    Four shapes, and the row says which one it is: an invoice the declaration
+    never returned, an invoice the declaration filed under another rubriek,
+    the ICP listing itself flagging the row (P.2.1 — e.g. a missing VAT
+    number), or the same invoices carrying different money on the two sides.
     """
     absent = [name for name in member_names if name not in declared_by_name]
     elsewhere = [
@@ -140,6 +141,7 @@ def _explain_group(icp_row, member_names, declared_by_name):
         for name in member_names
         if name in declared_by_name and declared_by_name[name]["rubric"] != RUBRIC_3B
     ]
+    validation = (icp_row.get("Validation") or "").strip()
 
     problems = []
 
@@ -156,6 +158,13 @@ def _explain_group(icp_row, member_names, declared_by_name):
                 ", ".join(elsewhere)
             )
         )
+
+    # P.2.1 — a group whose money matches exactly (residual 0) can still be
+    # here solely because the ICP listing itself flagged the row: it must not
+    # fall through to the "same invoices, different money" message below,
+    # which would be false of it.
+    if validation:
+        problems.append(_("the ICP listing itself flags this row: {0}").format(validation))
 
     if problems:
         return "; ".join(problems)
@@ -183,7 +192,13 @@ def reconcile(declaration_rows, icp_rows):
         total — it contributes that residual.
 
     An invoice belongs to at most one listing row (the grouping is by month,
-    customer, number and currency), so nothing is counted twice.
+    customer and number), so nothing is counted twice.
+
+    P.2.1 — a third case contributes a difference of exactly zero: a listing
+    row whose declared net matches its ICP net, but which `validate_icp_data`
+    flagged anyway (e.g. an invoice with no usable VAT number). Such a group
+    is surfaced regardless of its residual, because the money agreeing is not
+    the same thing as the row being fit to file.
     """
     declared_by_name = {row["invoice"]: row for row in declaration_rows}
     filed_under_3b = [row for row in declaration_rows if row["rubric"] == RUBRIC_3B]
@@ -204,8 +219,15 @@ def reconcile(declaration_rows, icp_rows):
             )
         )
         residual = _money(matched_net - icp_net)
+        validation = (icp_row.get("Validation") or "").strip()
 
-        if abs(residual) < MATERIAL:
+        # P.2.1 — a group the ICP listing itself flagged (e.g. a missing VAT
+        # number) must surface regardless of its residual: once such an
+        # invoice reaches the listing at all, its declared 3b net equals its
+        # own ICP net exactly, the residual nets to zero, and this `continue`
+        # used to drop it here — one layer further downstream than the SQL
+        # gate the fix was written to open.
+        if abs(residual) < MATERIAL and not validation:
             continue
 
         group_rows.append(
