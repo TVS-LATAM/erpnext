@@ -1,93 +1,116 @@
+<!--
+  P1.7 / P1.6 / P2.3, aplicados al print format.
+
+  Este template lo renderiza frappe.render_template (microtemplate.js), que NO es
+  Jinja: es JavaScript. No soporta macros de Jinja, y el macro que vivia aca hacia
+  fallar new Function(), asi que el Print y el PDF del menu del informe tiraban
+  error antes de imprimir una sola fila. El boton custom del .js abre su propia
+  ventana y por eso nadie lo noto.
+
+  Ojo al editar este comentario: los delimitadores del motor se procesan tambien
+  dentro de los comentarios HTML, asi que escribirlos aca rompe el render.
+
+  Ademas indexaba las filas por POSICION (data[0] ... data[23]) contra un layout
+  que ya no existe: fetch_vat_data devuelve 19 filas, asi que data[19] en
+  adelante estaba fuera de rango, y los indices que si existian apuntaban a otra
+  fila (data[18] esperaba 5a y es Totaal). Es el mismo contrato implicito que
+  P1.7 elimino del .js; aca habia quedado sin tocar. Ahora se busca por rubriek.
+
+  Y recomputaba el IVA con tarifas fijas (amount * 0.21, y un 0.05 que no existe
+  en la ley neerlandesa). Desde P1.6 cada fila trae su vat_amount real: se lee,
+  no se recalcula.
+
+  Las filas sin fuente de datos (P2.3, opcion A) llegan con amount en null y
+  unsourced en true, y se imprimen como "geen bron", nunca como cero.
+
+  Las etiquetas de 5d, 5e y 5f salen de la description que manda Python, no de
+  un texto fijo aca: los tres archivos del informe se contradecian sobre que es
+  5e, y cual es la correcta es una pregunta abierta para el contador. Una sola
+  fuente de verdad mientras tanto.
+-->
+{% var byRubric = {}; for (var i = 0; i < data.length; i++) { var r = data[i]; if (r && r.rubric && !r.is_total_row) { byRubric[r.rubric] = r; } } var pick = function(rubric) { return byRubric[rubric] || {}; }; var money = function(rubric, field) { var row = pick(rubric); if (row.unsourced) { return "<span class=text-muted>&mdash; geen bron</span>"; } var value = row[field || "amount"]; if (value === undefined || value === null) { return "-"; } return frappe.format(value, {fieldtype: "Currency"}); }; var tone = function(rubric) { var row = pick(rubric); if (!row.rubric || row.unsourced) { return ""; } return row.amount >= 0 ? "text-danger" : "text-success"; }; var label = function(rubric, fallback) { return pick(rubric).description || fallback; }; var line = function(rubric, text) { return "<tr><td>" + text + "</td><td class=right>" + money(rubric, "amount") + "</td><td class=right>" + money(rubric, "vat_amount") + "</td></tr>"; }; var ci = (typeof company_info !== "undefined" && company_info) ? company_info : {}; %}
 <div class="belasting-pdf">
     <table class="header-table">
       <tr><td><strong>Naam:</strong></td><td>{{ filters.company }}</td></tr>
-      <tr><td><strong>RSIN/fiscaalnummer/BSN:</strong></td><td>{{ company_info.vat_number or '-' }}</td></tr>
-      <tr><td><strong>Aangiftenummer:</strong></td><td>{{ company_info.tax_id or '-' }}</td></tr>
+      <tr><td><strong>RSIN/fiscaalnummer/BSN:</strong></td><td>{{ ci.vat_number || "-" }}</td></tr>
+      <tr><td><strong>Aangiftenummer:</strong></td><td>{{ ci.tax_id || "-" }}</td></tr>
       <tr><td><strong>Tijdvak:</strong></td><td>{{ frappe.format(filters.from_date, {fieldtype: "Date"}) }} t/m {{ frappe.format(filters.to_date, {fieldtype: "Date"}) }}</td></tr>
       <tr><td><strong>Uiterste inzend- en betaaldatum:</strong></td><td>{{ frappe.format(frappe.datetime.add_days(filters.to_date, 30), {fieldtype: "Date"}) }}</td></tr>
       <tr><td><strong>Hebt u dit tijdvak iets aan te geven?</strong></td><td>Ja</td></tr>
-      <tr><td><strong>Bedrijfsnaam:</strong></td><td>{{ company_info.legal_name or filters.company }}</td></tr>
-      <tr><td><strong>Telefoonnummer:</strong></td><td>{{ company_info.phone or '-' }}</td></tr>
+      <tr><td><strong>Bedrijfsnaam:</strong></td><td>{{ ci.legal_name || filters.company }}</td></tr>
+      <tr><td><strong>Telefoonnummer:</strong></td><td>{{ ci.phone || "-" }}</td></tr>
     </table>
-  
-    {% macro render_row(idx, text, vat = '-') -%}
-    <tr><td>{{ text }}</td><td class="right">{{ frappe.format(data[idx].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ vat }}</td></tr>
-    {%- endmacro %}
-  
+
     <h4 class="rubriek-title">BTW-Overzicht per tarief</h4>
     <table class="rubriek-table">
       <thead><tr><th>Omschrijving</th><th class="right">Grondslag</th><th class="right">Btw</th></tr></thead>
       <tbody>
-        <tr><td>21% (hoog tarief)</td><td class="right">{{ frappe.format(data[0].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ frappe.format(data[1].amount, {fieldtype: 'Currency'}) }}</td></tr>
-        <tr><td>9% (laag tarief)</td><td class="right">{{ frappe.format(data[2].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ frappe.format(data[3].amount, {fieldtype: 'Currency'}) }}</td></tr>
-        <tr><td>0% (0% of niet bij u belast)</td><td class="right">{{ frappe.format(data[4].amount, {fieldtype: 'Currency'}) }}</td><td class="right">{{ frappe.format(data[5].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        {{ line("1a", "21% (hoog tarief)") }}
+        {{ line("1b", "9% (laag tarief)") }}
+        {{ line("1e", "0% (0% of niet bij u belast)") }}
       </tbody>
     </table>
-  
+
     <h4 class="rubriek-title">Rubriek 1: Prestaties binnenland</h4>
     <table class="rubriek-table">
       <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
       <tbody>
-        {{ render_row(6, '1a. Leveringen/diensten belast met hoog tarief', frappe.format(data[6].amount * 0.21, {fieldtype: 'Currency'})) }}
-        {{ render_row(7, '1b. Leveringen/diensten belast met laag tarief', frappe.format(data[7].amount * 0.09, {fieldtype: 'Currency'})) }}
-        {{ render_row(8, '1c. Leveringen/diensten belast met overige tarieven, behalve 0%', frappe.format(data[8].vat_amount || (data[8].amount * 0.05), {fieldtype: 'Currency'})) }}
-        {{ render_row(9, '1d. Privégebruik', frappe.format(data[9].amount * 0.21, {fieldtype: 'Currency'})) }}
-        {{ render_row(10, '1e. Leveringen/diensten belast met 0% of niet bij u belast', '€ 0') }}
+        {{ line("1a", "1a. Leveringen/diensten belast met hoog tarief") }}
+        {{ line("1b", "1b. Leveringen/diensten belast met laag tarief") }}
+        {{ line("1c", "1c. Leveringen/diensten belast met overige tarieven, behalve 0%") }}
+        {{ line("1d", "1d. Privegebruik") }}
+        {{ line("1e", "1e. Leveringen/diensten belast met 0% of niet bij u belast") }}
       </tbody>
     </table>
-  
+
     <h4 class="rubriek-title">Rubriek 2: Verleggingsregeling</h4>
     <table class="rubriek-table">
       <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
       <tbody>
-        {{ render_row(11, '2a. Leveringen waarop de verleggingsregeling van toepassing is', frappe.format(data[11].amount * 0.21, {fieldtype: 'Currency'})) }}
+        {{ line("2a", "2a. Leveringen waarop de verleggingsregeling van toepassing is") }}
       </tbody>
     </table>
-  
+
     <h4 class="rubriek-title">Rubriek 3: Prestaties naar of in het buitenland</h4>
     <table class="rubriek-table">
       <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
       <tbody>
-        {{ render_row(12, '3a. Leveringen naar landen buiten de EU (uitvoer)', '€ 0') }}
-        {{ render_row(13, '3b. Leveringen naar of diensten in landen binnen de EU', '€ 0') }}
-        {{ render_row(14, '3c. Installatie/afstandsverkopen binnen de EU', '€ 0') }}
+        {{ line("3a", "3a. Leveringen naar landen buiten de EU (uitvoer)") }}
+        {{ line("3b", "3b. Leveringen naar of diensten in landen binnen de EU") }}
+        {{ line("3c", "3c. Installatie/afstandsverkopen binnen de EU") }}
       </tbody>
     </table>
-  
+
     <h4 class="rubriek-title">Rubriek 4: Prestaties vanuit het buitenland aan u verricht</h4>
     <table class="rubriek-table">
       <thead><tr><th>Omschrijving</th><th class="right">Omzet</th><th class="right">Btw</th></tr></thead>
       <tbody>
-        {{ render_row(15, '4a. Leveringen/diensten uit landen buiten de EU', frappe.format(data[15].amount * 0.21, {fieldtype: 'Currency'})) }}
-        {{ render_row(16, '4b. Leveringen/diensten uit landen binnen de EU', frappe.format(data[16].amount * 0.21, {fieldtype: 'Currency'})) }}
+        {{ line("4a", "4a. Leveringen/diensten uit landen buiten de EU") }}
+        {{ line("4b", "4b. Leveringen/diensten uit landen binnen de EU") }}
       </tbody>
     </table>
-  
+
     <h4 class="rubriek-title">Rubriek 5: Voorbelasting en eindtotaal</h4>
     <table class="rubriek-table">
       <thead><tr><th>Omschrijving</th><th></th><th class="right">Btw</th></tr></thead>
       <tbody>
-        <tr><td>5a. Verschuldigde omzetbelasting (rubriek 1 t/m 4)</td><td></td><td class="right">{{ frappe.format(data[18].amount, {fieldtype: 'Currency'}) }}</td></tr>
-        <tr><td>5b. Voorbelasting</td><td></td><td class="right">{{ frappe.format(data[17].amount, {fieldtype: 'Currency'}) }}</td></tr>
-        <tr><td>5c. Subtotaal (rubriek 5a min 5b)</td><td></td><td class="right">
-          <span class="{% if data[19].amount >= 0 %}text-danger{% else %}text-success{% endif %}">
-            {{ frappe.format(data[19].amount, {fieldtype: 'Currency'}) }}
-          </span>
-        </td></tr>
-        <tr><td>5d. Vermindering volgens de kleineondernemersregeling (KOR)</td><td></td><td class="right">{{ frappe.format(data[20].amount, {fieldtype: 'Currency'}) }}</td></tr>
-        <tr><td>5e. Schatting vorige aangifte(n)</td><td></td><td class="right">{{ frappe.format(data[21].amount, {fieldtype: 'Currency'}) }}</td></tr>
-        <tr><td>5f. Schatting deze aangifte</td><td></td><td class="right">{{ frappe.format(data[22].amount, {fieldtype: 'Currency'}) }}</td></tr>
+        <tr><td>5a. Verschuldigde omzetbelasting (rubriek 1 t/m 4)</td><td></td><td class="right">{{ money("5a") }}</td></tr>
+        <tr><td>5b. Voorbelasting</td><td></td><td class="right">{{ money("5b") }}</td></tr>
+        <tr><td>5c. Subtotaal (rubriek 5a min 5b)</td><td></td><td class="right"><span class="{{ tone("5c") }}">{{ money("5c") }}</span></td></tr>
+        <tr><td>{{ label("5d", "5d") }}</td><td></td><td class="right">{{ money("5d") }}</td></tr>
+        <tr><td>{{ label("5e", "5e") }}</td><td></td><td class="right">{{ money("5e") }}</td></tr>
+        <tr><td>{{ label("5f", "5f") }}</td><td></td><td class="right">{{ money("5f") }}</td></tr>
       </tbody>
     </table>
     <div style="margin-top:18px;font-weight:bold;font-size:14px;">
-      Totaal te betalen of terug te ontvangen: <span class="{% if data[23].amount >= 0 %}text-danger{% else %}text-success{% endif %}">{{ frappe.format(data[23].amount, {fieldtype: 'Currency'}) }}</span>
+      Totaal te betalen of terug te ontvangen: <span class="{{ tone("Totaal") }}">{{ money("Totaal") }}</span>
     </div>
 
     <footer style="margin-top:30px;text-align:center;font-size:11px;color:#888;">
       BTW-aangifte op basis van ERPNext
     </footer>
   </div>
-  
+
   <style>
   .belasting-pdf {
     font-family: Arial, sans-serif;
@@ -142,5 +165,9 @@
   
   .text-success {
     color: #28a745;
+  }
+
+  .text-muted {
+    color: #888;
   }
   </style>

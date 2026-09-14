@@ -1286,3 +1286,100 @@ class TestFetchVatDataAccumulatesDutchInputVat(FrappeTestCase):
 		by_rubric = {row["rubric"]: row for row in rows}
 
 		self.assertEqual(by_rubric["5b"]["amount"], 0.00)
+
+
+# =====================================================================
+# P1.7 (print format) — the template must not drift from the data again
+# =====================================================================
+#
+# `vat_declaration.html` is the template Frappe renders for the report's
+# standard Print and PDF entries: `frappe/desk/query_report.py` loads it
+# with `get_html_format` and hands it back as `html_format`, which
+# `query_report.js` passes to `frappe.render_template`.
+#
+# It had rotted in three ways at once, none of them visible from the
+# report page, because the report's own JS button opens its own window:
+#
+#   * It declared a Jinja `macro`. That engine is not Jinja — it is
+#     JavaScript — so `new Function()` threw and Print and PDF failed
+#     before rendering a single row.
+#   * It indexed rows by POSITION, `data[0]` through `data[23]`, against a
+#     layout that no longer exists. fetch_vat_data returns 19 rows, so
+#     everything from `data[19]` was out of range and the indices that did
+#     resolve pointed at the wrong row — `data[18]` expected 5a and is
+#     Totaal. P1.7 removed exactly this implicit contract from the JS and
+#     left the template behind.
+#   * It recomputed VAT from hardcoded rates (`amount * 0.21`, and a 0.05
+#     that exists nowhere in Dutch VAT law), which is the P1.6 defect.
+#
+# These assertions are structural on purpose. A Python suite cannot render
+# a JavaScript template, but it can pin the contract the template broke:
+# rubrieken are addressed by name, and the VAT is read rather than
+# recomputed. HTML comments are stripped first so that describing the old
+# defect in the file does not trip the check on it.
+
+import os
+import re
+
+
+def _print_template():
+	path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vat_declaration.html")
+	with open(path, encoding="utf-8") as handle:
+		return re.sub(r"<!--.*?-->", "", handle.read(), flags=re.DOTALL)
+
+
+class TestPrintTemplateAddressesRubrieksByName(FrappeTestCase):
+	"""vat_declaration.html — P1.7 applied to the print format."""
+
+	def test_no_row_is_addressed_by_position(self):
+		positional = re.findall(r"data\[\s*\d+\s*\]", _print_template())
+
+		self.assertEqual(positional, [])
+
+	def test_the_template_declares_no_jinja_macro(self):
+		"""The engine is JavaScript. A macro makes new Function() throw."""
+		template = _print_template()
+
+		self.assertNotIn("macro", template)
+
+	def test_no_vat_figure_is_recomputed_from_a_hardcoded_rate(self):
+		rates = re.findall(r"\*\s*0\.\d+", _print_template())
+
+		self.assertEqual(rates, [])
+
+	def test_no_template_delimiter_hides_inside_an_html_comment(self):
+		"""
+		The engine rewrites its delimiters across the whole file, comments
+		included, so a comment that quotes one compiles as code. Writing
+		this defect up inside the file is exactly how that happens: the
+		first draft of the comment above named the Jinja tag it was warning
+		about, and the render died on "macro is not defined".
+		"""
+		path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vat_declaration.html")
+		with open(path, encoding="utf-8") as handle:
+			comments = re.findall(r"<!--.*?-->", handle.read(), flags=re.DOTALL)
+
+		for comment in comments:
+			for delimiter in ("{%", "%}", "{{", "}}"):
+				self.assertNotIn(delimiter, comment)
+
+	def test_every_rubriek_the_report_returns_is_named_in_the_template(self):
+		"""
+		The contract that replaced the positional one. A rubriek added to
+		fetch_vat_data and forgotten in the print is a silently missing line
+		on a tax return.
+		"""
+		with patch(
+			"erpnext.accounts.report.vat_declaration.vat_declaration.classify_period_sales",
+			return_value=([], set(), 0.0),
+		), _only_purchase_query([]), patch("frappe.msgprint"):
+			rows = fetch_vat_data(_UNPOPULATED_WINDOW)
+
+		template = _print_template()
+		missing = [
+			row["rubric"]
+			for row in rows
+			if row["rubric"] and '"%s"' % row["rubric"] not in template
+		]
+
+		self.assertEqual(missing, [])
