@@ -127,18 +127,24 @@ def fetch_icp_data(filters):
             si.customer AS `Customer Code`,
             si.tax_id AS `VAT Identification Number`,
             UPPER(LEFT(REPLACE(REPLACE(REPLACE(si.tax_id, ' ', ''), '-', ''), '.', ''), 2)) AS `Country Code`,
-            SUM(
-                CASE 
-                    WHEN si.is_return = 1 THEN -sii.base_net_amount 
-                    ELSE sii.base_net_amount 
-                END
-            ) AS `Net Amount`,
-            SUM(
-                CASE 
-                    WHEN si.is_return = 1 THEN -sii.base_amount + sii.base_net_amount
-                    ELSE sii.base_amount - sii.base_net_amount
-                END
-            ) AS `Total VAT`,
+            -- VD.30. These sums used to negate a return's amounts, and that is a
+            -- sign applied twice. `make_return_doc` negates `qty`, so ERPNext
+            -- stores the credit note's item ALREADY negative: measured on the
+            -- local site, an invoice of 120,00 and the credit note that
+            -- reverses it store `base_net_amount` 120,00 and -120,00. Negating
+            -- the second turned it back into +120,00, so a fully credited
+            -- supply was filed as 240,00 of intra-community supplies instead
+            -- of leaving the listing.
+            --
+            -- It mattered beyond one row: rubriek `3b` nets correctly, so every
+            -- period holding a credit note made `VAT ICP Reconciliation`
+            -- report a difference its itemisation could not explain — and
+            -- credit notes are routine here, not an edge case (the deposit
+            -- system for gearboxes, mechatronics and shipping boxes).
+            --
+            -- The stored sign is the whole answer; nothing else is needed.
+            SUM(sii.base_net_amount) AS `Net Amount`,
+            SUM(sii.base_amount - sii.base_net_amount) AS `Total VAT`,
             CASE 
                 WHEN si.is_return = 1 THEN "Credit Note" 
                 ELSE "Invoice" 
@@ -173,12 +179,11 @@ def fetch_icp_data(filters):
             UPPER(LEFT(REPLACE(REPLACE(REPLACE(si.tax_id, ' ', ''), '-', ''), '.', ''), 2)),
             si.currency
         HAVING 
-            ABS(SUM(
-                CASE 
-                    WHEN si.is_return = 1 THEN -sii.base_net_amount 
-                    ELSE sii.base_net_amount 
-                END
-            )) >= 1  -- Only include transactions >= €1
+            -- VD.30. Same correction as `Net Amount` above, and it has to move
+            -- with it: a month whose supplies are fully credited now nets to
+            -- zero and is dropped here, which is the right filing — there is
+            -- nothing to declare — rather than a row of twice the credit.
+            ABS(SUM(sii.base_net_amount)) >= 1  -- Only include transactions >= €1
         ORDER BY     
             `Period`, `Country Code`, si.tax_id, si.customer_name
     """
