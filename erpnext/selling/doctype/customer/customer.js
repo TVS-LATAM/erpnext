@@ -452,6 +452,7 @@ erpnext.customer_phone_lock = {
 		const field = frm.get_field(this.fieldname);
 		if (!field) return;
 		field.$wrapper.find(".phone-lock-actions").remove();
+		field.$wrapper.find(".control-input-wrapper").removeClass("phone-lock-inline");
 
 		if (frm.is_new()) {
 			frm.set_df_property(this.fieldname, "read_only", 0);
@@ -465,7 +466,10 @@ erpnext.customer_phone_lock = {
 		frm.set_df_property(this.fieldname, "read_only", state.editing ? 0 : 1);
 		if (!can_write) return;
 
-		const $actions = $(`<div class="phone-lock-actions" style="margin-top: var(--margin-xs, 4px); display: flex; gap: 6px;"></div>`);
+		// Edit, or Save and Cancel, sit on the same row as the input, to its right.
+		this.add_styles();
+		const $row = field.$wrapper.find(".control-input-wrapper").addClass("phone-lock-inline");
+		const $actions = $(`<div class="phone-lock-actions"></div>`);
 		if (state.editing) {
 			$(`<button class="btn btn-xs btn-primary">${__("Save")}</button>`)
 				.on("click", () => this.save(frm))
@@ -478,7 +482,19 @@ erpnext.customer_phone_lock = {
 				.on("click", () => this.edit(frm))
 				.appendTo($actions);
 		}
-		field.$wrapper.append($actions);
+		$actions.insertAfter($row.find(".control-value"));
+	},
+
+	add_styles() {
+		if (document.getElementById("phone-lock-styles")) return;
+		$(`<style id="phone-lock-styles">
+			.phone-lock-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+			.phone-lock-inline > .control-input,
+			.phone-lock-inline > .control-value { flex: 1 1 0; min-width: 0; }
+			.phone-lock-inline > .phone-lock-actions { display: flex; gap: 6px; flex: none; }
+			.phone-lock-inline > .help-box { flex-basis: 100%; }
+			.phone-lock-inline > .help-box:empty { display: none; }
+		</style>`).appendTo("head");
 	},
 
 	edit(frm) {
