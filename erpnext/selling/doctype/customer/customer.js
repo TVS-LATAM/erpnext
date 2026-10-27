@@ -443,7 +443,7 @@ erpnext.customer_phone_lock = {
 
 	state(frm) {
 		if (!frm.__phone_lock || frm.__phone_lock.docname !== frm.doc.name) {
-			frm.__phone_lock = { docname: frm.doc.name, editing: false, original: null, was_dirty: false };
+			frm.__phone_lock = { docname: frm.doc.name, editing: false, original: null };
 		}
 		return frm.__phone_lock;
 	},
@@ -501,7 +501,6 @@ erpnext.customer_phone_lock = {
 		const state = this.state(frm);
 		state.editing = true;
 		state.original = frm.doc[this.fieldname];
-		state.was_dirty = frm.is_dirty();
 		this.refresh(frm);
 		const field = frm.get_field(this.fieldname);
 		field.$input && field.$input.focus();
@@ -511,10 +510,8 @@ erpnext.customer_phone_lock = {
 		const state = this.state(frm);
 		frm.doc[this.fieldname] = state.original;
 		state.editing = false;
-		if (!state.was_dirty) {
-			frm.doc.__unsaved = 0;
-			frm.refresh_header();
-		}
+		// The dirty state is left alone: other fields may have been edited since
+		// Edit was clicked, and clearing it would hide those unsaved changes.
 		frm.refresh_field(this.fieldname);
 		this.refresh(frm);
 	},
