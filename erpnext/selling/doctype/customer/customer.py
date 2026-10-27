@@ -19,6 +19,10 @@ from frappe.utils.deprecations import deprecated
 from frappe.utils.user import get_users_with_role
 
 from erpnext.accounts.party import get_dashboard_info, validate_party_accounts
+from erpnext.selling.doctype.customer.customer_phone_sync import (
+	propagate_phone_change,
+	validate_phone_change,
+)
 from erpnext.controllers.website_list_for_contact import add_role_for_portal_user
 from erpnext.utilities.transaction_base import TransactionBase
 
@@ -150,6 +154,7 @@ class Customer(TransactionBase):
 		self.validate_internal_customer()
 		self.add_role_for_user()
 		self.validate_currency_for_receivable_payable_and_advance_account()
+		validate_phone_change(self)
 
 		# set loyalty program tier
 		if frappe.db.exists("Customer", self.name):
@@ -238,6 +243,7 @@ class Customer(TransactionBase):
 			self.copy_communication()
 
 		self.update_customer_groups()
+		propagate_phone_change(self)
 
 	def add_role_for_user(self):
 		for portal_user in self.portal_users:

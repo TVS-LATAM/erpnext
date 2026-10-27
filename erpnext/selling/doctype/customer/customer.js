@@ -428,3 +428,130 @@ frappe.ui.form.on("Customer", {
 		dialog.show();
 	}
 });
+
+/**
+ * Phone number lock.
+ *
+ * On a saved Customer the phone number is read-only until Edit is clicked.
+ * Save runs the normal form save: the server validates the number and pushes
+ * it to the linked Contacts and Projects in the same transaction (see
+ * customer_phone_sync.py). A failed save keeps the field in edit mode so the
+ * user can retry. Cancel restores the original value and locks the field.
+ */
+erpnext.customer_phone_lock = {
+	fieldname: "phone_number",
+
+	state(frm) {
+		if (!frm.__phone_lock || frm.__phone_lock.docname !== frm.doc.name) {
+			frm.__phone_lock = { docname: frm.doc.name, editing: false, original: null, was_dirty: false };
+		}
+		return frm.__phone_lock;
+	},
+
+	refresh(frm) {
+		const field = frm.get_field(this.fieldname);
+		if (!field) return;
+		field.$wrapper.find(".phone-lock-actions").remove();
+
+		if (frm.is_new()) {
+			frm.set_df_property(this.fieldname, "read_only", 0);
+			return;
+		}
+
+		const state = this.state(frm);
+		const can_write = frm.perm && frm.perm[0] && frm.perm[0].write;
+		if (!can_write) state.editing = false;
+
+		frm.set_df_property(this.fieldname, "read_only", state.editing ? 0 : 1);
+		if (!can_write) return;
+
+		const $actions = $(`<div class="phone-lock-actions" style="margin-top: var(--margin-xs, 4px); display: flex; gap: 6px;"></div>`);
+		if (state.editing) {
+			$(`<button class="btn btn-xs btn-primary">${__("Save")}</button>`)
+				.on("click", () => this.save(frm))
+				.appendTo($actions);
+			$(`<button class="btn btn-xs btn-default">${__("Cancel")}</button>`)
+				.on("click", () => this.cancel(frm))
+				.appendTo($actions);
+		} else {
+			$(`<button class="btn btn-xs btn-default">${__("Edit")}</button>`)
+				.on("click", () => this.edit(frm))
+				.appendTo($actions);
+		}
+		field.$wrapper.append($actions);
+	},
+
+	edit(frm) {
+		const state = this.state(frm);
+		state.editing = true;
+		state.original = frm.doc[this.fieldname];
+		state.was_dirty = frm.is_dirty();
+		this.refresh(frm);
+		const field = frm.get_field(this.fieldname);
+		field.$input && field.$input.focus();
+	},
+
+	cancel(frm) {
+		const state = this.state(frm);
+		frm.doc[this.fieldname] = state.original;
+		state.editing = false;
+		if (!state.was_dirty) {
+			frm.doc.__unsaved = 0;
+			frm.refresh_header();
+		}
+		frm.refresh_field(this.fieldname);
+		this.refresh(frm);
+	},
+
+	digits(value) {
+		return String(value || "").replace(/\D/g, "");
+	},
+
+	save(frm) {
+		const state = this.state(frm);
+		const value = String(frm.doc[this.fieldname] || "").trim();
+
+		if (!value || !this.digits(value)) {
+			frappe.msgprint({ title: __("Invalid Phone Number"), indicator: "red", message: __("Phone number is required.") });
+			return;
+		}
+		if (this.digits(value) === this.digits(state.original)) {
+			frappe.msgprint({
+				title: __("Phone Number Unchanged"),
+				indicator: "orange",
+				message: __("The new phone number is the same as the current one."),
+			});
+			return;
+		}
+
+		// Success is handled in after_save; on failure the field stays editable.
+		state.saving = true;
+		frm.save(null, null, null, () => {
+			state.saving = false;
+		});
+	},
+
+	after_save(frm) {
+		const state = this.state(frm);
+		if (!state.editing) return;
+		const changed = this.digits(frm.doc[this.fieldname]) !== this.digits(state.original);
+		state.editing = false;
+		state.saving = false;
+		this.refresh(frm);
+		if (changed) {
+			frappe.show_alert({
+				message: __("Phone number updated on the customer, its contacts and its projects."),
+				indicator: "green",
+			});
+		}
+	},
+};
+
+frappe.ui.form.on("Customer", {
+	refresh(frm) {
+		erpnext.customer_phone_lock.refresh(frm);
+	},
+	after_save(frm) {
+		erpnext.customer_phone_lock.after_save(frm);
+	},
+});
