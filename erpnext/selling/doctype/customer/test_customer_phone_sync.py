@@ -87,6 +87,9 @@ class TestCustomerPhoneSync(FrappeTestCase):
 
 		self.assertEqual(frappe.db.get_value("Customer", customer.name, "phone_number"), "31600000002")
 		self.assertEqual(frappe.db.get_value("Customer", customer.name, "mobile_no"), "31600000002")
+		self.assertEqual(
+			frappe.db.get_value("Customer", customer.name, "previous_phone_number"), "31600000001"
+		)
 		contact = frappe.get_doc("Contact", customer.customer_primary_contact)
 		self.assertEqual(contact.mobile_no, "31600000002")
 		self.assertEqual([r.phone for r in contact.phone_nos], ["31600000002"])

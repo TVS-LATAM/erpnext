@@ -74,6 +74,9 @@ def validate_phone_change(doc):
 		)
 
 	doc.phone_number = new
+	# Rides along in the customer webhook so the cloud side can re-key the data
+	# it stores under the old number. Hidden custom field, see the v15_0 patch.
+	doc.previous_phone_number = old
 	doc.flags.phone_number_changed = (old, new)
 
 
