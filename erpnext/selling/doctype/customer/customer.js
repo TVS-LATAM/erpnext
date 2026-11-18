@@ -428,3 +428,143 @@ frappe.ui.form.on("Customer", {
 		dialog.show();
 	}
 });
+
+/**
+ * Phone number lock.
+ *
+ * On a saved Customer the phone number is read-only until Edit is clicked.
+ * Save runs the normal form save: the server validates the number and pushes
+ * it to the linked Contacts and Projects in the same transaction (see
+ * customer_phone_sync.py). A failed save keeps the field in edit mode so the
+ * user can retry. Cancel restores the original value and locks the field.
+ */
+erpnext.customer_phone_lock = {
+	fieldname: "phone_number",
+
+	state(frm) {
+		if (!frm.__phone_lock || frm.__phone_lock.docname !== frm.doc.name) {
+			frm.__phone_lock = { docname: frm.doc.name, editing: false, original: null };
+		}
+		return frm.__phone_lock;
+	},
+
+	refresh(frm) {
+		const field = frm.get_field(this.fieldname);
+		if (!field) return;
+		field.$wrapper.find(".phone-lock-actions").remove();
+		field.$wrapper.find(".control-input-wrapper").removeClass("phone-lock-inline");
+
+		if (frm.is_new()) {
+			frm.set_df_property(this.fieldname, "read_only", 0);
+			return;
+		}
+
+		const state = this.state(frm);
+		const can_write = frm.perm && frm.perm[0] && frm.perm[0].write;
+		if (!can_write) state.editing = false;
+
+		frm.set_df_property(this.fieldname, "read_only", state.editing ? 0 : 1);
+		if (!can_write) return;
+
+		// Edit, or Save and Cancel, sit on the same row as the input, to its right.
+		this.add_styles();
+		const $row = field.$wrapper.find(".control-input-wrapper").addClass("phone-lock-inline");
+		const $actions = $(`<div class="phone-lock-actions"></div>`);
+		if (state.editing) {
+			$(`<button class="btn btn-xs btn-primary">${__("Save")}</button>`)
+				.on("click", () => this.save(frm))
+				.appendTo($actions);
+			$(`<button class="btn btn-xs btn-default">${__("Cancel")}</button>`)
+				.on("click", () => this.cancel(frm))
+				.appendTo($actions);
+		} else {
+			$(`<button class="btn btn-xs btn-default">${__("Edit")}</button>`)
+				.on("click", () => this.edit(frm))
+				.appendTo($actions);
+		}
+		$actions.insertAfter($row.find(".control-value"));
+	},
+
+	add_styles() {
+		if (document.getElementById("phone-lock-styles")) return;
+		$(`<style id="phone-lock-styles">
+			.phone-lock-inline { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+			.phone-lock-inline > .control-input,
+			.phone-lock-inline > .control-value { flex: 1 1 0; min-width: 0; }
+			.phone-lock-inline > .phone-lock-actions { display: flex; gap: 6px; flex: none; }
+			.phone-lock-inline > .help-box { flex-basis: 100%; }
+			.phone-lock-inline > .help-box:empty { display: none; }
+		</style>`).appendTo("head");
+	},
+
+	edit(frm) {
+		const state = this.state(frm);
+		state.editing = true;
+		state.original = frm.doc[this.fieldname];
+		this.refresh(frm);
+		const field = frm.get_field(this.fieldname);
+		field.$input && field.$input.focus();
+	},
+
+	cancel(frm) {
+		const state = this.state(frm);
+		frm.doc[this.fieldname] = state.original;
+		state.editing = false;
+		// The dirty state is left alone: other fields may have been edited since
+		// Edit was clicked, and clearing it would hide those unsaved changes.
+		frm.refresh_field(this.fieldname);
+		this.refresh(frm);
+	},
+
+	digits(value) {
+		return String(value || "").replace(/\D/g, "");
+	},
+
+	save(frm) {
+		const state = this.state(frm);
+		const value = String(frm.doc[this.fieldname] || "").trim();
+
+		if (!value || !this.digits(value)) {
+			frappe.msgprint({ title: __("Invalid Phone Number"), indicator: "red", message: __("Phone number is required.") });
+			return;
+		}
+		if (this.digits(value) === this.digits(state.original)) {
+			frappe.msgprint({
+				title: __("Phone Number Unchanged"),
+				indicator: "orange",
+				message: __("The new phone number is the same as the current one."),
+			});
+			return;
+		}
+
+		// Success is handled in after_save; on failure the field stays editable.
+		state.saving = true;
+		frm.save(null, null, null, () => {
+			state.saving = false;
+		});
+	},
+
+	after_save(frm) {
+		const state = this.state(frm);
+		if (!state.editing) return;
+		const changed = this.digits(frm.doc[this.fieldname]) !== this.digits(state.original);
+		state.editing = false;
+		state.saving = false;
+		this.refresh(frm);
+		if (changed) {
+			frappe.show_alert({
+				message: __("Phone number updated on the customer, its contacts and its projects."),
+				indicator: "green",
+			});
+		}
+	},
+};
+
+frappe.ui.form.on("Customer", {
+	refresh(frm) {
+		erpnext.customer_phone_lock.refresh(frm);
+	},
+	after_save(frm) {
+		erpnext.customer_phone_lock.after_save(frm);
+	},
+});
