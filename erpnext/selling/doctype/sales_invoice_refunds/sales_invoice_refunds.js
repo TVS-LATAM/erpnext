@@ -3,40 +3,31 @@
 
 frappe.ui.form.on("Sales Invoice Refunds", {
 	refresh(frm) {
-		// Add "Cancel Refunds" button
-		frm.add_custom_button(__('Cancel Refunds'), function() {
-			// Show a confirmation dialog before proceeding
-			frappe.confirm(
-				__('Are you sure you want to cancel this refund?'),
-				async function() {
-					// User confirmed, proceed with the API call
-					frappe.show_alert({
-						message: __('Processing refund cancellation...'),
-						indicator: 'orange'
-					});
-          const { aws_url } = await frappe.db.get_doc('Queue Settings')
-          await fetch(`${aws_url}/refund/revolut-payment-link-cancel`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: frm.doc.name,
-              reference: frm.doc.reference,
-              id: frm.doc.trx_id
-            })
-          }).then(res => res.json()).then(data => {
-            frappe.show_alert({
-              message: __('Refund cancelled successfully'),
-              indicator: 'green'
-            });
-            frm.reload_doc();
-          })
-				},
-				function() {
-					// User cancelled, do nothing
-				}
-			);
-		}, __('Actions'));
+		if (frm.is_new() || frm.doc.state === "cancelled") return;
+
+		// The cancellation runs on the server, which checks the user's permission and signs the
+		// request to AWS. The browser never calls AWS directly.
+		frm.add_custom_button(
+			__("Cancel Refunds"),
+			function () {
+				frappe.confirm(__("Are you sure you want to cancel this refund?"), function () {
+					frappe
+						.call({
+							method: "erpnext.selling.doctype.sales_invoice_refunds.sales_invoice_refunds.cancel_revolut_payment_link",
+							args: { name: frm.doc.name },
+							freeze: true,
+							freeze_message: __("Processing refund cancellation..."),
+						})
+						.then(() => {
+							frappe.show_alert({
+								message: __("Refund cancelled successfully"),
+								indicator: "green",
+							});
+							frm.reload_doc();
+						});
+				});
+			},
+			__("Actions")
+		);
 	},
 });
