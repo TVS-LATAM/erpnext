@@ -65,14 +65,15 @@ def cancel_revolut_payment_link(name: str):
 	doc.check_permission("write")
 	if doc.state == "cancelled":
 		frappe.throw(_("This refund is already cancelled."))
-	if not doc.reference:
-		frappe.throw(_("This refund has no reference invoice."))
+	if not doc.reference or not doc.trx_id:
+		frappe.throw(_("This refund has no reference invoice or Revolut link id."))
 
 	aws_url = (frappe.db.get_single_value("Queue Settings", "aws_url") or "").rstrip("/")
 	if not aws_url:
 		frappe.throw(_("Queue Settings has no AWS URL."))
 
-	body = json.dumps({"name": doc.name, "reference": doc.reference}).encode("utf8")
+	# trx_id ties the request to this document's own links: one invoice can have several refunds.
+	body = json.dumps({"name": doc.name, "reference": doc.reference, "trx_id": doc.trx_id}).encode("utf8")
 	response = requests.post(
 		f"{aws_url}{CANCEL_ROUTE}",
 		data=body,
