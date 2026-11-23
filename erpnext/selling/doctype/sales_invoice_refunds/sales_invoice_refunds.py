@@ -63,6 +63,24 @@ def cancel_revolut_payment_link(name: str):
 	"""Cancels the Revolut payout links of a refund. Runs with the caller's session and permissions."""
 	doc = frappe.get_doc("Sales Invoice Refunds", name)
 	doc.check_permission("write")
+
+	# A double click, or two users at once, must not cancel twice: the second request waits for
+	# nothing and is refused while the first one holds the document lock.
+	try:
+		doc.lock()
+	except frappe.DocumentLockedError:
+		frappe.throw(_("This refund is already being cancelled. Please wait a moment and reload."))
+
+	try:
+		doc.reload()
+		_request_cancellation(doc)
+	finally:
+		doc.unlock()
+
+	return {"cancelled": True}
+
+
+def _request_cancellation(doc: Document):
 	if doc.state == "cancelled":
 		frappe.throw(_("This refund is already cancelled."))
 	if not doc.reference or not doc.trx_id:
@@ -83,11 +101,11 @@ def cancel_revolut_payment_link(name: str):
 		},
 		timeout=REQUEST_TIMEOUT_SECONDS,
 	)
+	if response.status_code == 409:
+		frappe.throw(_("This refund is already being cancelled. Please wait a moment and reload."))
 	if not response.ok:
 		frappe.log_error(
 			title="Revolut refund cancellation failed",
 			message=f"{doc.name} ({doc.reference}): HTTP {response.status_code} {response.text[:500]}",
 		)
 		frappe.throw(_("The refund could not be cancelled (HTTP {0}).").format(response.status_code))
-
-	return {"cancelled": True}

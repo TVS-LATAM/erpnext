@@ -10,21 +10,27 @@ frappe.ui.form.on("Sales Invoice Refunds", {
 		frm.add_custom_button(
 			__("Cancel Refunds"),
 			function () {
+				// Ignore further clicks while a cancellation is in flight (double click, double confirm).
+				if (frm.__cancelling_refund) return;
 				frappe.confirm(__("Are you sure you want to cancel this refund?"), function () {
-					frappe
-						.call({
-							method: "erpnext.selling.doctype.sales_invoice_refunds.sales_invoice_refunds.cancel_revolut_payment_link",
-							args: { name: frm.doc.name },
-							freeze: true,
-							freeze_message: __("Processing refund cancellation..."),
-						})
-						.then(() => {
+					if (frm.__cancelling_refund) return;
+					frm.__cancelling_refund = true;
+					frappe.call({
+						method: "erpnext.selling.doctype.sales_invoice_refunds.sales_invoice_refunds.cancel_revolut_payment_link",
+						args: { name: frm.doc.name },
+						freeze: true,
+						freeze_message: __("Processing refund cancellation..."),
+						callback: () => {
 							frappe.show_alert({
 								message: __("Refund cancelled successfully"),
 								indicator: "green",
 							});
 							frm.reload_doc();
-						});
+						},
+						always: () => {
+							frm.__cancelling_refund = false;
+						},
+					});
 				});
 			},
 			__("Actions")
