@@ -55,7 +55,9 @@ def get_refund_webhook_secret() -> str:
 		secret = frappe.get_doc("Webhook", name).get_password("webhook_secret", raise_exception=False)
 		if secret:
 			return secret
-	frappe.throw(_("No signed webhook for {0} was found, so the request cannot be signed.").format(CREATE_ROUTE_SUFFIX))
+	frappe.throw(
+		_("No signed webhook for {0} was found, so the request cannot be signed.").format(CREATE_ROUTE_SUFFIX)
+	)
 
 
 @frappe.whitelist(methods=["POST"])
